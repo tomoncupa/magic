@@ -1143,8 +1143,10 @@ var TRIG_WHEN = [
   { k:'draw',    phase:2, re:/At the beginning of (your )?draw step/i,      label:'Draw step' },
   { k:'combat',  phase:4, re:/At the beginning of combat/i,                 label:'Combat' },
   { k:'end',     phase:6, re:/At the beginning of (your |the )?end step/i,   label:'End step' },
-  { k:'attack',  phase:4, re:/Whenever (this creature|[A-Z][^,]{0,28}) attacks/,label:'When it attacks' },
-  { k:'enters',  phase:-1, re:/^When(ever)? (this|[A-Z][^,]{0,28}) enters/,  label:'When it arrives' }
+  // Wide enough for "Whenever one or more Goblins you control attack" and for
+  // "When this creature enters", which are the two ways it is usually written.
+  { k:'attack',  phase:4, re:/^When(ever)? [^,]{0,46}attacks?\b/i, label:'When it attacks' },
+  { k:'enters',  phase:-1, re:/^When(ever)? [^,]{0,42}enters\b/i,  label:'When it arrives' }
 ];
 function turnTriggers(only){
   var out = [];
@@ -2209,7 +2211,7 @@ function enterNote(iid){
   var hit = null;
   String(d.o).split('\n').forEach(function(line){
     var l = line.trim();
-    if(!hit && /^When(ever)? (this|[A-Z][^,]{0,28}) enters/.test(l)) hit = l;
+    if(!hit && /^When(ever)? [^,]{0,42}enters\b/i.test(l)) hit = l;
   });
   if(!hit) return;
   setTimeout(function(){
