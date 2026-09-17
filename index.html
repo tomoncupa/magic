@@ -355,6 +355,7 @@ button.val:hover{color:var(--brass)}
 .cw.ghost{position:fixed;z-index:90;pointer-events:none;opacity:.92;margin:0;
   filter:drop-shadow(0 14px 26px rgba(0,0,0,.65))}
 .cw.lifted .card{opacity:.35}
+.cw.sel .card{box-shadow:0 0 0 3px var(--brass),0 6px 20px rgba(0,0,0,.6)}
 .dropping{outline:2px dashed var(--brass);outline-offset:3px}
 .seatmark.dropping{background:#2a2415;border-color:var(--brass)}
 .card{
@@ -807,6 +808,9 @@ function zoneOf(iid){
 }
 function move(iid, to, toTop){
   var from = zoneOf(iid);
+  // The two moments the rest of the board is watching for.
+  if(to === 'bf' && from !== 'bf') setTimeout(function(){ fireWatch('enters', iid); }, 0);
+  if(from === 'bf' && to !== 'bf') setTimeout(function(){ fireWatch('dies', iid); }, 0);
   // What was attached to it falls off, and if it was itself attached to
   // something, it stops being.
   if(to !== 'bf'){
@@ -1188,6 +1192,88 @@ function phaseTriggers(){
   openTurnList(list, PHASES[state.phase]);
 }
 
+// Triggers with no phase to sit in. They wait for something to HAPPEN, and
+// every one of those things happens through the app: you cast, something dies,
+// something arrives, a counter goes on, a land taps, a player takes damage.
+// So the app can put the card in front of you at the moment it matters.
+var WATCH = [
+  { k:'cast',     label:'You cast a spell',
+    re:/^When(ever)? (you cast|a player casts)\b/i },
+  { k:'dies',     label:'Something left the battlefield',
+    re:/^When(ever)? .{0,54}?(dies|is put into a graveyard from the battlefield|leaves the battlefield)/i },
+  { k:'enters',   label:'Something arrived',
+    re:/^When(ever)? .{0,58}?enters\b/i },
+  { k:'counter',  label:'Counters went on',
+    re:/^When(ever)? (one or more|you put one or more)\b/i },
+  { k:'hit',      label:'A player took damage',
+    re:/^When(ever)? .{0,54}?deals (combat )?damage to (a|an) (player|opponent)/i },
+  { k:'tapland',  label:'You tapped a land for mana',
+    re:/^When(ever)? you tap a\b/i },
+  { k:'activate', label:'You used an ability',
+    re:/^When(ever)? (you activate an ability|an ability of)\b/i }
+];
+
+// Does this trigger line talk about the card it is printed on?
+function namesItself(line, d){
+  var head = String(line).split(/,| you control/)[0];
+  if(/\bthis\b/i.test(head)) return true;
+  var first = String((d && d.n) || '').split(/[ ,]/)[0];
+  return !!first && new RegExp('\\b' + first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(head);
+}
+
+// Who on your board is watching for that, other than the thing it happened to.
+function watchersFor(kind, notIid){
+  var w = null;
+  WATCH.forEach(function(x){ if(x.k === kind) w = x; });
+  if(!w) return [];
+  var out = [];
+  state.z.bf.forEach(function(iid){
+    var c = state.cards[iid];
+    if(!c || c.fd) return;
+    var d = defOf(c);
+    if(!d || !d.o) return;
+    String(d.o).split('\n').forEach(function(line){
+      var l = line.trim();
+      if(!w.re.test(l)) return;
+      // When the thing happened TO this card, only a trigger that names itself
+      // counts. "Whenever another Goblin dies" is not about itself, but
+      // "Whenever Pashalik Mons or another Goblin dies" is, and so is "this".
+      if(iid === notIid && !namesItself(l, d)) return;
+      out.push({ iid:iid, d:d, when:w, line:l });
+    });
+  });
+  return out;
+}
+
+// Several things can happen in one go, so they are collected and asked once.
+var watchQueue = {}, watchTimer = null;
+function fireWatch(kind, notIid){
+  if(!turnList) return;
+  if(!watchersFor(kind, notIid).length) return;
+  if(!watchQueue[kind]) watchQueue[kind] = { n:0, notIid:notIid };
+  watchQueue[kind].n++;
+  clearTimeout(watchTimer);
+  watchTimer = setTimeout(flushWatch, 110);
+}
+function flushWatch(){
+  var q = watchQueue;
+  watchQueue = {};
+  // Not over the top of something he already has open.
+  var layer = document.getElementById('layer');
+  if(layer && layer.firstChild) return;
+  var rows = [], labels = [];
+  Object.keys(q).forEach(function(k){
+    var list = watchersFor(k, q[k].notIid);
+    if(!list.length) return;
+    var w = null;
+    WATCH.forEach(function(x){ if(x.k === k) w = x; });
+    labels.push(w.label + (q[k].n > 1 ? ', ' + q[k].n + ' times' : ''));
+    list.forEach(function(r){ rows.push(r); });
+  });
+  if(!rows.length) return;
+  openTurnList(rows, labels.join('. '));
+}
+
 function openTurnList(list, label){
   list = list || turnTriggers();
   if(!list.length) return;
@@ -1262,6 +1348,7 @@ function tapCard(iid){
   if(c.tp && d && isLand(d) && d.pm && d.pm.length){
     // Light assist: one produced colour goes to the pool. Multi-colour lands
     // ask, because guessing wrong is worse than one extra tap.
+    if(isLand(d)) fireWatch('tapland', iid);
     var sc = scaledMana(d, iid);
     if(sc){
       for(var q = 0; q < sc.n; q++) addMana(sc.col, 1);
@@ -1568,6 +1655,7 @@ function castCard(iid){
   if(ent) logg(d.n + ' entered with ' + ent.n + ' +1/+1 (' + ent.why.join(', ') + ')');
   blip('act');
   enterNote(iid);
+  fireWatch('cast', iid);
   var cutNote = cost.cut ? ' (' + cost.cut.why.join(', ') + ')' : '';
   commit(plan.taps.length
     ? ('Tapped ' + plan.taps.length + ' for ' + d.n + ' and played it' + cutNote)
@@ -2142,6 +2230,7 @@ function addCounter(iid, kind, delta, raw){
   c.ctr[kind] = (c.ctr[kind] || 0) + applied;
   if(!c.ctr[kind]) delete c.ctr[kind];
   var d = defOf(c);
+  if(applied > 0) fireWatch('counter', iid);
   blip('tick');
   commit((applied >= 0 ? 'Put ' + applied : 'Removed ' + Math.abs(applied))
     + ' ' + counterLabel(kind) + (Math.abs(applied) === 1 ? ' counter' : ' counters')
@@ -2227,6 +2316,7 @@ function playCard(iid, opts){
   c.tp = tapped ? 1 : 0;
   startingLoyalty(c, d);
   if(d && isLand(d)){ seat().landDrop = (seat().landDrop||0) + 1; }
+  else if(d) fireWatch('cast', iid);
   var ent = applyEnterCounters(iid);
   blip('act');
   commit('Played '+(d?d.n:'a card') + (tapped?' (tapped)':'')
@@ -2247,6 +2337,7 @@ function makeToken(td, count, must){
     var e = applyEnterCounters(iid);
     if(e && !tokenNote) tokenNote = ' (each entered with ' + e.n + ' +1/+1)';
   }
+  if(count) fireWatch('enters', null);
   commit('Created '+count+'\u00d7 '+td.n+tokenNote);
 }
 function copyAsToken(iid){
@@ -2406,6 +2497,21 @@ function fitBands(){
       r.tray.style.setProperty('--cw', w + 'px');
       r.box.style.flex = Math.max(1, Math.round(tall(r, w) + r.head + r.padY)) + ' 1 0';
     });
+  }
+
+  // The arithmetic above works off widths that can still be settling. This is
+  // the truth: if anything actually spills, shrink it until it does not.
+  for(var fix = 0; fix < 10; fix++){
+    var spill = false;
+    rows.forEach(function(r){
+      if(!r.n) return;
+      if(r.tray.scrollHeight <= r.tray.clientHeight + 1) return;
+      spill = true;
+      var w = parseFloat(getComputedStyle(r.tray).getPropertyValue('--cw')) || 60;
+      w = Math.max(26, Math.round(w * 0.92));
+      r.tray.style.setProperty('--cw', w + 'px');
+    });
+    if(!spill) break;
   }
   return true;
 }
@@ -2727,6 +2833,7 @@ function abilitySection(parent, iid, d){
       }
       var note = d.n + ': ' + a.cost + ', ' + a.text.slice(0, 70);
       if(a.sac) move(iid, 'gy');
+      if(!a.mana || !/^\{T\}$/.test(a.cost)) fireWatch('activate', iid);
       blip('act');
       commit(note);
       closeLayer();
@@ -2874,7 +2981,7 @@ function cardNode(iid, opts){
     timer = setTimeout(function(){ longFired=true; onHold(); }, 430);
   });
   // Only cards on the table can be dragged. In hand they are on the phone.
-  if(opts.zone === 'bf'){
+  if(opts.zone === 'bf' && !opts.noDrag){
     cardDrag(btn, w, iid, opts, function(){ clearTimeout(timer); longFired = true; });
   }
   var cancel=function(){ clearTimeout(timer); };
@@ -3082,6 +3189,10 @@ function renderBoard(){
   field.appendChild(seatBar());
 
   var mb = band('Battlefield', others, 'Nothing on the battlefield yet, play a card from your hand.');
+  var wipe = el('button','btn sm ghost','Move several');
+  wipe.setAttribute('aria-label','Move several permanents at once, for a board wipe');
+  wipe.onclick = function(){ openBulk('bf'); };
+  mb.querySelector('.bandhead').appendChild(wipe);
   var lb = band('Lands', lands, 'No lands in play.');
   lb.className = 'band lands';
   // A starting guess only. fitBands measures the real thing a frame later and
@@ -3559,6 +3670,7 @@ function combatBar(){
     b.onclick = function(){
       sx.life = (sx.life == null ? 40 : sx.life) - d;
       clearAttacks();
+      fireWatch('hit', null);
       blip('turn');
       commit(sx.name + ' took ' + d);
     };
@@ -4937,7 +5049,8 @@ function openLibrarySheet(){
     ['Mill 1', function(){ mill(1); closeLayer(); }],
     ['Mill 3', function(){ mill(3); closeLayer(); }],
     ['Look at top 5', function(){ closeLayer(); openTopSheet(5); }],
-    ['Search library', function(){ closeLayer(); openBrowse('lib'); }]
+    ['Search library', function(){ closeLayer(); openBrowse('lib'); }],
+    ['Take several out', function(){ closeLayer(); openBulk('lib'); }]
   ]);
 }
 
@@ -4952,6 +5065,103 @@ function openTopSheet(n){
     ['Shuffle library', function(){ doShuffle(); closeLayer(); }],
     ['Bottom them all', function(){ ids.forEach(function(iid){ move(iid,'lib'); }); commit('Put '+ids.length+' on the bottom'); closeLayer(); }]
   ]);
+}
+
+// A board wipe takes 33 goblins, and Nissa's last ability takes every Forest
+// out of the library. Both are one gesture at a real table, so both are one
+// gesture here: pick many, send them all somewhere.
+function openBulk(z, preset){
+  var ids = state.z[z].slice();
+  var sh0 = sheet('Move several', (ZONES[z] || z) + ', ' + ids.length + ' card'
+    + (ids.length === 1 ? '' : 's') + '. Tap the ones you mean.');
+  sh0.classList.add('wide');
+  if(!ids.length){
+    sh0.appendChild(el('p','note','Nothing here.'));
+    return;
+  }
+  var picked = {};
+  var list = el('div','cardlist');
+  var foot = el('div');
+
+  var quick = el('div','chips');
+  quick.style.margin = '0 0 var(--s3)';
+  [['Everything', function(d){ return true; }],
+   ['Creatures', function(d){ return /Creature/.test(d.t || ''); }],
+   ['Lands', function(d){ return isLand(d); }],
+   ['Tokens', function(d, c){ return !!c.tok; }],
+   ['None', null]].forEach(function(q){
+    var b = el('button','chip', q[0]);
+    b.onclick = function(){
+      picked = {};
+      if(q[1]) ids.forEach(function(i){
+        var c = state.cards[i], d = defOf(c);
+        if(c && d && q[1](d, c)) picked[i] = 1;
+      });
+      paint();
+    };
+    quick.appendChild(b);
+  });
+  sh0.appendChild(quick);
+  sh0.appendChild(list);
+  sh0.appendChild(foot);
+
+  function paint(){
+    list.innerHTML = '';
+    var shown = 0;
+    groupIds(ids).forEach(function(g){
+      if(shown++ > 160) return;
+      var node = cardNode(g[0], { zone:z, ids:g, noDrag:true,
+        onTap: function(){
+          var on = !picked[g[0]];
+          g.forEach(function(i){ if(on) picked[i] = 1; else delete picked[i]; });
+          paint();
+        },
+        onHold: function(){} });
+      if(picked[g[0]]) node.classList.add('sel');
+      if(g.length > 1) node.appendChild(el('span','pilecount', '\u00d7' + g.length));
+      list.appendChild(node);
+    });
+    paintFoot();
+  }
+
+  function paintFoot(){
+    foot.innerHTML = '';
+    var n = Object.keys(picked).length;
+    foot.appendChild(el('div','divider'));
+    if(!n){
+      foot.appendChild(el('p','note','Nothing picked yet.'));
+      return;
+    }
+    var moves = [];
+    ['gy','ex','hand','bf','cmd'].forEach(function(t){
+      if(t === z) return;
+      moves.push([ZONES[t] + ', all ' + n, function(){ send(t, false); }, t === 'gy']);
+    });
+    if(z !== 'bf') moves.push(['Battlefield tapped, all ' + n, function(){ send('bf', true); }]);
+    moves.push(['Library bottom, all ' + n, function(){ send('lib', false); }]);
+    actionGrid(foot, moves);
+  }
+
+  function send(to, tapped){
+    var chosen = Object.keys(picked);
+    if(!chosen.length) return;
+    var names = {};
+    chosen.forEach(function(i){
+      var d = defOf(state.cards[i]);
+      if(d) names[d.n] = (names[d.n] || 0) + 1;
+    });
+    chosen.forEach(function(i){
+      move(i, to);
+      var c = state.cards[i];
+      if(c && to === 'bf') c.tp = tapped ? 1 : 0;
+    });
+    var what = Object.keys(names).map(function(k){ return names[k] + ' ' + k; }).join(', ');
+    blip('act');
+    commit(chosen.length + ' to ' + (ZONES[to] || to) + (tapped ? ' tapped' : '') + ': ' + what.slice(0, 90));
+    closeLayer();
+  }
+
+  paint();
 }
 
 function openBrowse(z){
