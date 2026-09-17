@@ -1,3 +1,13 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Kitchen Table">
+<meta name="theme-color" content="#131b17">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <title>Kitchen Table Magic</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -10,6 +20,16 @@
   --brass:#d4a94b; --brass-dim:#8a6f2e;
   --danger:#d9534a; --good:#5aab6b; --warn:#d99a3a;
   --mW:#f4ecd6; --mU:#4a8fd6; --mB:#6b5878; --mR:#d4543c; --mG:#4a9d5c; --mC:#a9b4b0;
+  /* One spacing scale and one type scale. No step is within 25% of another,
+     so there is never a choice between 13 and 14. */
+  --s1:4px; --s2:6px; --s3:8px; --s4:12px; --s5:16px; --s6:22px; --s7:30px;
+  --t1:11px; --t2:13px; --t3:15px; --t4:19px; --t5:25px; --t6:34px;
+  --tap:44px;                       /* smallest square a thumb catches */
+  --r-sm:6px; --r-md:10px; --r-lg:16px; --r-sheet:20px;
+  --safe-t:env(safe-area-inset-top,0px);
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --safe-l:env(safe-area-inset-left,0px);
+  --safe-r:env(safe-area-inset-right,0px);
   --disp:'Alegreya',Georgia,'Times New Roman',serif;
   --ui:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,sans-serif;
   --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
@@ -18,6 +38,13 @@
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;margin:0}
+html{-webkit-text-size-adjust:100%}
+img{max-width:100%}
+[hidden]{display:none!important}
+/* A press answers in the same frame, the way a real button does. */
+button{touch-action:manipulation}
+button:active{transform:scale(.97)}
+@media (hover:none){ button:hover{background:inherit} }
 body{
   background:var(--bg); color:var(--ink); font-family:var(--ui); font-size:14px;
   overflow:hidden; overscroll-behavior:none;
@@ -41,16 +68,23 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-top:2px}
 .spacer{flex:1 1 auto;min-width:0}
 .btn{
-  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
-  padding:7px 11px;border-radius:8px;background:var(--bg3);border:1px solid var(--line2);
-  font-size:12.5px;font-weight:500;color:var(--ink);transition:background .12s,border-color .12s;
+  display:inline-flex;align-items:center;justify-content:center;gap:var(--s2);
+  white-space:nowrap;position:relative;
+  padding:var(--s3) var(--s4);border-radius:var(--r-md);
+  background:var(--bg3);border:1px solid var(--line2);
+  font-size:var(--t2);font-weight:500;color:var(--ink);
+  min-height:var(--tap);transition:background .12s,border-color .12s;
 }
+/* The catchable area is larger than the ink where the ink must stay small. */
+.tap-sm{position:relative}
+.tap-sm::after{content:"";position:absolute;left:50%;top:50%;
+  width:var(--tap);height:var(--tap);transform:translate(-50%,-50%)}
 .btn:hover{background:var(--bg4)}
 .btn:active{transform:translateY(1px)}
 .btn.primary{background:linear-gradient(#e0b658,#c4992f);border-color:#8a6f2e;color:#20180a;font-weight:600}
 .btn.primary:hover{background:linear-gradient(#e8c268,#cea137)}
 .btn.ghost{background:transparent;border-color:var(--line)}
-.btn.sm{padding:5px 8px;font-size:11.5px}
+.btn.sm{padding:var(--s2) var(--s3);font-size:var(--t1);min-height:36px}
 .btn[disabled]{opacity:.4;pointer-events:none}
 .turnchip{
   display:flex;align-items:baseline;gap:7px;padding:5px 11px;border-radius:8px;
@@ -76,14 +110,26 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .band.main{flex:1 1 62%}
 .band.lands{flex:1 1 38%;border-bottom:0;background:linear-gradient(180deg,transparent,rgba(74,157,92,.045))}
 .bandhead{
-  display:flex;align-items:center;gap:8px;padding:5px 12px;flex:0 0 auto;
-  font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);
+  display:flex;align-items:center;gap:var(--s3);padding:var(--s2) var(--s4);flex:0 0 auto;
+  font-size:var(--t1);letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);
 }
+/* Whether the land for the turn is still to come, readable across the table. */
+.dropmark{display:inline-flex;align-items:center;gap:var(--s2);
+  padding:var(--s1) var(--s3);border-radius:var(--r-full,999px);
+  font-family:var(--mono);font-size:var(--t1);letter-spacing:0;
+  border:1px solid var(--line2);background:var(--bg2);color:var(--ink2)}
+.dropmark b{font-weight:600}
+.dropmark.open{border-color:var(--good);background:rgba(90,171,107,.16);color:#a8dcb4}
+.dropmark.used{border-color:var(--line);background:var(--bg2);color:var(--ink3)}
+.dropmark.over{border-color:var(--warn);background:rgba(217,154,58,.16);color:#e8c489}
+.dropdot{width:9px;height:9px;border-radius:50%;background:currentColor;flex:0 0 auto}
 .bandhead .rule{flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
 .bandhead b{font-family:var(--mono);color:var(--ink2);font-size:11px;letter-spacing:0}
 .tray{
-  flex:1 1 auto;overflow-y:auto;overflow-x:hidden;padding:2px 22px 12px;
-  display:flex;flex-wrap:wrap;align-content:flex-start;gap:10px 8px;
+  flex:1 1 auto;overflow-y:auto;overflow-x:hidden;
+  padding:var(--s1) var(--s6) var(--s4);
+  display:flex;flex-wrap:wrap;align-content:flex-start;
+  gap:var(--s4) var(--s3);
 }
 .tray.empty::after{
   content:attr(data-empty);color:var(--ink3);font-size:12px;font-style:italic;
@@ -279,19 +325,23 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .mini .msym s{position:absolute;right:-3px;bottom:-4px;font-family:var(--mono);font-size:9.5px;
   text-decoration:none;background:#0d1310;color:var(--brass);border-radius:6px;padding:0 3px;
   border:1px solid var(--line2);font-weight:600}
-/* Phone: cast on top, the magnified card in the middle, the hand along the bottom. */
-.castrow{flex:0 0 auto;display:grid;grid-template-columns:1fr auto;gap:7px;padding:9px 12px 3px}
-.castrow .btn{justify-content:center;padding:12px 10px;font-size:13.5px}
-.focuswrap{
-  flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;
-  padding:8px 16px;container-type:size;
+/* Phone: cast on top, then one smooth scroller. One thing scrolls at a time. */
+.castrow{flex:0 0 auto;display:grid;grid-template-columns:1fr auto;gap:var(--s2);
+  padding:var(--s3) var(--s4) var(--s1)}
+.handdeck{
+  flex:1 1 auto;min-height:0;display:flex;align-items:center;
+  gap:var(--s4);padding:var(--s3) 0;
+  overflow-x:auto;overflow-y:hidden;
+  scroll-snap-type:x mandatory;
+  -webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;
+  scrollbar-width:none;
 }
-.focuswrap .cw{--cw:min(80vw,42vh);max-width:100%}
-/* Container units make the card fill exactly the space the bars leave over. */
-@supports (width:1cqw){
-  .focuswrap .cw{--cw:min(86cqw, calc(100cqh * 63 / 88))}
-}
-.emptyhand{color:var(--ink3);font-style:italic;font-size:13px;text-align:center;padding:0 10px}
+.handdeck::-webkit-scrollbar{display:none}
+/* A half-card gutter each side so the first and last card still centre. */
+.handdeck::before,.handdeck::after{content:"";flex:0 0 calc(50% - var(--handw)/2 - var(--s4)/2)}
+.handdeck .cw{--cw:var(--handw);scroll-snap-align:center;scroll-snap-stop:always}
+.emptyhand{color:var(--ink3);font-style:italic;font-size:var(--t2);text-align:center;
+  padding:0 var(--s5);margin:auto}
 /* Phone tabs: your hand, or your own battlefield. */
 .ptabs{display:flex;gap:5px;padding:8px 12px 0;flex:0 0 auto}
 .ptabs button{
@@ -309,14 +359,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .pbgrid{display:flex;flex-wrap:wrap;gap:10px 8px;align-content:flex-start}
 .pbgrid .cw{--cw:76px}
 .pbhint{font-size:11px;color:var(--ink3);font-style:italic;padding:2px 0 8px}
-.handbar{
-  flex:0 0 auto;display:flex;gap:7px;overflow-x:auto;overflow-y:hidden;
-  padding:9px 12px;scroll-snap-type:x proximity;
-  border-top:1px solid var(--line);background:linear-gradient(#18221d,#121a16);
-}
-.handbar .cw{--cw:58px;scroll-snap-align:center;transition:transform .14s ease}
-.handbar .cw.focus{transform:translateY(-5px)}
-.handbar .cw.focus .card{box-shadow:0 0 0 2px var(--brass),0 5px 14px rgba(0,0,0,.6)}
+/* The hand deck sizes itself off whatever the bars leave over. */
+.handview{--handw:min(72vw, 40vh)}
 .handzones{flex:0 0 auto;display:flex;gap:6px;padding:0 12px 9px;overflow-x:auto}
 .handzones button{flex:1 0 auto;min-width:62px;padding:6px 8px;border-radius:8px;
   background:var(--bg2);border:1px solid var(--line);text-align:center}
@@ -398,7 +442,7 @@ input:focus,textarea:focus,select:focus{border-color:var(--brass-dim);outline:no
 "use strict";
 
 /* ========================================================================
-   Kitchen Table Magic \u2014 a two-device Magic playmat.
+   Kitchen Table Magic, a two-device Magic playmat.
    iPad = the board. iPhone = your hand. State syncs through the artifact db.
    No rules enforcement: the app tracks zones and offers assists, never
    blocks a play.
@@ -420,6 +464,9 @@ var mode = lsGet('ktm.mode', window.innerWidth < 820 ? 'hand' : 'board');
 var revealHand = lsGet('ktm.reveal','0') === '1';
 var focusIid = null;   // which hand card is magnified on the phone
 var phoneTab = lsGet('ktm.ptab','hand');   // 'hand' | 'board'
+// Life counters are hidden for now, not removed. Flip this back to true and
+// the life box and the opponents panel return exactly as they were.
+var showLife = lsGet('ktm.life','0') === '1';
 
 // Two app users at one physical table must not share a game, so every game
 // lives under its own table code.
@@ -520,7 +567,7 @@ function move(iid, to, toTop){
   var from = zoneOf(iid);
   if(from){ var a = state.z[from]; a.splice(a.indexOf(iid),1); }
   var c = state.cards[iid];
-  if(to === 'lib' || to === 'hand'){ if(c){ c.tp=0; c.ctr={}; c.fd=0; } }
+  if(to === 'lib' || to === 'hand'){ if(c){ c.tp=0; c.ctr={}; c.fd=0; delete c.gave; } }
   if(to === 'gy' || to === 'ex'){
     if(c && c.tok){ delete state.cards[iid]; return; }   // tokens cease to exist
     if(c){ c.tp=0; c.ctr={}; c.fd=0; }
@@ -540,8 +587,8 @@ function setDot(m){
   syncMode = m;
   var d = document.getElementById('dot');
   d.className = 'syncdot' + (m==='live'?' live':(m==='local'?' local':''));
-  d.title = m==='live' ? 'Synced \u2014 open this same link on your other device'
-          : m==='local' ? 'Local only \u2014 this device is not syncing' : 'Connecting\u2026';
+  d.title = m==='live' ? 'Synced, open this same link on your other device'
+          : m==='local' ? 'Local only, this device is not syncing' : 'Connecting\u2026';
 }
 
 function touch(){ state.rev = (state.rev||0) + 1; state.by = DEVICE; }
@@ -714,7 +761,11 @@ function doShuffle(){ state.z.lib = shuffle(state.z.lib); commit('Shuffled libra
 
 function untapAll(){
   var n=0;
-  state.z.bf.forEach(function(iid){ var c=state.cards[iid]; if(c && c.tp){ c.tp=0; n++; } });
+  state.z.bf.forEach(function(iid){
+    var c=state.cards[iid];
+    if(c && c.tp){ c.tp=0; delete c.gave; n++; }
+  });
+  // Untapping everything is a new turn's worth of mana, not a refund.
   commit('Untapped '+n+' permanent'+(n===1?'':'s'));
 }
 function clearPool(){ var s=seat(); MANA.forEach(function(m){ s.mana[m]=0; }); }
@@ -732,20 +783,35 @@ function nextTurn(silent){
   s.landDrop = 0;
   clearPool();
   if(autoUntap){ state.z.bf.forEach(function(iid){ var c=state.cards[iid]; if(c) c.tp=0; }); }
-  logg('\u2014 Turn '+state.turn+' \u2014');
+  logg('Turn '+state.turn+'');
   if(autoDraw && state.z.lib.length){ move(state.z.lib[0],'hand'); logg('Drew for turn'); }
   state.phase = 3;
+  blip('turn');
   touch(); save();
 }
 
 function tapCard(iid){
   var c = state.cards[iid]; if(!c) return;
   var d = defOf(c);
+  // Untapping a land takes back the mana it made, so a misplaced tap costs
+  // nothing. Only what this land actually added comes off.
+  if(c.tp && c.gave){
+    addMana(c.gave, -1);
+    var gave = c.gave;
+    delete c.gave;
+    c.tp = 0;
+    commit('Untapped ' + (d ? d.n : 'a card') + ', took back ' + gave);
+    return;
+  }
   c.tp = c.tp ? 0 : 1;
+  blip('tick');
   if(c.tp && d && isLand(d) && d.pm && d.pm.length){
     // Light assist: one produced colour goes to the pool. Multi-colour lands
     // ask, because guessing wrong is worse than one extra tap.
-    if(d.pm.length === 1){ addMana(d.pm[0],1); commit('Tapped '+d.n+' for '+d.pm[0]); return; }
+    if(d.pm.length === 1){
+      addMana(d.pm[0],1); c.gave = d.pm[0];
+      commit('Tapped '+d.n+' for '+d.pm[0]); return;
+    }
     openManaChoice(d, iid); render(); return;
   }
   commit((c.tp?'Tapped ':'Untapped ') + (d?d.n:'a card'));
@@ -762,6 +828,7 @@ function playCard(iid, opts){
   var tapped = !!opts.tapped || (d && d.ebt);
   c.tp = tapped ? 1 : 0;
   if(d && isLand(d)){ seat().landDrop = (seat().landDrop||0) + 1; }
+  blip('act');
   commit('Played '+(d?d.n:'a card') + (tapped?' (tapped)':''));
 }
 
@@ -805,6 +872,68 @@ function restoreScrolls(){
   }
 }
 
+// An iPhone browser cannot vibrate, so every action makes a short sound instead.
+// Small actions stay small: if everything is loud, nothing is.
+var soundOn = lsGet('ktm.sound','1') === '1';
+var AC = null;
+function blip(kind){
+  if(!soundOn) return;
+  try{
+    AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+    if(AC.state === 'suspended') AC.resume();
+    var spec = kind === 'turn' ? [523, 0.13, 0.07]
+             : kind === 'act'  ? [392, 0.09, 0.05]
+             :                   [784, 0.045, 0.025];
+    var o = AC.createOscillator(), g = AC.createGain();
+    o.type = 'sine'; o.frequency.value = spec[0];
+    g.gain.setValueAtTime(0.0001, AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(spec[2], AC.currentTime + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, AC.currentTime + spec[1]);
+    o.connect(g); g.connect(AC.destination);
+    o.start(); o.stop(AC.currentTime + spec[1] + 0.02);
+  }catch(e){}
+  try{ if(navigator.vibrate) navigator.vibrate(kind === 'turn' ? 16 : 7); }catch(e){}
+}
+
+// Battlefield cards grow until the row they are in stops fitting, so the board
+// uses every pixel it has instead of leaving a margin of empty felt.
+function fitTray(tray, n){
+  if(!tray || !n) return;
+  var cs = getComputedStyle(tray);
+  var W = tray.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  var H = tray.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  if(W <= 0 || H <= 0) return;
+  var gx = 8, gy = 12, best = 54;
+  for(var w = 280; w >= 54; w -= 2){
+    var h = w * 88 / 63;
+    var perRow = Math.max(1, Math.floor((W + gx) / (w + gx)));
+    var rows = Math.ceil(n / perRow);
+    if(rows * (h + gy) - gy <= H){ best = w; break; }
+  }
+  tray.style.setProperty('--cw', best + 'px');
+}
+// One frame after a render the flex boxes can still measure zero, so watch the
+// trays and refit whenever their box actually settles.
+var fitRO = null;
+function fitAllTrays(){
+  var trays = document.querySelectorAll('.tray');
+  if(window.ResizeObserver){
+    if(!fitRO){
+      fitRO = new ResizeObserver(function(entries){
+        for(var k=0;k<entries.length;k++){
+          var t = entries[k].target;
+          fitTray(t, t.querySelectorAll('.cw').length);
+        }
+      });
+    }
+    fitRO.disconnect();
+  }
+  for(var i=0;i<trays.length;i++){
+    fitTray(trays[i], trays[i].querySelectorAll('.cw').length);
+    if(fitRO) fitRO.observe(trays[i]);
+  }
+}
+
 var el = function(tag,cls,txt){ var n=document.createElement(tag); if(cls)n.className=cls; if(txt!=null)n.textContent=txt; return n; };
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];}); }
 
@@ -824,7 +953,7 @@ function parseCost(m){
 }
 
 function cardFace(d, forZoom){
-  // Typographic face \u2014 used for tokens and for imported decks (no art available).
+  // Typographic face, used for tokens and for imported decks (no art available).
   var f = el('div','face');
   var fc = faceColors(d);
   f.style.setProperty('--fc1',fc[0]); f.style.setProperty('--fc2',fc[1]);
@@ -840,7 +969,7 @@ function cardFace(d, forZoom){
   });
   if(cost.children.length) top.appendChild(cost);
   f.appendChild(top);
-  f.appendChild(el('div','ft', (d.copy?'Token copy \u2014 ':'') + (d.t || 'Token')));
+  f.appendChild(el('div','ft', (d.copy?'Token copy, ':'') + (d.t || 'Token')));
   if(!forZoom || true) f.appendChild(el('div','fo', d.o || ''));
   if(d.p != null || d.tg != null) f.appendChild(el('div','fpt', (d.p==null?'0':d.p)+' / '+(d.tg==null?'0':d.tg)));
   return f;
@@ -932,8 +1061,15 @@ function render(){
   if(mode === 'hand') main.appendChild(renderHandView());
   else main.appendChild(renderBoard());
   restoreScrolls();
-  if(window.requestAnimationFrame) requestAnimationFrame(restoreScrolls);
+  if(window.requestAnimationFrame){
+    requestAnimationFrame(function(){ restoreScrolls(); fitAllTrays(); });
+    setTimeout(fitAllTrays, 120);
+  } else {
+    fitAllTrays();
+  }
 }
+window.addEventListener('resize', function(){ fitAllTrays(); });
+window.addEventListener('orientationchange', function(){ setTimeout(fitAllTrays, 250); });
 
 function renderTop(){
   var t = document.getElementById('topActions');
@@ -982,19 +1118,26 @@ function renderBoard(){
     (isLand(d) ? lands : others).push(iid);
   });
 
-  field.appendChild(band('Battlefield', others, 'Nothing on the battlefield yet \u2014 play a card from your hand.'));
+  field.appendChild(band('Battlefield', others, 'Nothing on the battlefield yet, play a card from your hand.'));
   var lb = band('Lands', lands, 'No lands in play.');
   lb.className = 'band lands';
   var s = seat();
-  var dropNote = el('b', null, s.landDrop + '/' + s.landMax + ' land drop' + (s.landMax>1?'s':''));
-  if(s.landDrop > s.landMax) dropNote.style.color = 'var(--warn)';
-  lb.querySelector('.bandhead').appendChild(dropNote);
+  var used = s.landDrop || 0, max = s.landMax || 1;
+  var mark = el('div','dropmark ' + (used > max ? 'over' : used >= max ? 'used' : 'open'));
+  mark.appendChild(el('span','dropdot'));
+  mark.appendChild(el('b', null, used > max ? 'Land over by ' + (used - max)
+                               : used >= max ? 'Land played'
+                               : 'Land to play'));
+  mark.title = used + ' of ' + max + ' played this turn';
+  lb.querySelector('.bandhead').appendChild(mark);
   field.appendChild(lb);
 
   board.appendChild(field);
   board.appendChild(renderRail());
   wrap.appendChild(board);
-  wrap.appendChild(renderHandStrip());
+  // No hand strip: this screen sits on the table where opponents can read it,
+  // so it shows only what they could see in a real game. The cards themselves
+  // live on the phone. The Zones panel still carries the count.
   return wrap;
 }
 
@@ -1020,6 +1163,7 @@ function renderRail(){
 
   // life
   var sec1 = el('div','railsec');
+  sec1.hidden = !showLife;
   sec1.appendChild(el('h3',null,'Life'));
   var lb = el('div','lifebox');
   var st1 = el('div','stepper');
@@ -1053,6 +1197,7 @@ function renderRail(){
 
   // The opponents hold real cards, so this is the only trace of them the app keeps.
   var secOpp = el('div','railsec');
+  secOpp.hidden = !showLife;
   var oh = el('div','sechead');
   oh.appendChild(el('h3',null,'Opponents'));
   var addb = el('button','btn sm ghost','Players');
@@ -1156,8 +1301,8 @@ function stepRow(parent, label, get, set, lethalAt){
 function openPlayerSheet(id){
   var sx = seatById(id); if(!sx) return;
   var me = state.seats[0];
-  var sh = sheet(sx.name, sx.opp ? 'Opponent \u2014 tracked here, cards on the table'
-                                 : 'You \u2014 board and hand live in this app');
+  var sh = sheet(sx.name, sx.opp ? 'Opponent, tracked here, cards on the table'
+                                 : 'You, board and hand live in this app');
 
   var nameIn = el('input'); nameIn.type='text'; nameIn.value = sx.name;
   nameIn.setAttribute('aria-label','Player name');
@@ -1173,7 +1318,7 @@ function openPlayerSheet(id){
   }
 
   sh.appendChild(el('div','divider'));
-  var cdh = el('p','sub','Commander damage \u2014 21 is lethal');
+  var cdh = el('p','sub','Commander damage, 21 is lethal');
   cdh.style.marginBottom='8px';
   sh.appendChild(cdh);
 
@@ -1333,7 +1478,7 @@ function openDeckSheet(){
       state = buildGame(defs, importedCommander);
       keep.forEach(function(o){ o.life=40; o.poison=0; o.cmdDmg={}; state.seats.push(o); });
       for(var i=0;i<7 && state.z.lib.length;i++) move(state.z.lib[0],'hand');
-      commit('New game \u2014 ' + totalCards() + ' cards');
+      commit('New game, ' + totalCards() + ' cards');
       closeLayer();
     };
     var ex = el('button','btn','Export for Moxfield');
@@ -1370,7 +1515,7 @@ function openDeckSheet(){
       bump(ex, 1);
       astat.textContent = (was === 0)
         ? 'Pulled ' + ex.n + ' out of the sideboard box.'
-        : 'Already in the deck \u2014 now ' + ex.q + '.';
+        : 'Already in the deck, now ' + ex.q + '.';
       ain.value = '';
       return;
     }
@@ -1400,7 +1545,7 @@ function openDeckSheet(){
 // What to do to the cards themselves, kept until you say it is done.
 function openSwapSheet(){
   var sh = sheet('Swap these cards',
-                 'Your Moxfield list changed \u2014 bring the physical deck in line.');
+                 'Your Moxfield list changed, bring the physical deck in line.');
   if(!physChanges.length){
     sh.appendChild(el('p','note','The physical deck already matches Moxfield.'));
     return;
@@ -1412,7 +1557,7 @@ function openSwapSheet(){
   cp.style.cssText = 'width:100%;justify-content:center';
   cp.onclick = function(){ copyText(physList(), cp, 'Copy the swap list'); };
   sh.appendChild(cp);
-  var done = el('button','btn primary','Done \u2014 cards swapped');
+  var done = el('button','btn primary','Done, cards swapped');
   done.style.cssText = 'width:100%;justify-content:center;margin-top:7px';
   done.onclick = function(){ physChanges = []; persistDeck(); closeLayer(); };
   sh.appendChild(done);
@@ -1422,7 +1567,7 @@ function openSwapSheet(){
 
 function openExportSheet(){
   var sh = sheet('Export for Moxfield',
-                 'Paste into Moxfield \u2014 Import, or apply just the changes.');
+                 'Paste into Moxfield, Import, or apply just the changes.');
   if(deckChanges.length){
     sh.appendChild(el('label',null,'Only these lines differ'));
     var box = el('div','difflist');
@@ -1460,7 +1605,7 @@ function openExportSheet(){
 
 function openTableSheet(){
   var sh = sheet('Players at the table',
-                 'Opponents playing with real cards \u2014 life and commander damage only.');
+                 'Opponents playing with real cards, life and commander damage only.');
   seats().forEach(function(sx){
     var row = seatRow(sx);
     row.style.marginBottom = '7px';
@@ -1624,69 +1769,63 @@ function renderHandView(){
   if(state.z.hand.indexOf(focusIid) < 0) focusIid = state.z.hand[0] || null;
 
   var cast = el('div','castrow');
-  var castBtn = el('button','btn primary','Cast to board \u25b8');
-  var moreBtn = el('button','btn ghost','More\u2026');
+  var castBtn = el('button','btn primary','Cast to board');
+  var moreBtn = el('button','btn ghost','More');
   cast.appendChild(castBtn); cast.appendChild(moreBtn);
   v.appendChild(cast);
 
-  var fw = el('div','focuswrap');
-  v.appendChild(fw);
+  // One scroller, one finger, one card centred at a time.
+  var deck = el('div','handdeck');
+  deck.setAttribute('data-scroll','handdeck');
+  v.appendChild(deck);
 
-  var strip = el('div','handbar');
-  strip.setAttribute('data-scroll','handbar');
-  v.appendChild(strip);
-
-  function paintFocus(){
-    fw.innerHTML = '';
-    for(var k=0;k<strip.children.length;k++){
-      strip.children[k].classList.toggle('focus', strip.children[k].dataset.iid === focusIid);
-    }
-    if(!focusIid){
-      fw.appendChild(el('div','emptyhand','Your hand is empty. Tap Draw below.'));
-      castBtn.disabled = true; moreBtn.disabled = true;
-      castBtn.textContent = 'Nothing to play';
-      return;
-    }
+  function labelFor(iid){
+    if(!iid){ castBtn.disabled = true; moreBtn.disabled = true;
+              castBtn.textContent = 'Nothing to play'; return; }
     castBtn.disabled = false; moreBtn.disabled = false;
-    var d = defOf(state.cards[focusIid]);
-    castBtn.textContent = (d && isLand(d)) ? 'Play land \u25b8' : 'Cast to board \u25b8';
-    fw.appendChild(cardNode(focusIid, {
-      zone:'hand',
-      onTap:  function(){ if(d) openZoom(d); },
-      onHold: function(){ openCardSheet(focusIid, 'hand'); }
-    }));
+    var d = defOf(state.cards[iid]);
+    castBtn.textContent = (d && isLand(d)) ? 'Play land' : 'Cast to board';
   }
 
-  castBtn.onclick = function(){ if(focusIid) playCard(focusIid); };
-  moreBtn.onclick = function(){ if(focusIid) openCardSheet(focusIid, 'hand'); };
-
+  if(!state.z.hand.length){
+    deck.appendChild(el('div','emptyhand','Your hand is empty. Tap Draw below.'));
+  }
   state.z.hand.forEach(function(iid){
-    strip.appendChild(cardNode(iid, {
+    deck.appendChild(cardNode(iid, {
       zone:'hand',
-      onTap:  function(){ focusIid = iid; paintFocus(); },
-      onHold: function(){ var d = defOf(state.cards[iid]); if(d) openZoom(d); }
+      onTap:  function(){ var dd = defOf(state.cards[iid]); if(dd) openZoom(dd); },
+      onHold: function(){ openCardSheet(iid, 'hand'); }
     }));
   });
 
-  // Scrolling the strip sideways magnifies whichever card lands in the middle.
+  // Whatever sits under the middle of the screen is what the buttons act on.
+  function centred(){
+    var mid = deck.scrollLeft + deck.clientWidth / 2, best = null, bd = 1e9;
+    for(var k=0;k<deck.children.length;k++){
+      var c = deck.children[k];
+      if(!c.dataset || !c.dataset.iid) continue;
+      var dd = Math.abs((c.offsetLeft + c.offsetWidth / 2) - mid);
+      if(dd < bd){ bd = dd; best = c; }
+    }
+    return best ? best.dataset.iid : null;
+  }
   var scrollT = null;
-  strip.addEventListener('scroll', function(){
+  deck.addEventListener('scroll', function(){
     clearTimeout(scrollT);
     scrollT = setTimeout(function(){
-      var mid = strip.scrollLeft + strip.clientWidth / 2, best = null, bd = 1e9;
-      for(var k=0;k<strip.children.length;k++){
-        var c = strip.children[k];
-        var dd = Math.abs((c.offsetLeft + c.offsetWidth / 2) - mid);
-        if(dd < bd){ bd = dd; best = c; }
-      }
-      if(best && best.dataset.iid !== focusIid){ focusIid = best.dataset.iid; paintFocus(); }
-    }, 90);
-  });
+      var iid = centred();
+      if(iid && iid !== focusIid){ focusIid = iid; labelFor(iid); }
+    }, 60);
+  }, { passive:true });
+
+  castBtn.onclick = function(){ var iid = centred() || focusIid; if(iid) playCard(iid); };
+  moreBtn.onclick = function(){ var iid = centred() || focusIid; if(iid) openCardSheet(iid,'hand'); };
+
+  if(state.z.hand.indexOf(focusIid) < 0) focusIid = state.z.hand[0] || null;
+  labelFor(focusIid);
 
   v.appendChild(phoneZones());
   v.appendChild(phoneActions());
-
-  paintFocus();
   return v;
 }
 
@@ -1877,7 +2016,11 @@ function openManaChoice(d, iid){
     sym.style.cssText='width:20px;height:20px;border-radius:50%;display:inline-grid;place-items:center;font-family:var(--disp);font-weight:800;font-size:11px;background:'+manaColorVar(m)+';color:'+((m==='U'||m==='B')?'#eef3ff':'#10160f');
     b.appendChild(sym);
     b.appendChild(document.createTextNode(' '+MANA_NAME[m]));
-    b.onclick=function(){ addMana(m,1); commit('Tapped '+d.n+' for '+m); closeLayer(); };
+    b.onclick=function(){
+      addMana(m,1);
+      var cc = state.cards[iid]; if(cc) cc.gave = m;
+      commit('Tapped '+d.n+' for '+m); closeLayer();
+    };
     g.appendChild(b);
   });
   s.appendChild(g);
@@ -1917,7 +2060,7 @@ function openTopSheet(n){
 function openBrowse(z){
   var ids = state.z[z].slice();
   var title = ZONES[z] || z;
-  var s = sheet(title, ids.length + ' card' + (ids.length===1?'':'s') + (z==='lib' ? ' \u2014 searching reveals your library' : ''));
+  var s = sheet(title, ids.length + ' card' + (ids.length===1?'':'s') + (z==='lib' ? ', searching reveals your library' : ''));
   if(!ids.length){
     s.appendChild(el('p','note','This zone is empty.'));
     return;
@@ -1954,18 +2097,18 @@ function openBrowse(z){
 }
 
 var TOKEN_PRESETS = [
-  {n:'Treasure', t:'Token Artifact \u2014 Treasure', o:'{T}, Sacrifice: Add one mana of any colour.', ci:[]},
-  {n:'Clue', t:'Token Artifact \u2014 Clue', o:'{2}, Sacrifice: Draw a card.', ci:[]},
-  {n:'Food', t:'Token Artifact \u2014 Food', o:'{2}, {T}, Sacrifice: Gain 3 life.', ci:[]},
-  {n:'Soldier', t:'Token Creature \u2014 Soldier', p:'1', tg:'1', ci:['W']},
-  {n:'Angel', t:'Token Creature \u2014 Angel', p:'4', tg:'4', o:'Flying', ci:['W']},
-  {n:'Zombie', t:'Token Creature \u2014 Zombie', p:'2', tg:'2', ci:['B']},
-  {n:'Beast', t:'Token Creature \u2014 Beast', p:'3', tg:'3', ci:['G']},
-  {n:'Plant', t:'Token Creature \u2014 Plant', p:'0', tg:'1', o:'Defender', ci:['G']},
-  {n:'Saproling', t:'Token Creature \u2014 Saproling', p:'1', tg:'1', ci:['G']},
-  {n:'Thopter', t:'Token Artifact Creature \u2014 Thopter', p:'1', tg:'1', o:'Flying', ci:[]},
-  {n:'Spirit', t:'Token Creature \u2014 Spirit', p:'1', tg:'1', o:'Flying', ci:['W']},
-  {n:'Goblin', t:'Token Creature \u2014 Goblin', p:'1', tg:'1', ci:['R']}
+  {n:'Treasure', t:'Token Artifact, Treasure', o:'{T}, Sacrifice: Add one mana of any colour.', ci:[]},
+  {n:'Clue', t:'Token Artifact, Clue', o:'{2}, Sacrifice: Draw a card.', ci:[]},
+  {n:'Food', t:'Token Artifact, Food', o:'{2}, {T}, Sacrifice: Gain 3 life.', ci:[]},
+  {n:'Soldier', t:'Token Creature, Soldier', p:'1', tg:'1', ci:['W']},
+  {n:'Angel', t:'Token Creature, Angel', p:'4', tg:'4', o:'Flying', ci:['W']},
+  {n:'Zombie', t:'Token Creature, Zombie', p:'2', tg:'2', ci:['B']},
+  {n:'Beast', t:'Token Creature, Beast', p:'3', tg:'3', ci:['G']},
+  {n:'Plant', t:'Token Creature, Plant', p:'0', tg:'1', o:'Defender', ci:['G']},
+  {n:'Saproling', t:'Token Creature, Saproling', p:'1', tg:'1', ci:['G']},
+  {n:'Thopter', t:'Token Artifact Creature, Thopter', p:'1', tg:'1', o:'Flying', ci:[]},
+  {n:'Spirit', t:'Token Creature, Spirit', p:'1', tg:'1', o:'Flying', ci:['W']},
+  {n:'Goblin', t:'Token Creature, Goblin', p:'1', tg:'1', ci:['R']}
 ];
 
 function openTokenSheet(){
@@ -2039,7 +2182,7 @@ function confirmSheet(title, msg, yesLabel, onYes){
 function switchTable(code, fresh){
   closeLayer();
   confirmSheet(fresh ? 'Start table ' + code + '?' : 'Join table ' + code + '?',
-    fresh ? 'A new, empty table. This device leaves the current one \u2014 the old table keeps its game.'
+    fresh ? 'A new, empty table. This device leaves the current one, the old table keeps its game.'
           : 'This device leaves table ' + (tableId === 'main' ? 'MAIN' : tableId)
             + ' and loads whatever game that code holds.',
     fresh ? 'Start it' : 'Join it',
@@ -2097,7 +2240,9 @@ function openMenu(){
   var assists = el('div');
   assists.appendChild(el('label',null,'Assists'));
   var ac = el('div','chips');
-  [['Untap on turn', function(){ return autoUntap; }, function(v){ autoUntap=v; lsSet('ktm.autountap',v?'1':'0'); }],
+  [['Sound', function(){ return soundOn; }, function(v){ soundOn=v; lsSet('ktm.sound',v?'1':'0'); if(v) blip('act'); }],
+   ['Life counters', function(){ return showLife; }, function(v){ showLife=v; lsSet('ktm.life',v?'1':'0'); render(); }],
+   ['Untap on turn', function(){ return autoUntap; }, function(v){ autoUntap=v; lsSet('ktm.autountap',v?'1':'0'); }],
    ['Draw on turn', function(){ return autoDraw; }, function(v){ autoDraw=v; lsSet('ktm.autodraw',v?'1':'0'); }],
    ['Empty pool on phase', function(){ return emptyPool; }, function(v){ emptyPool=v; lsSet('ktm.emptypool',v?'1':'0'); }]
   ].forEach(function(p){
@@ -2119,7 +2264,7 @@ function openMenu(){
           var keep = seats().filter(function(o){ return o.opp; });
           state = buildGame(defs, defsAreBuiltin ? (window.MTG_DECK && window.MTG_DECK.commander) : importedCommander);
           keep.forEach(function(o){ o.life = 40; o.poison = 0; o.cmdDmg = {}; state.seats.push(o); });
-          commit('New game \u2014 '+deckName);
+          commit('New game, '+deckName);
           closeLayer();
         }); }],
     [(window.MTG_DECK && window.MTG_DECK.name) ? 'Reload ' + window.MTG_DECK.name : 'Reload built-in deck', function(){
@@ -2167,7 +2312,7 @@ function openMenu(){
   s.appendChild(el('div','divider'));
   var sy = el('p','note');
   sy.innerHTML = syncMode === 'live'
-    ? '<b>Synced.</b> Open this same link on your other device and pick the matching role above \u2014 the board and your hand stay in step.'
+    ? '<b>Synced.</b> Open this same link on your other device and pick the matching role above, the board and your hand stay in step.'
     : '<b>Local only.</b> This view could not reach shared storage, so the game lives in this browser alone.';
   s.appendChild(sy);
 }
@@ -2421,7 +2566,7 @@ function openImport(){
 
   b2.onclick = function(){
     var p = parsed();
-    if(!p.cards.length){ errBox.textContent='Nothing to import \u2014 paste a decklist first.'; return; }
+    if(!p.cards.length){ errBox.textContent='Nothing to import, paste a decklist first.'; return; }
     finish(p.cards.map(function(c){
       return { n:c.n, q:c.q, side:c.side, t:'', m:'', ci:[], pm:[], o:'' };
     }), p.commander, 'Imported deck');
@@ -2429,7 +2574,7 @@ function openImport(){
 
   b1.onclick = async function(){
     var p = parsed();
-    if(!p.cards.length){ errBox.textContent='Nothing to import \u2014 paste a decklist first.'; return; }
+    if(!p.cards.length){ errBox.textContent='Nothing to import, paste a decklist first.'; return; }
     errBox.textContent=''; b1.disabled=true; b2.disabled=true;
     status.textContent = 'Looking up cards on Scryfall\u2026';
 
@@ -2491,7 +2636,7 @@ function boot(){
   } else {
     state = buildGame(defs, window.MTG_DECK && window.MTG_DECK.commander);
     for(var i=0;i<7 && state.z.lib.length;i++) move(state.z.lib[0],'hand');
-    logg('Opening hand drawn \u2014 '+deckName);
+    logg('Opening hand drawn, '+deckName);
   }
   if(defsAreBuiltin && window.MTG_DECK) importedCommander = window.MTG_DECK.commander;
 

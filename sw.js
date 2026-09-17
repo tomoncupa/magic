@@ -1,7 +1,7 @@
 // Offline support. The app shell is cached up front; card pictures are cached
 // as they are seen. A shop with no wifi can still deal a game, though the two
 // devices will not sync until there is a connection again.
-const SHELL = 'ktm-shell-v1';
+const SHELL = 'ktm-shell-v3';
 const CARDS = 'ktm-cards-v2';
 const SHELL_FILES = ['./', './index.html', './deck.js', './config.js'];
 
@@ -56,15 +56,20 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // The app itself: cached first so it opens with no connection at all.
+  // The app itself: network first, cache as the backup. Cache first would mean
+  // a published update never reaches a device that has already been here once,
+  // because the shell is only re-fetched when this file's version changes.
   if (url.origin === self.location.origin) {
     e.respondWith(
-      caches.match(e.request).then(hit =>
-        hit || fetch(e.request).then(res => {
-          if (res.ok) caches.open(SHELL).then(c => c.put(e.request, res.clone()));
+      fetch(e.request)
+        .then(res => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(SHELL).then(c => c.put(e.request, copy));
+          }
           return res;
         })
-      )
+        .catch(() => caches.match(e.request).then(hit => hit || Response.error()))
     );
   }
 });
