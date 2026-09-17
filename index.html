@@ -1108,6 +1108,7 @@ function nextPhase(){
   state.phase = (state.phase + 1) % PHASES.length;
   if(emptyPool) clearPool();
   if(state.phase === 0) return nextTurn(true);
+  setTimeout(phaseTriggers, 40);
   commit(null);
 }
 function nextTurn(silent){
@@ -1136,14 +1137,16 @@ function nextTurn(silent){
 // three did. What it can do is read your own board at the start of a turn and
 // say what is waiting. That is the whole list, in the order it happens.
 var turnList = lsGet('ktm.turnlist','1') === '1';
+// PHASES is ['Untap','Upkeep','Draw','Main 1','Combat','Main 2','End'].
 var TRIG_WHEN = [
-  { k:'upkeep',  re:/At the beginning of (your |each )?upkeep/i,  label:'Upkeep' },
-  { k:'draw',    re:/At the beginning of (your )?draw step/i,      label:'Draw step' },
-  { k:'combat',  re:/At the beginning of combat/i,                 label:'Combat' },
-  { k:'end',     re:/At the beginning of (your |the )?end step/i,   label:'End step' },
-  { k:'attack',  re:/Whenever (this creature|[A-Z][^,]{0,28}) attacks/,label:'When it attacks' }
+  { k:'upkeep',  phase:1, re:/At the beginning of (your |each )?upkeep/i,  label:'Upkeep' },
+  { k:'draw',    phase:2, re:/At the beginning of (your )?draw step/i,      label:'Draw step' },
+  { k:'combat',  phase:4, re:/At the beginning of combat/i,                 label:'Combat' },
+  { k:'end',     phase:6, re:/At the beginning of (your |the )?end step/i,   label:'End step' },
+  { k:'attack',  phase:4, re:/Whenever (this creature|[A-Z][^,]{0,28}) attacks/,label:'When it attacks' },
+  { k:'enters',  phase:-1, re:/^When(ever)? (this|[A-Z][^,]{0,28}) enters/,  label:'When it arrives' }
 ];
-function turnTriggers(){
+function turnTriggers(only){
   var out = [];
   state.z.bf.forEach(function(iid){
     var c = state.cards[iid];
@@ -1154,6 +1157,7 @@ function turnTriggers(){
       var l = line.trim();
       for(var i = 0; i < TRIG_WHEN.length; i++){
         if(!TRIG_WHEN[i].re.test(l)) continue;
+        if(only && TRIG_WHEN[i].k !== only) continue;
         // The ones the app already works out for itself are not waiting on him.
         var handled = false;
         ATTACK_PUMP.forEach(function(r){ if(r.n === d.n) handled = true; });
@@ -1169,10 +1173,23 @@ function turnTriggers(){
   return out;
 }
 
-function openTurnList(){
-  var list = turnTriggers();
+// Moving to a phase puts up only the things that happen in that phase, which is
+// the difference between a list you read and a list you act on.
+function phaseTriggers(){
+  if(!turnList) return;
+  var kinds = [];
+  TRIG_WHEN.forEach(function(w){ if(w.phase === state.phase) kinds.push(w.k); });
+  if(!kinds.length) return;
+  var list = [];
+  kinds.forEach(function(k){ list = list.concat(turnTriggers(k)); });
   if(!list.length) return;
-  var sh0 = sheet('Turn ' + state.turn + ', waiting on you',
+  openTurnList(list, PHASES[state.phase]);
+}
+
+function openTurnList(list, label){
+  list = list || turnTriggers();
+  if(!list.length) return;
+  var sh0 = sheet(label ? (label + ', waiting on you') : ('Turn ' + state.turn + ', waiting on you'),
     list.length + ' thing' + (list.length === 1 ? '' : 's') + ' on your board that happen by themselves. '
     + 'The app cannot fire them, because the rest of the table is real cards.');
   sh0.classList.add('wide');
@@ -1548,6 +1565,7 @@ function castCard(iid){
   var ent = applyEnterCounters(iid);
   if(ent) logg(d.n + ' entered with ' + ent.n + ' +1/+1 (' + ent.why.join(', ') + ')');
   blip('act');
+  enterNote(iid);
   var cutNote = cost.cut ? ' (' + cost.cut.why.join(', ') + ')' : '';
   commit(plan.taps.length
     ? ('Tapped ' + plan.taps.length + ' for ' + d.n + ' and played it' + cutNote)
@@ -1904,6 +1922,39 @@ function combatBonus(iid){
   return { p:p, t:t, why:why };
 }
 
+// A star for power means an ability decides it. Two of those sentences only
+// ever read your own board, so the app can work them out instead of drawing a
+// star and leaving you to count.
+function devotionTo(colour){
+  var n = 0;
+  state.z.bf.forEach(function(iid){
+    var c = state.cards[iid];
+    if(!c || c.fd) return;
+    var d = defOf(c);
+    if(!d || !d.m) return;
+    (d.m.match(/\{[^}]+\}/g) || []).forEach(function(sym){
+      if(sym.indexOf(colour) >= 0) n++;
+    });
+  });
+  return n;
+}
+function starValue(d, which){
+  var o = (d && d.o) || '';
+  var word = which === 'p' ? 'power' : 'toughness';
+  var m = new RegExp(word + " is equal to your devotion to (white|blue|black|red|green)", 'i').exec(o);
+  if(m){
+    var letter = { white:'W', blue:'U', black:'B', red:'R', green:'G' }[m[1].toLowerCase()];
+    var n = devotionTo(letter);
+    return { n:n, why:'devotion to ' + m[1] + ' is ' + n };
+  }
+  var m2 = new RegExp(word + " is equal to the number of ([^.]+?) you control", 'i').exec(o);
+  if(m2){
+    var n2 = countOnBoard(oneWord(m2[1]));
+    return { n:n2, why:n2 + ' ' + m2[1] + ' you control' };
+  }
+  return null;
+}
+
 // Printed numbers, plus counters, plus anthems. A power printed as a symbol
 // stays a symbol.
 function effectivePT(iid){
@@ -1914,10 +1965,15 @@ function effectivePT(iid){
   var an = anthemsFor(iid);
   var gr = gearBonus(iid);
   var cb = combatBonus(iid);
+  var why = an.why.concat(gr.why).concat(cb.why);
+  var sp = isNaN(bp) ? starValue(d, 'p') : null;
+  var st = isNaN(bt) ? starValue(d, 't') : null;
+  if(sp){ bp = sp.n; why.push(sp.why); }
+  if(st){ bt = st.n; why.push(st.why); }
   return {
     p: isNaN(bp) ? (d.p || '*') : (bp + add + an.p + gr.p + cb.p),
     t: isNaN(bt) ? (d.tg || '*') : (bt + add + an.t + gr.t + cb.t),
-    why: an.why.concat(gr.why).concat(cb.why)
+    why: why
   };
 }
 
@@ -2145,6 +2201,22 @@ function openProliferate(){
   sh.appendChild(el('p','note','Opponents are not listed. Proliferate their poison at the table.'));
 }
 
+// A card that does something the moment it lands says so, once, as it lands.
+function enterNote(iid){
+  if(!turnList) return;
+  var d = defOf(state.cards[iid]);
+  if(!d || !d.o) return;
+  var hit = null;
+  String(d.o).split('\n').forEach(function(line){
+    var l = line.trim();
+    if(!hit && /^When(ever)? (this|[A-Z][^,]{0,28}) enters/.test(l)) hit = l;
+  });
+  if(!hit) return;
+  setTimeout(function(){
+    openTurnList([{ iid:iid, d:d, when:{ label:'When it arrives' }, line:hit }], d.n + ' has just arrived');
+  }, 60);
+}
+
 function playCard(iid, opts){
   opts = opts||{};
   var c = state.cards[iid], d = defOf(c); if(!c) return;
@@ -2157,6 +2229,7 @@ function playCard(iid, opts){
   blip('act');
   commit('Played '+(d?d.n:'a card') + (tapped?' (tapped)':'')
     + (ent ? ', entered with ' + ent.n + ' +1/+1 (' + ent.why.join(', ') + ')' : ''));
+  enterNote(iid);
 }
 
 function makeToken(td, count, must){
@@ -2559,6 +2632,108 @@ function setAttack(ids, seatId){
     : (d ? d.n : 'Creature') + ' pulled back');
 }
 
+// Every ability with a cost and a colon. The app cannot resolve what they do,
+// because most of them touch somebody else, but it can pay for them: take the
+// mana, tap the card, move the loyalty, sacrifice it, and write it in the log.
+// That is the part you get wrong, and the part that is only your own board.
+var abilCache = {};
+function abilitiesOf(d){
+  if(!d || !d.o) return [];
+  if(abilCache[d.n]) return abilCache[d.n];
+  var out = [];
+  String(d.o).split('\n').forEach(function(line){
+    var i = line.indexOf(':');
+    if(i < 0) return;
+    var cost = line.slice(0, i).trim(), text = line.slice(i + 1).trim();
+    if(!text || /^Add\b/i.test(text)) return;               // mana has its own tap
+    if(cost.length > 44) return;                            // a sentence, not a cost
+    if(/^(When|Whenever|At |If |As long as)/i.test(cost)) return;
+    if(cost.indexOf('"') >= 0 || text.indexOf('"') === 0) return;
+    var loy = /^([+\u2212-])\s*([0-9]+)$/.exec(cost);
+    var mana = (cost.match(/\{[^}]+\}/g) || []).filter(function(x){
+      return x !== '{T}' && x !== '{Q}' && x !== '{E}';
+    });
+    out.push({
+      cost: cost, text: text,
+      loyalty: loy ? (loy[1] === '+' ? 1 : -1) * parseInt(loy[2], 10) : null,
+      mana: mana.join(''),
+      taps: /\{T\}/.test(cost),
+      sac: /Sacrifice this/i.test(cost)
+    });
+  });
+  abilCache[d.n] = out;
+  return out;
+}
+
+// Pay a written mana cost the same way casting does. False when it cannot.
+function payWritten(manaStr){
+  if(!manaStr) return true;
+  var cost = costNeed(manaStr);
+  if(!cost.generic && !MANA.some(function(k){ return cost.need[k]; })) return true;
+  var plan = planPayment(cost);
+  if(!plan.ok) return false;
+  plan.taps.forEach(function(t){
+    var sc = state.cards[t.iid];
+    if(sc){ sc.tp = 1; delete sc.gave; }
+    addMana(t.colour, t.amount);
+  });
+  payFromPool(cost);
+  return true;
+}
+
+function abilitySection(parent, iid, d){
+  var list = abilitiesOf(d);
+  if(!list.length) return;
+  var c = state.cards[iid];
+  parent.appendChild(el('div','divider'));
+  var h = el('p','sub','Abilities');
+  h.style.margin = '0 0 7px';
+  parent.appendChild(h);
+
+  list.forEach(function(a){
+    var row = el('div','tkrow');
+    var tx = el('div','tkn');
+    tx.appendChild(el('b', null, a.cost));
+    tx.appendChild(el('span', null, a.text));
+    row.appendChild(tx);
+
+    var why = [];
+    if(a.mana) why.push('pays ' + a.mana);
+    if(a.taps) why.push('taps it');
+    if(a.loyalty != null) why.push('loyalty ' + (a.loyalty > 0 ? '+' : '') + a.loyalty);
+    if(a.sac) why.push('sacrifices it');
+
+    var b = el('button','btn sm primary','Use');
+    b.title = why.join(', ');
+    b.onclick = function(){
+      if(a.taps && c.tp){ blip('act'); return; }         // already tapped
+      if(a.mana && autoTap && !payWritten(a.mana)){
+        closeLayer();
+        confirmSheet('Not enough mana', 'Nothing untapped pays ' + a.mana
+          + '. Use it anyway and sort the mana out by hand?', 'Use it anyway', function(){
+            finish();
+          });
+        return;
+      }
+      finish();
+    };
+    function finish(){
+      if(a.taps) c.tp = 1;
+      if(a.loyalty != null){
+        c.ctr = c.ctr || {};
+        c.ctr.loyalty = Math.max(0, (c.ctr.loyalty || 0) + a.loyalty);
+      }
+      var note = d.n + ': ' + a.cost + ', ' + a.text.slice(0, 70);
+      if(a.sac) move(iid, 'gy');
+      blip('act');
+      commit(note);
+      closeLayer();
+    }
+    row.appendChild(b);
+    parent.appendChild(row);
+  });
+}
+
 // The card as big as the screen allows, with what you can do beside it.
 function cardSheetFrame(s, d){
   s.classList.add('cardsheet');
@@ -2839,7 +3014,10 @@ function renderTop(){
       var b = el('button',null,p);
       b.type='button';
       b.setAttribute('aria-pressed', state.phase===i ? 'true':'false');
-      b.onclick = function(){ state.phase=i; if(emptyPool) clearPool(); commit(null); };
+      b.onclick = function(){
+        state.phase = i; if(emptyPool) clearPool(); commit(null);
+        setTimeout(phaseTriggers, 40);
+      };
       pb.appendChild(b);
     });
     t.appendChild(pb);
@@ -4522,6 +4700,7 @@ function openCardSheet(iid, zone){
     s.appendChild(el('div','divider'));
   }
 
+  if(z === 'bf') abilitySection(s, iid, d);
   if(z === 'bf') attackSection(s, [iid], d);
 
   var acts = [];
