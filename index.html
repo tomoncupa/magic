@@ -638,7 +638,8 @@ function buildGame(defList, commanderName){
   nextId = id;
   return {
     v:1, rev:1, by:DEVICE, turn:1, phase:3, started:false,
-    deck:{ id: defsAreBuiltin ? builtinId : null, name: deckName, builtin: defsAreBuiltin },
+    deck:{ id: defsAreBuiltin ? builtinId : null, name: deckName, builtin: defsAreBuiltin,
+           stamp: defsAreBuiltin ? null : lastDeckStamp },
     seats:[ newSeat(), newOpponent(1), newOpponent(2), newOpponent(3) ],
     cards: cards,
     z: { lib:shuffle(lib), hand:[], bf:[], gy:[], ex:[], cmd:cmd },
@@ -873,15 +874,9 @@ async function initSync(){
     if(!snap.exists) return;
     var data = snap.data();
     if(!data || !data.cards || !data.cards.length) return;
-    if(defsAreBuiltin || data.stamp !== lastDeckStamp){
-      defs = toArr(data.cards); defsAreBuiltin = false;
-      deckName = data.name || 'Imported deck';
-      importedCommander = data.commander || importedCommander;
-      deckChanges = toArr(data.changes);
-      physChanges = toArr(data.phys);
-      lastDeckStamp = data.stamp;
-      render();
-    }
+    remoteDeck = data;
+    alignDefs();
+    render();
   }, function(){});
 
   stateRef.onSnapshot(function(snap){
@@ -891,8 +886,8 @@ async function initSync(){
     if(!data || !data.z) return;
     if(data.by === DEVICE && (data.rev||0) <= (state.rev||0)) return;  // own echo
     if((data.rev||0) < (state.rev||0)) return;                          // stale
-    syncDeckTo(data);     // follow the game's deck before reading its card indices
     state = normalise(data);
+    alignDefs();          // hold the list this game's cards are places in
     markClean();          // the other device moved; undo starts again from here
     render();
   }, function(err){
@@ -900,7 +895,38 @@ async function initSync(){
   });
   setDot('live');
 }
-var lastDeckStamp = null;
+// A card is stored as a place in a deck list, so a place is only meaningful
+// next to the list it was counted in. Every imported list carries a stamp, the
+// game carries the stamp of the list it was dealt from, and a device draws no
+// cards at all until the two agree. Built-in lists ship with the app, so they
+// only need the deck id that syncDeckTo already follows.
+var lastDeckStamp = null;     // stamp of the list in `defs` right now
+var remoteDeck = null;        // newest list the table has sent, applied or not
+var deckShownAnyway = null;   // a stamp chosen to look at with the wrong list
+
+function alignDefs(){
+  if(!state || !state.deck) return;
+  if(state.deck.builtin){ syncDeckTo(state); return; }
+  if(!remoteDeck || !remoteDeck.cards || !remoteDeck.cards.length) return;
+  // A game dealt before stamps existed can only take the table's word for it.
+  if(state.deck.stamp && remoteDeck.stamp !== state.deck.stamp) return;
+  if(!defsAreBuiltin && remoteDeck.stamp === lastDeckStamp) return;
+  defs = toArr(remoteDeck.cards); defsAreBuiltin = false;
+  deckName = remoteDeck.name || 'Imported deck';
+  importedCommander = remoteDeck.commander || importedCommander;
+  deckChanges = toArr(remoteDeck.changes);
+  physChanges = toArr(remoteDeck.phys);
+  lastDeckStamp = remoteDeck.stamp || null;
+  try{ lsSet('ktm.defs', JSON.stringify(remoteDeck)); }catch(e){}
+}
+
+function deckReady(){
+  if(!state || !state.deck || state.deck.builtin) return true;
+  var want = state.deck.stamp || null;
+  if(!want) return true;                      // dealt before stamps existed
+  if(deckShownAnyway === want) return true;   // asked to see it anyway
+  return !defsAreBuiltin && want === lastDeckStamp;
+}
 
 /* ---------------- actions ---------------- */
 function draw(n){
@@ -1765,6 +1791,10 @@ function render(){
   renderTop();
   var main = document.getElementById('main');
   main.innerHTML = '';
+  // Drawing a card against the wrong list draws the wrong card and says
+  // nothing about it, so draw none of them until the lists agree.
+  if(!deckReady()){ main.appendChild(renderDeckWait()); return; }
+  deckWaitSince = 0;
   if(mode === 'hand') main.appendChild(renderHandView());
   else main.appendChild(renderBoard());
   restoreScrolls();
@@ -1774,6 +1804,41 @@ function render(){
   } else {
     fitAllTrays();
   }
+}
+// Shown instead of the board while this device is holding a different deck
+// list from the one the game was dealt from.
+var deckWaitSince = 0, deckWaitTimer = null;
+function renderDeckWait(){
+  if(!deckWaitSince){
+    deckWaitSince = Date.now();
+    clearTimeout(deckWaitTimer);
+    deckWaitTimer = setTimeout(render, 6200);
+  }
+  var waited = Date.now() - deckWaitSince;
+  var wrap = el('div');
+  wrap.style.cssText = 'flex:1 1 auto;display:flex;flex-direction:column;align-items:center;'
+    + 'justify-content:center;gap:var(--s4);padding:var(--s6);text-align:center';
+  var h = el('div', null, 'Getting the deck');
+  h.style.cssText = 'font-size:17px;font-weight:600;color:var(--ink)';
+  wrap.appendChild(h);
+  var n = el('p','note', 'This game was dealt from ' + (state.deck.name || 'an imported deck')
+    + '. The cards stay hidden until this device has that same list, because every card '
+    + 'would be the wrong card until then.');
+  n.style.maxWidth = '30em';
+  wrap.appendChild(n);
+  if(syncMode !== 'live'){
+    var n2 = el('p','note', 'This device is not syncing right now. It needs a connection, '
+      + 'and the same table code as the device that imported the deck.');
+    n2.style.maxWidth = '30em';
+    wrap.appendChild(n2);
+  }
+  if(waited > 6000){
+    var b = el('button','btn ghost','Show them anyway');
+    b.onclick = function(){ deckShownAnyway = state.deck.stamp; render(); };
+    wrap.appendChild(b);
+    wrap.appendChild(el('p','note','Every card will be the wrong card if the list never arrives.'));
+  }
+  return wrap;
 }
 function redrawArrows(){
   var f = document.querySelector('.field');
@@ -3775,8 +3840,15 @@ function persistDeck(){
   lastDeckStamp = 'k' + Date.now();
   var blob = { cards:defs, name:deckName, commander:importedCommander || null,
                changes:deckChanges, phys:physChanges, stamp:lastDeckStamp };
+  remoteDeck = blob;
   try{ lsSet('ktm.defs', JSON.stringify(blob)); }catch(e){}
   if(deckRef) deckRef.set(blob).catch(function(){});
+  // Editing the list makes it this device's own, whatever it started as. The
+  // game moves with it, or the other device reads these cards against the old.
+  if(state && state.deck){
+    state.deck = { id:null, name:deckName, builtin:false, stamp:lastDeckStamp };
+    touch(); save();
+  }
 }
 function moxfieldList(){
   var out = [], cmd = importedCommander;
@@ -3899,8 +3971,9 @@ function openImport(){
     // Keep a local copy too: without it a reload with no sync would leave the
     // card indices pointing into the built-in deck.
     deckChanges = [];   // Moxfield is the source of truth again
-    try{ lsSet('ktm.defs', JSON.stringify({ cards:list, name:deckName,
-         commander:commander||null, changes:[], phys:physChanges })); }catch(e){}
+    remoteDeck = { cards:list, name:deckName, commander:commander||null,
+                   changes:[], phys:physChanges, stamp:lastDeckStamp };
+    try{ lsSet('ktm.defs', JSON.stringify(remoteDeck)); }catch(e){}
     if(deckRef){
       deckRef.set({ cards:list, name:deckName, commander:commander||null,
                     changes:[], phys:physChanges, stamp:lastDeckStamp })
@@ -3978,6 +4051,8 @@ function boot(){
         if(ld && ld.cards && ld.cards.length){
           defs = ld.cards; importedCommander = ld.commander;
           deckChanges = ld.changes || []; physChanges = ld.phys || [];
+          lastDeckStamp = ld.stamp || null;
+          remoteDeck = ld;
         }
       }catch(e){}
     }
