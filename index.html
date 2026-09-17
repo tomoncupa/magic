@@ -329,6 +329,12 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .pr-n{font-size:var(--t2);color:var(--ink)}
 .prolrow.on .pr-n{color:var(--brass)}
 .pr-c{font-family:var(--mono);font-size:var(--t1);color:var(--ink3);margin-top:2px}
+.pile .card{box-shadow:3px 3px 0 -1px var(--bg3), 3px 3px 0 0 #0b100d,
+  6px 6px 0 -1px var(--bg3), 6px 6px 0 0 #0b100d, 0 2px 10px rgba(0,0,0,.45)}
+.pilecount{position:absolute;top:-6px;right:-6px;z-index:3;
+  font-family:var(--mono);font-size:13px;font-weight:600;line-height:1;
+  padding:4px 6px;border-radius:99px;background:var(--brass);color:#20180a;
+  border:1px solid #0b100d;pointer-events:none}
 .bdg.tok{background:rgba(212,169,75,.9);color:#20180a;font-size:9px;letter-spacing:.06em}
 
 /* ---------- hand strip (board) ---------- */
@@ -507,12 +513,21 @@ var showPhoneBoard = lsGet('ktm.pboard','0') === '1';
 
 // Two app users at one physical table must not share a game, so every game
 // lives under its own table code.
-var tableId = lsGet('ktm.table','main');
 function newTableCode(){
   var A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', out = '';
   for(var i=0;i<8;i++) out += A.charAt(Math.floor(Math.random()*A.length));
   return out;
 }
+
+// A shared default meant every new device opened straight into the same game.
+// A device with no code of its own now gets a private one.
+var tableId = lsGet('ktm.table','');
+var tableWasShared = (tableId === 'main');
+if(!tableId){
+  tableId = newTableCode();
+  lsSet('ktm.table', tableId);
+}
+
 var autoDraw = lsGet('ktm.autodraw','1') === '1';
 var autoUntap = lsGet('ktm.autountap','1') === '1';
 var emptyPool = lsGet('ktm.emptypool','1') === '1';
@@ -1396,8 +1411,8 @@ function fitTray(tray, n){
   var W = tray.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
   var H = tray.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
   if(W <= 0 || H <= 0) return;
-  var gx = 8, gy = 12, best = 54;
-  for(var w = 280; w >= 54; w -= 2){
+  var gx = 8, gy = 12, best = 34;
+  for(var w = 280; w >= 34; w -= 2){
     var h = w * 88 / 63;
     var perRow = Math.max(1, Math.floor((W + gx) / (w + gx)));
     var rows = Math.ceil(n / perRow);
@@ -1625,9 +1640,16 @@ function renderBoard(){
     (isLand(d) ? lands : others).push(iid);
   });
 
-  field.appendChild(band('Battlefield', others, 'Nothing on the battlefield yet, play a card from your hand.'));
+  var mb = band('Battlefield', others, 'Nothing on the battlefield yet, play a card from your hand.');
   var lb = band('Lands', lands, 'No lands in play.');
   lb.className = 'band lands';
+  // Each band takes room in proportion to what it holds, so a turn with one
+  // land does not give half the table to one card.
+  var wMain = Math.max(1, Math.round(Math.sqrt(others.length || 0.4) * 10));
+  var wLand = Math.max(1, Math.round(Math.sqrt(lands.length  || 0.4) * 10));
+  mb.style.flex = others.length ? (wMain + ' 1 0') : '0 1 auto';
+  lb.style.flex = lands.length  ? (wLand + ' 1 0') : '0 1 auto';
+  field.appendChild(mb);
   var s = seat();
   lb.querySelector('.bandhead').appendChild(landMark());
   field.appendChild(lb);
@@ -1641,6 +1663,78 @@ function renderBoard(){
   return wrap;
 }
 
+// Twenty goblins are one pile on a real table, so they are one card here.
+// Only tokens group, and only when they are truly identical.
+function groupKey(iid){
+  var c = state.cards[iid];
+  if(!c || !c.tok) return 'one:' + iid;
+  var d = defOf(c);
+  return ['tok', d ? d.n : '?', d ? d.p : '', d ? d.tg : '',
+          c.tp ? 1 : 0, c.fd ? 1 : 0, JSON.stringify(c.ctr || {})].join('|');
+}
+function groupIds(ids){
+  var order = [], byKey = {};
+  ids.forEach(function(iid){
+    var k = groupKey(iid);
+    if(!byKey[k]){ byKey[k] = []; order.push(k); }
+    byKey[k].push(iid);
+  });
+  return order.map(function(k){ return byKey[k]; });
+}
+
+// What to do with a pile of identical tokens.
+function openGroupSheet(ids){
+  var d = defOf(state.cards[ids[0]]);
+  var n = ids.length;
+  var sh = sheet(n + ' ' + (d ? d.n : 'tokens'),
+                 d && d.p != null ? (d.p + '/' + d.tg + ' each') : 'Identical tokens');
+  var acts = [
+    ['Tap them all', function(){
+        ids.forEach(function(i){ var c = state.cards[i]; if(c) c.tp = 1; });
+        blip('tick'); commit('Tapped ' + n + ' ' + (d ? d.n : 'tokens')); closeLayer();
+      }, true],
+    ['Untap them all', function(){
+        ids.forEach(function(i){ var c = state.cards[i]; if(c){ c.tp = 0; delete c.gave; } });
+        blip('tick'); commit('Untapped ' + n + ' ' + (d ? d.n : 'tokens')); closeLayer();
+      }],
+    ['Tap one', function(){
+        var c = state.cards[ids[0]]; if(c) c.tp = c.tp ? 0 : 1;
+        blip('tick'); commit(null); closeLayer();
+      }],
+    ['Counter on each', function(){
+        ids.forEach(function(i){ addCounterQuiet(i, 'p1p1', 1); });
+        var m = counterMath('p1p1', 1);
+        blip('act');
+        commit('Put ' + m.n + ' +1/+1 on each of ' + n + ' ' + (d ? d.n : 'tokens'));
+        closeLayer();
+      }],
+    ['Remove one', function(){
+        move(ids[0], 'gy');
+        blip('act'); commit('One ' + (d ? d.n : 'token') + ' gone'); closeLayer();
+      }],
+    ['Remove them all', function(){
+        ids.forEach(function(i){ move(i, 'gy'); });
+        blip('act'); commit('All ' + n + ' ' + (d ? d.n : 'tokens') + ' gone'); closeLayer();
+      }],
+    ['Make one more', function(){
+        var td = defOf(state.cards[ids[0]]);
+        makeToken(JSON.parse(JSON.stringify(td)), 1);
+        closeLayer();
+      }]
+  ];
+  actionGrid(sh, acts);
+}
+
+// Same maths, no log line of its own, for when a batch writes one line.
+function addCounterQuiet(iid, kind, delta){
+  var c = state.cards[iid];
+  if(!c) return;
+  c.ctr = c.ctr || {};
+  var m = counterMath(kind, delta);
+  c.ctr[kind] = (c.ctr[kind] || 0) + (delta > 0 ? m.n : delta);
+  if(!c.ctr[kind]) delete c.ctr[kind];
+}
+
 function band(label, ids, emptyMsg){
   var b = el('div','band main');
   var head = el('div','bandhead');
@@ -1652,7 +1746,16 @@ function band(label, ids, emptyMsg){
   tray.setAttribute('data-scroll','tray-'+label);
   tray.dataset.empty = emptyMsg;
   if(!ids.length) tray.classList.add('empty');
-  ids.forEach(function(iid){ tray.appendChild(cardNode(iid,{zone:'bf'})); });
+  groupIds(ids).forEach(function(g){
+    if(g.length === 1) return tray.appendChild(cardNode(g[0],{zone:'bf'}));
+    var w = cardNode(g[0], { zone:'bf',
+      onTap:  function(){ openGroupSheet(g); },
+      onHold: function(){ openCardSheet(g[0], 'bf'); } });
+    w.classList.add('pile');
+    var tag = el('span','pilecount', '\u00d7' + g.length);
+    w.appendChild(tag);
+    tray.appendChild(w);
+  });
   b.appendChild(tray);
   return b;
 }
@@ -3147,6 +3250,14 @@ function openMenu(){
   };
   tw.appendChild(jin); tw.appendChild(jb);
   s.appendChild(tw);
+  if(tableWasShared){
+    var warn = el('p','note');
+    warn.style.cssText = 'margin-top:var(--s3);color:var(--warn)';
+    warn.innerHTML = '<b>This table is the old shared one.</b> Anyone who opens the app '
+      + 'and types MAIN reaches this game. Start a new table and enter its code on your '
+      + 'other device.';
+    s.appendChild(warn);
+  }
   var tnote = el('p','note');
   tnote.style.marginTop='8px';
   tnote.innerHTML = 'Your iPad and iPhone share a table code. A second person playing on their '
