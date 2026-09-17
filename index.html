@@ -909,6 +909,166 @@ function addMana(sym,n){
   s.mana[sym] = Math.max(0,(s.mana[sym]||0) + n);
 }
 
+// ---- auto-tap ------------------------------------------------------------
+var autoTap = lsGet('ktm.autotap','1') === '1';
+
+// What a cost actually demands: coloured pips, and a generic number.
+function costNeed(m){
+  var syms = parseCost(m), need = {}, generic = 0;
+  MANA.forEach(function(k){ need[k] = 0; });
+  syms.forEach(function(sym){
+    if(/^[0-9]+$/.test(sym)){ generic += parseInt(sym,10); return; }
+    if(/^[XYZ]$/.test(sym)) return;            // you decide X, not the app
+    if(MANA.indexOf(sym) >= 0){ need[sym]++; return; }
+    if(sym.indexOf('/') >= 0){                 // hybrid and phyrexian
+      var parts = sym.split('/').filter(function(x){ return MANA.indexOf(x) >= 0; });
+      if(parts.length){ need[parts[0]]++; return; }
+    }
+    generic++;
+  });
+  return { need:need, generic:generic };
+}
+
+// What one permanent makes when it taps. Scryfall says which colours; the
+// rules text says how many, which is how Sol Ring is worth two and a Forest
+// is worth one.
+function sourceOut(d){
+  var cols = ((d && d.pm) || []).filter(function(c){ return MANA.indexOf(c) >= 0; });
+  if(!cols.length) return null;
+  var amount = 1;
+  var m = /Add ([^.]*)/i.exec((d && d.o) || '');
+  if(m){
+    var first = m[1].split(/ or /i)[0];
+    var n = (first.match(/[{][^}]+[}]/g) || []).length;
+    if(n > 1) amount = n;
+  }
+  return { cols:cols, amount:amount };
+}
+
+function planPayment(cost){
+  var s = seat();
+  var have = {}, need = {};
+  MANA.forEach(function(k){ have[k] = s.mana[k] || 0; need[k] = cost.need[k] || 0; });
+  var generic = cost.generic;
+
+  // Floating mana pays first, colours before generic.
+  MANA.forEach(function(k){
+    var use = Math.min(have[k], need[k]); have[k] -= use; need[k] -= use;
+  });
+  MANA.forEach(function(k){
+    var use = Math.min(have[k], generic); have[k] -= use; generic -= use;
+  });
+
+  var srcs = [];
+  state.z.bf.forEach(function(iid){
+    var c = state.cards[iid];
+    if(!c || c.tp) return;
+    var o = sourceOut(defOf(c));
+    if(!o) return;
+    srcs.push({ iid:iid, cols:o.cols, amount:o.amount, name:(defOf(c) || {}).n || 'a permanent' });
+  });
+  // A one-colour source is spent before a five-colour one, or the flexible
+  // ones get used up on pips anything could have paid.
+  srcs.sort(function(a,b){ return a.cols.length - b.cols.length || a.amount - b.amount; });
+
+  var taps = [], used = {};
+  MANA.forEach(function(k){
+    while(need[k] > 0){
+      var pick = null;
+      for(var i=0;i<srcs.length;i++){
+        if(used[srcs[i].iid]) continue;
+        if(srcs[i].cols.indexOf(k) < 0) continue;
+        pick = srcs[i]; break;
+      }
+      if(!pick) return;                         // this colour cannot be paid
+      used[pick.iid] = 1;
+      taps.push({ iid:pick.iid, colour:k, amount:pick.amount, name:pick.name });
+      need[k] -= 1;
+      var spare = pick.amount - 1;
+      if(spare > 0){
+        var more = Math.min(spare, need[k]); need[k] -= more; spare -= more;
+        var g = Math.min(spare, generic); generic -= g;
+      }
+    }
+  });
+  // Generic is the opposite problem: fewest permanents tapped is best, so a
+  // Sol Ring pays two rather than two lands doing it. Prefer the biggest
+  // source that does not overshoot, so nothing is wasted.
+  while(generic > 0){
+    var free = srcs.filter(function(x){ return !used[x.iid]; });
+    if(!free.length) break;
+    free.sort(function(a,b){
+      var ao = a.amount > generic ? 1 : 0, bo = b.amount > generic ? 1 : 0;
+      if(ao !== bo) return ao - bo;              // exact fits before overshoot
+      return ao ? a.amount - b.amount            // overshooting: waste least
+                : b.amount - a.amount;           // fitting: take the biggest
+    });
+    var g = free[0];
+    used[g.iid] = 1;
+    taps.push({ iid:g.iid, colour:g.cols[0], amount:g.amount, name:g.name });
+    generic -= g.amount;
+  }
+
+  var shortCols = MANA.filter(function(k){ return need[k] > 0; });
+  return { ok: generic <= 0 && !shortCols.length,
+           taps: taps, shortCols: shortCols, shortGeneric: Math.max(0, generic) };
+}
+
+function payFromPool(cost){
+  var s = seat();
+  MANA.forEach(function(k){
+    var use = Math.min(s.mana[k] || 0, cost.need[k] || 0);
+    s.mana[k] -= use;
+  });
+  var g = cost.generic;
+  ['C','W','U','B','R','G'].forEach(function(k){
+    var use = Math.min(s.mana[k] || 0, g);
+    s.mana[k] -= use; g -= use;
+  });
+}
+
+// The one action: pay for it and put it down.
+function castCard(iid){
+  var c = state.cards[iid];
+  if(!c) return;
+  var d = defOf(c);
+  if(!d || isLand(d) || !autoTap || !d.m) return playCard(iid);
+
+  var cost = costNeed(d.m);
+  if(!cost.generic && !MANA.some(function(k){ return cost.need[k]; })) return playCard(iid);
+
+  var plan = planPayment(cost);
+  if(!plan.ok) return offerAnyway(iid, d, plan);
+
+  plan.taps.forEach(function(t){
+    var sc = state.cards[t.iid];
+    // The mana goes straight into this spell, so untapping must not hand it
+    // back the way a manual tap does.
+    if(sc){ sc.tp = 1; delete sc.gave; }
+    addMana(t.colour, t.amount);
+  });
+  payFromPool(cost);
+  move(iid,'bf');
+  c.tp = d.ebt ? 1 : 0;
+  blip('act');
+  commit(plan.taps.length
+    ? ('Tapped ' + plan.taps.length + ' for ' + d.n + ' and played it')
+    : ('Played ' + d.n + ' from floating mana'));
+}
+
+function offerAnyway(iid, d, plan){
+  var missing = [];
+  plan.shortCols.forEach(function(k){ missing.push(MANA_NAME[k]); });
+  if(plan.shortGeneric) missing.push(plan.shortGeneric + ' more of anything');
+  var sh = sheet('Not enough mana for ' + d.n,
+                 'Short of ' + missing.join(' and ') + '.');
+  actionGrid(sh, [
+    ['Play it anyway', function(){ playCard(iid); closeLayer(); }, true],
+    ['Leave it in hand', function(){ closeLayer(); }]
+  ]);
+  sh.appendChild(el('p','note','Nothing is blocked here. The count is a convenience.'));
+}
+
 function playCard(iid, opts){
   opts = opts||{};
   var c = state.cards[iid], d = defOf(c); if(!c) return;
@@ -1322,18 +1482,6 @@ function renderRail(){
   sec3.appendChild(zoneGrid());
   r.appendChild(sec3);
 
-  // log
-  var sec4 = el('div','railsec');
-  sec4.style.cssText='border-bottom:0;flex:1 1 auto;display:flex;flex-direction:column;min-height:0';
-  sec4.appendChild(el('h3',null,'Log'));
-  var lg = el('div','log');
-  lg.setAttribute('data-scroll','log');
-  (state.log||[]).slice(0,40).forEach(function(e){
-    var d = el('div'); d.appendChild(el('b',null,e.t+' ')); d.appendChild(document.createTextNode(e.s)); lg.appendChild(d);
-  });
-  if(!(state.log||[]).length) lg.appendChild(el('div',null,'Actions will appear here.'));
-  sec4.appendChild(lg);
-  r.appendChild(sec4);
   return r;
 }
 
@@ -1985,7 +2133,7 @@ function renderHandView(){
     }, 60);
   }, { passive:true });
 
-  castBtn.onclick = function(){ var iid = centred() || focusIid; if(iid) playCard(iid); };
+  castBtn.onclick = function(){ var iid = centred() || focusIid; if(iid) castCard(iid); };
   moreBtn.onclick = function(){ var iid = centred() || focusIid; if(iid) openCardSheet(iid,'hand'); };
 
   if(state.z.hand.indexOf(focusIid) < 0) focusIid = state.z.hand[0] || null;
@@ -2040,17 +2188,6 @@ function phoneZones(){
     b.onclick = function(){ p[0]==='lib' ? openLibrarySheet() : openBrowse(p[0]); };
     zs.appendChild(b);
   });
-  var db2 = el('button');
-  db2.appendChild(el('span','zl','Deck'));
-  db2.appendChild(el('span','zc', String(totalCards())));
-  db2.querySelector('.zc').style.fontSize='13px';
-  db2.onclick = openDeckSheet;
-  zs.appendChild(db2);
-  var pb = el('button');
-  pb.appendChild(el('span','zl','Players'));
-  pb.appendChild(el('span','zc', String(seats().length)));
-  pb.onclick = openTableSheet;
-  zs.appendChild(pb);
   var tb = el('button','tokbtn');
   tb.appendChild(el('span','zl','Make'));
   tb.appendChild(el('span','zc','Token'));
@@ -2124,8 +2261,9 @@ function openCardSheet(iid, zone){
 
   var acts = [];
   if(z === 'hand'){
-    acts.push(['Play', function(){ playCard(iid); closeLayer(); }, true]);
+    acts.push(['Play', function(){ castCard(iid); closeLayer(); }, true]);
     acts.push(['Play tapped', function(){ playCard(iid,{tapped:true}); closeLayer(); }]);
+    acts.push(['Play without paying', function(){ playCard(iid); closeLayer(); }]);
   }
   if(z === 'bf'){
     acts.push([c.tp?'Untap':'Tap', function(){ tapCard(iid); closeLayer(); }, true]);
@@ -2639,7 +2777,8 @@ function openMenu(){
   var assists = el('div');
   assists.appendChild(el('label',null,'Assists'));
   var ac = el('div','chips');
-  [['Sound', function(){ return soundOn; }, function(v){ soundOn=v; lsSet('ktm.sound',v?'1':'0'); if(v) blip('act'); }],
+  [['Auto tap for mana', function(){ return autoTap; }, function(v){ autoTap=v; lsSet('ktm.autotap',v?'1':'0'); }],
+   ['Sound', function(){ return soundOn; }, function(v){ soundOn=v; lsSet('ktm.sound',v?'1':'0'); if(v) blip('act'); }],
    ['Board tab on phone', function(){ return showPhoneBoard; }, function(v){ showPhoneBoard=v; lsSet('ktm.pboard',v?'1':'0'); render(); }],
    ['Life counters', function(){ return showLife; }, function(v){ showLife=v; lsSet('ktm.life',v?'1':'0'); render(); }],
    ['Untap on turn', function(){ return autoUntap; }, function(v){ autoUntap=v; lsSet('ktm.autountap',v?'1':'0'); }],
