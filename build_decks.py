@@ -56,6 +56,40 @@ def resolve(names):
     return found, missing
 
 
+def token_ids(c):
+    """Scryfall says outright which tokens a card makes, so nothing is parsed."""
+    out = []
+    for part in c.get("all_parts") or []:
+        if part.get("component") == "token" and part.get("id") != c.get("id"):
+            out.append(part["id"])
+    return out
+
+
+def resolve_ids(ids):
+    """Fetch the token cards themselves: all_parts carries no art or power."""
+    found = {}
+    ids = sorted(set(ids))
+    for i in range(0, len(ids), 70):
+        chunk = ids[i:i + 70]
+        res = post("https://api.scryfall.com/cards/collection",
+                   {"identifiers": [{"id": x} for x in chunk]})
+        for c in res.get("data", []):
+            found[c["id"]] = {
+                "id": c["id"],
+                "n": c["name"],
+                "t": c.get("type_line", ""),
+                "u": img_of(c),
+                "ci": c.get("color_identity", []),
+                "o": (c.get("oracle_text") or "")[:200],
+            }
+            if c.get("power") is not None:
+                found[c["id"]]["p"] = str(c["power"])
+            if c.get("toughness") is not None:
+                found[c["id"]]["tg"] = str(c["toughness"])
+        time.sleep(0.15)
+    return found
+
+
 def img_of(c):
     if c.get("image_uris"):
         return c["image_uris"].get("normal")
@@ -93,6 +127,9 @@ def card_def(c, qty, section):
         d["loy"] = loy
     if "enters the battlefield tapped" in oracle or "enters tapped" in oracle:
         d["ebt"] = 1
+    tids = token_ids(c)
+    if tids:
+        d["tkid"] = tids
     return d
 
 
@@ -119,6 +156,19 @@ for fn in sorted(os.listdir("decks")):
         if section == "commander" and not commander:
             commander = c["name"]
         cards.append(card_def(c, qty, section))
+
+    # Every token any card in the deck makes, attached to the card that makes it.
+    want = []
+    for d in cards:
+        want.extend(d.get("tkid") or [])
+    tokens = resolve_ids(want) if want else {}
+    made = 0
+    for d in cards:
+        tk = [tokens[i] for i in (d.pop("tkid", None) or []) if i in tokens]
+        if tk:
+            d["tk"] = tk
+            made += 1
+    print("  tokens: %d kinds, on %d cards" % (len(tokens), made))
 
     main = sum(d["q"] for d in cards if not d.get("side"))
     side = len([d for d in cards if d.get("side")])
