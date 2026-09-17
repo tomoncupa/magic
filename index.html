@@ -320,6 +320,15 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 }
 .bdg.ctr{background:rgba(74,157,92,.92);border-color:rgba(255,255,255,.3);color:#06180b}
 .bdg.ctr.neg{background:rgba(217,83,74,.92);color:#2a0605}
+.bdg.ctr.loy{background:rgba(212,169,75,.95);color:#20180a;border-color:#8a6f2e;
+  font-size:12px;padding:3px 6px}
+.prolrow{display:block;width:100%;text-align:left;padding:var(--s3) var(--s4);
+  border-radius:var(--r-md);background:var(--bg2);border:1px solid var(--line);
+  margin-bottom:var(--s2);min-height:var(--tap)}
+.prolrow.on{border-color:var(--brass-dim);background:#232d1f}
+.pr-n{font-size:var(--t2);color:var(--ink)}
+.prolrow.on .pr-n{color:var(--brass)}
+.pr-c{font-family:var(--mono);font-size:var(--t1);color:var(--ink3);margin-top:2px}
 .bdg.tok{background:rgba(212,169,75,.9);color:#20180a;font-size:9px;letter-spacing:.06em}
 
 /* ---------- hand strip (board) ---------- */
@@ -420,6 +429,8 @@ input:focus,textarea:focus,select:focus{border-color:var(--brass-dim);outline:no
 .mullopt{display:block;width:100%;text-align:left;padding:var(--s4);
   border-radius:var(--r-md);background:var(--bg2);border:1px solid var(--line);
   margin-bottom:var(--s2);min-height:var(--tap)}
+.mullopt.on{border-color:var(--brass-dim);background:#232d1f}
+.mullopt.on .mo-t{color:var(--brass)}
 .mullopt:hover{border-color:var(--line2);background:var(--bg3)}
 .mo-t{font-family:var(--disp);font-size:var(--t3);font-weight:700;color:var(--ink)}
 .mo-d{font-size:var(--t2);color:var(--ink3);line-height:1.45;margin-top:2px}
@@ -458,7 +469,7 @@ input:focus,textarea:focus,select:focus{border-color:var(--brass-dim);outline:no
 </div>
 <div id="layer"></div>
 
-<script src="deck.js"></script>
+<script src="decks.js"></script>
 <script src="config.js" onerror="window.MTG_FIREBASE=null"></script>
 <script>
 (function(){
@@ -509,7 +520,15 @@ var emptyPool = lsGet('ktm.emptypool','1') === '1';
 /* ---------------- card definitions ---------------- */
 // Built-in deck ships with real art as same-origin files (art/<slug>.jpg).
 // Imported decks carry no art and render as typographic faces.
-var BUILTIN = (window.MTG_DECK && window.MTG_DECK.cards) ? window.MTG_DECK.cards : [];
+// Every deck that ships with the app. Switching between them keeps each one's
+// own art and card data; nothing is re-imported.
+var DECKS = window.MTG_DECKS || (window.MTG_DECK ? [window.MTG_DECK] : []);
+var builtinId = lsGet('ktm.builtin', DECKS.length ? DECKS[0].id : '');
+function builtinDeck(){
+  for(var i=0;i<DECKS.length;i++){ if(DECKS[i].id === builtinId) return DECKS[i]; }
+  return DECKS[0] || null;
+}
+var BUILTIN = (builtinDeck() || {}).cards || [];
 // Art comes from Scryfall's own image host. Anything without a picture draws
 // a typographic face instead.
 function hasArt(d){ return !!(d && d.u); }
@@ -528,7 +547,7 @@ function slugify(n){
 }
 var defs = BUILTIN;               // active definition table
 var defsAreBuiltin = true;
-var deckName = (window.MTG_DECK && window.MTG_DECK.name) || 'Sample deck';
+var deckName = (builtinDeck() || {}).name || 'Deck';
 
 /* ---------------- game state ---------------- */
 var state = null;
@@ -558,7 +577,10 @@ function cmdLethal(sx){
 }
 
 function isLand(d){ return !!d && /Land/.test(d.t||''); }
-function isCommanderDef(d){ return !!d && !!window.MTG_DECK && d.n === window.MTG_DECK.commander; }
+function isCommanderDef(d){
+  var b = builtinDeck();
+  return !!d && !!b && d.n === b.commander;
+}
 
 function buildGame(defList, commanderName){
   var cards = {}, lib = [], cmd = [], id = 1;
@@ -1050,10 +1072,21 @@ function castCard(iid){
   payFromPool(cost);
   move(iid,'bf');
   c.tp = d.ebt ? 1 : 0;
+  startingLoyalty(c, d);
   blip('act');
   commit(plan.taps.length
     ? ('Tapped ' + plan.taps.length + ' for ' + d.n + ' and played it')
     : ('Played ' + d.n + ' from floating mana'));
+}
+
+// A planeswalker arrives with its printed loyalty, and doublers apply to it
+// the same as any other counter.
+function startingLoyalty(c, d){
+  if(!c || !d || !/Planeswalker/.test(d.t || '')) return;
+  var base = parseInt(d.loy, 10);
+  if(!base) return;
+  c.ctr = c.ctr || {};
+  c.ctr.loyalty = counterMath('loyalty', base).n;
 }
 
 function offerAnyway(iid, d, plan){
@@ -1069,12 +1102,221 @@ function offerAnyway(iid, d, plan){
   sh.appendChild(el('p','note','Nothing is blocked here. The count is a convenience.'));
 }
 
+// ---- counters -----------------------------------------------------------
+var COUNTERS = [
+  { k:'p1p1',    label:'+1/+1',  pt:1 },
+  { k:'m1m1',    label:'-1/-1',  pt:-1 },
+  { k:'loyalty', label:'Loyalty' },
+  { k:'charge',  label:'Charge' },
+  { k:'stun',    label:'Stun' },
+  { k:'shield',  label:'Shield' }
+];
+function counterLabel(k){
+  for(var i=0;i<COUNTERS.length;i++) if(COUNTERS[i].k === k) return COUNTERS[i].label;
+  return k;
+}
+
+// Replacement effects only. Each one reads your own battlefield, never anyone
+// else's, so none of this needs to know what the table is holding. Matched by
+// printed name rather than by reading rules text, because a guess here would
+// quietly give you the wrong number.
+var COUNTER_RULES = [
+  { n:'Doubling Season',              mult:2, tokens:2 },
+  { n:'Primal Vigor',                 mult:2, tokens:2 },
+  { n:'Vorinclex, Monstrous Raider',  mult:2 },
+  { n:"Innkeeper's Talent",           mult:2 },
+  { n:'Branching Evolution',          mult:2, only:'p1p1' },
+  { n:'Corpsejack Menace',            mult:2, only:'p1p1' },
+  { n:'Hardened Scales',              add:1,  only:'p1p1' },
+  { n:'Ozolith, the Shattered Spire', add:1,  only:'p1p1' },
+  { n:'Conclave Mentor',              add:1,  only:'p1p1' },
+  { n:'Parallel Lives',               tokens:2 },
+  { n:'Anointed Procession',          tokens:2 },
+  { n:'Mondrak, Glory Dominus',       tokens:2 }
+];
+
+function rulesInPlay(){
+  var out = [];
+  state.z.bf.forEach(function(iid){
+    var c = state.cards[iid];
+    if(!c || c.fd) return;                     // a face down card does nothing
+    var d = defOf(c);
+    if(!d) return;
+    for(var i=0;i<COUNTER_RULES.length;i++){
+      if(COUNTER_RULES[i].n === d.n) out.push(COUNTER_RULES[i]);
+    }
+  });
+  return out;
+}
+
+// Adders apply before doublers, which is the order that gives the most and the
+// one you would choose. Returns the final number and the working.
+function counterMath(kind, base){
+  var adds = 0, mults = [], why = [];
+  rulesInPlay().forEach(function(r){
+    if(r.only && r.only !== kind) return;
+    if(r.add){ adds += r.add; why.push(r.n + ' adds ' + r.add); }
+    if(r.mult){ mults.push(r.mult); why.push(r.n + ' doubles'); }
+  });
+  var n = base + adds;
+  mults.forEach(function(m){ n = n * m; });
+  return { n:n, base:base, why:why };
+}
+function tokenMath(base){
+  var mults = [], why = [];
+  rulesInPlay().forEach(function(r){
+    if(r.tokens){ mults.push(r.tokens); why.push(r.n + ' doubles'); }
+  });
+  var n = base;
+  mults.forEach(function(m){ n = n * m; });
+  return { n:n, base:base, why:why };
+}
+
+function counterSum(c){
+  var t = 0, ctr = (c && c.ctr) || {};
+  for(var k in ctr) t += Math.abs(ctr[k]);
+  return t;
+}
+
+// ---- the counter sheet ---------------------------------------------------
+function openCounters(iid){
+  var c = state.cards[iid];
+  if(!c) return;
+  var d = defOf(c);
+  var sh = sheet('Counters', d ? d.n : 'This permanent');
+  var body = el('div');
+  sh.appendChild(body);
+
+  function paint(){
+    body.innerHTML = '';
+    var ctr = c.ctr || {};
+    var kinds = Object.keys(ctr);
+    if(kinds.length){
+      kinds.forEach(function(k){
+        var row = el('div','cdgrid');
+        row.appendChild(el('div','lbl', counterLabel(k)));
+        var dn = el('button',null,'\u2212');
+        var val = el('div','val', String(ctr[k]));
+        var up = el('button',null,'+');
+        dn.onclick = function(){ addCounter(iid, k, -1, true); paint(); };
+        up.onclick = function(){ addCounter(iid, k, 1); paint(); };
+        row.appendChild(dn); row.appendChild(val); row.appendChild(up);
+        body.appendChild(row);
+      });
+    } else {
+      body.appendChild(el('p','note','No counters on this yet.'));
+    }
+
+    body.appendChild(el('div','divider'));
+    var math = counterMath('p1p1', 1);
+    if(math.why.length){
+      var m = el('p','note');
+      m.innerHTML = '<b>One +1/+1 counter becomes ' + math.n + '.</b> ' + math.why.join(', ') + '.';
+      m.style.marginBottom = 'var(--s3)';
+      body.appendChild(m);
+    }
+    var g = el('div','grid');
+    COUNTERS.forEach(function(x){
+      var b = el('button','btn', 'Add ' + x.label);
+      b.onclick = function(){ addCounter(iid, x.k, 1); paint(); };
+      g.appendChild(b);
+    });
+    var other = el('button','btn ghost','Other kind');
+    other.onclick = function(){
+      var name = (prompt && prompt('Name of counter')) || '';
+      name = String(name).trim().toLowerCase().replace(/[^a-z0-9 ]/g,'').slice(0,14);
+      if(name){ addCounter(iid, name, 1); paint(); }
+    };
+    g.appendChild(other);
+    body.appendChild(g);
+  }
+  paint();
+}
+
+// One place that puts counters on, so the replacement effects cannot be
+// skipped by going in a side door. `raw` means place exactly this many.
+function addCounter(iid, kind, delta, raw){
+  var c = state.cards[iid];
+  if(!c) return;
+  c.ctr = c.ctr || {};
+  var applied = delta;
+  var note = '';
+  if(delta > 0 && !raw){
+    var m = counterMath(kind, delta);
+    applied = m.n;
+    if(m.why.length) note = ' (' + m.why.join(', ') + ')';
+  }
+  c.ctr[kind] = (c.ctr[kind] || 0) + applied;
+  if(!c.ctr[kind]) delete c.ctr[kind];
+  var d = defOf(c);
+  blip('tick');
+  commit((applied >= 0 ? 'Put ' + applied : 'Removed ' + Math.abs(applied))
+    + ' ' + counterLabel(kind) + (Math.abs(applied) === 1 ? ' counter' : ' counters')
+    + ' on ' + (d ? d.n : 'a permanent') + note);
+}
+
+// ---- proliferate ---------------------------------------------------------
+function openProliferate(){
+  var withCounters = state.z.bf.filter(function(iid){ return counterSum(state.cards[iid]); });
+  var sh = sheet('Proliferate', 'Add one more of each kind of counter already there.');
+  if(!withCounters.length){
+    sh.appendChild(el('p','note','Nothing on your battlefield has a counter on it.'));
+    return;
+  }
+  var picked = {};
+  withCounters.forEach(function(iid){ picked[iid] = true; });
+
+  var list = el('div');
+  sh.appendChild(list);
+  function paint(){
+    list.innerHTML = '';
+    withCounters.forEach(function(iid){
+      var c = state.cards[iid], d = defOf(c);
+      var row = el('button','prolrow' + (picked[iid] ? ' on' : ''));
+      row.appendChild(el('div','pr-n', d ? d.n : 'Permanent'));
+      var kinds = Object.keys(c.ctr || {}).map(function(k){
+        return counterLabel(k) + ' ' + c.ctr[k];
+      }).join(', ');
+      row.appendChild(el('div','pr-c', kinds));
+      row.onclick = function(){ picked[iid] = !picked[iid]; paint(); };
+      list.appendChild(row);
+    });
+  }
+  paint();
+
+  sh.appendChild(el('div','divider'));
+  var go = el('button','btn primary','Proliferate the chosen');
+  go.style.cssText = 'width:100%;justify-content:center';
+  go.onclick = function(){
+    var n = 0;
+    withCounters.forEach(function(iid){
+      if(!picked[iid]) return;
+      var c = state.cards[iid];
+      Object.keys(c.ctr || {}).forEach(function(k){
+        var m = counterMath(k, 1);
+        c.ctr[k] = (c.ctr[k] || 0) + (c.ctr[k] < 0 ? -m.n : m.n);
+        n++;
+      });
+    });
+    blip('act');
+    commit('Proliferated ' + n + ' counter kind' + (n===1?'':'s'));
+    closeLayer();
+  };
+  sh.appendChild(go);
+  var pm = counterMath('p1p1', 1);
+  if(pm.why.length){
+    sh.appendChild(el('p','note','Each counter becomes ' + pm.n + ': ' + pm.why.join(', ') + '.'));
+  }
+  sh.appendChild(el('p','note','Opponents are not listed. Proliferate their poison at the table.'));
+}
+
 function playCard(iid, opts){
   opts = opts||{};
   var c = state.cards[iid], d = defOf(c); if(!c) return;
   move(iid,'bf');
   var tapped = !!opts.tapped || (d && d.ebt);
   c.tp = tapped ? 1 : 0;
+  startingLoyalty(c, d);
   if(d && isLand(d)){ seat().landDrop = (seat().landDrop||0) + 1; }
   blip('act');
   commit('Played '+(d?d.n:'a card') + (tapped?' (tapped)':''));
@@ -1082,12 +1324,15 @@ function playCard(iid, opts){
 
 function makeToken(td, count){
   count = count||1;
+  var tm = tokenMath(count);
+  var tokenNote = tm.why.length ? ' (' + tm.why.join(', ') + ')' : '';
+  count = tm.n;
   for(var i=0;i<count;i++){
     var iid = 'k'+(nextId++)+Math.random().toString(36).slice(2,5);
     state.cards[iid] = { i:iid, d:-1, tp:0, ctr:{}, fd:0, tok:1, td:td };
     state.z.bf.push(iid);
   }
-  commit('Created '+count+'\u00d7 '+td.n);
+  commit('Created '+count+'\u00d7 '+td.n+tokenNote);
 }
 function copyAsToken(iid){
   var c = state.cards[iid], d = defOf(c); if(!d) return;
@@ -1257,7 +1502,10 @@ function cardNode(iid, opts){
     var ctr = (c && c.ctr) || {};
     Object.keys(ctr).forEach(function(k){
       var v = ctr[k];
-      var b = el('span','bdg ctr' + (v<0?' neg':''), (k==='p1p1' ? (v>0?'+':'')+v+'/'+(v>0?'+':'')+v : k+' '+v));
+      var txt = k === 'p1p1' ? (v>0?'+':'')+v+'/'+(v>0?'+':'')+v
+              : k === 'loyalty' ? String(v)
+              : counterLabel(k) + ' ' + v;
+      var b = el('span','bdg ctr' + (v<0?' neg':'') + (k==='loyalty'?' loy':''), txt);
       left.appendChild(b);
     });
     if(c && c.tok) left.appendChild(el('span','bdg tok','TOKEN'));
@@ -1914,6 +2162,53 @@ function openLogSheet(){
   sh.appendChild(box);
 }
 
+// Load one of the built-in decks, replacing whatever is loaded now.
+function loadBuiltin(id){
+  builtinId = id;
+  lsSet('ktm.builtin', id);
+  var b = builtinDeck();
+  if(!b) return;
+  BUILTIN = b.cards;
+  defs = BUILTIN;
+  defsAreBuiltin = true;
+  deckChanges = [];
+  physChanges = [];
+  importedCommander = b.commander;
+  deckName = b.name;
+  try{ localStorage.removeItem('ktm.defs'); }catch(e){}
+  if(deckRef) deckRef.delete().catch(function(){});
+  state = buildGame(defs, b.commander);
+  dealOpeningHand();
+  undoStack = [];
+  commit('Loaded ' + deckName);
+  closeLayer();
+  doMulligan();
+}
+
+function openDeckPicker(){
+  var sh = sheet('Your decks', 'Each one keeps its own cards and art.');
+  DECKS.forEach(function(b){
+    var main = 0, side = 0;
+    b.cards.forEach(function(c){ if(c.side) side++; else main += (c.q == null ? 1 : c.q); });
+    var row = el('button','mullopt' + (b.id === builtinId && defsAreBuiltin ? ' on' : ''));
+    row.appendChild(el('div','mo-t', b.name));
+    row.appendChild(el('div','mo-d', main + ' cards, ' + side + ' in the sideboard'
+      + (b.id === builtinId && defsAreBuiltin ? '. Loaded now.' : '')));
+    row.onclick = function(){
+      if(b.id === builtinId && defsAreBuiltin){ closeLayer(); return; }
+      closeLayer();
+      confirmSheet('Load ' + b.name + '?',
+        'The game in progress is discarded and a new hand is dealt.',
+        'Load it', function(){ loadBuiltin(b.id); });
+    };
+    sh.appendChild(row);
+  });
+  if(!defsAreBuiltin){
+    sh.appendChild(el('div','divider'));
+    sh.appendChild(el('p','note','An imported deck is loaded right now: ' + deckName + '.'));
+  }
+}
+
 function openTableSheet(){
   var sh = sheet('Players at the table',
                  'Opponents playing with real cards, life and commander damage only.');
@@ -1979,11 +2274,17 @@ function zoneGrid(){
   cmdBtn.onclick = function(){ openBrowse('cmd'); };
   g.appendChild(cmdBtn);
 
-  var tokBtn = el('button','zone wide');
+  var tokBtn = el('button','zone');
   tokBtn.style.cssText='justify-content:center;background:var(--bg3);border-color:var(--brass-dim)';
-  tokBtn.appendChild(el('span','zl','+ Create token'));
+  tokBtn.appendChild(el('span','zl','+ Token'));
   tokBtn.onclick = openTokenSheet;
   g.appendChild(tokBtn);
+
+  var proBtn = el('button','zone');
+  proBtn.style.cssText='justify-content:center;background:var(--bg3);border-color:var(--brass-dim)';
+  proBtn.appendChild(el('span','zl','Proliferate'));
+  proBtn.onclick = openProliferate;
+  g.appendChild(proBtn);
 
   return g;
 }
@@ -2194,6 +2495,12 @@ function phoneZones(){
   tb.querySelector('.zc').style.fontSize='12px';
   tb.onclick = openTokenSheet;
   zs.appendChild(tb);
+  var pr = el('button','tokbtn');
+  pr.appendChild(el('span','zl','Prolif'));
+  pr.appendChild(el('span','zc','+1'));
+  pr.querySelector('.zc').style.fontSize='12px';
+  pr.onclick = openProliferate;
+  zs.appendChild(pr);
   return zs;
 }
 
@@ -2267,8 +2574,9 @@ function openCardSheet(iid, zone){
   }
   if(z === 'bf'){
     acts.push([c.tp?'Untap':'Tap', function(){ tapCard(iid); closeLayer(); }, true]);
-    acts.push(['+1/+1', function(){ bump(iid,'p1p1',1); closeLayer(); openCardSheet(iid); }]);
-    acts.push(['\u22121/\u22121', function(){ bump(iid,'p1p1',-1); closeLayer(); openCardSheet(iid); }]);
+    acts.push(['Counters', function(){ closeLayer(); openCounters(iid); }]);
+    acts.push(['+1/+1', function(){ addCounter(iid,'p1p1',1); closeLayer(); }]);
+    acts.push(['\u22121/\u22121', function(){ addCounter(iid,'p1p1',-1,true); closeLayer(); }]);
     acts.push(['Copy as token', function(){ copyAsToken(iid); closeLayer(); }]);
     acts.push([c.fd?'Turn face up':'Turn face down', function(){ c.fd=c.fd?0:1; commit(null); closeLayer(); }]);
   }
@@ -2801,7 +3109,7 @@ function openMenu(){
         'The current board, hand and graveyard are discarded. Life totals reset.',
         'Start new game', function(){
           var keep = seats().filter(function(o){ return o.opp; });
-          state = buildGame(defs, defsAreBuiltin ? (window.MTG_DECK && window.MTG_DECK.commander) : importedCommander);
+          state = buildGame(defs, defsAreBuiltin ? (builtinDeck() || {}).commander : importedCommander);
           keep.forEach(function(o){ o.life = 40; o.poison = 0; o.cmdDmg = {}; state.seats.push(o); });
           dealOpeningHand();
           undoStack = [];
@@ -2809,16 +3117,10 @@ function openMenu(){
           closeLayer();
           doMulligan();
         }); }],
-    [(window.MTG_DECK && window.MTG_DECK.name) ? 'Reload ' + window.MTG_DECK.name : 'Reload built-in deck', function(){
-        defs = BUILTIN; defsAreBuiltin = true;
-        deckChanges = [];
-        importedCommander = window.MTG_DECK && window.MTG_DECK.commander;
-        deckName = (window.MTG_DECK && window.MTG_DECK.name) || 'Sample deck';
-        state = buildGame(defs, window.MTG_DECK && window.MTG_DECK.commander);
-        try{ localStorage.removeItem('ktm.defs'); }catch(e){}
-        if(deckRef) deckRef.delete().catch(function(){});
-        commit('Reloaded ' + deckName);
+    [DECKS.length > 1 ? 'Switch deck' : 'Reload deck', function(){
         closeLayer();
+        if(DECKS.length > 1) return openDeckPicker();
+        loadBuiltin(builtinId);
       }]
   ]);
 
@@ -3198,11 +3500,11 @@ function boot(){
     }
     if(state.deck && state.deck.name) deckName = state.deck.name;
   } else {
-    state = buildGame(defs, window.MTG_DECK && window.MTG_DECK.commander);
+    state = buildGame(defs, (builtinDeck() || {}).commander);
     for(var i=0;i<7 && state.z.lib.length;i++) move(state.z.lib[0],'hand');
     logg('Opening hand drawn, '+deckName);
   }
-  if(defsAreBuiltin && window.MTG_DECK) importedCommander = window.MTG_DECK.commander;
+  if(defsAreBuiltin && builtinDeck()) importedCommander = builtinDeck().commander;
 
   // Games made before opponents existed carry a single seat.
   if(!state.seats || !state.seats.length) state.seats = [ newSeat() ];

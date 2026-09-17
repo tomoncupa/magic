@@ -1,0 +1,100 @@
+Commander
+1 Krenko, Mob Boss
+
+Deck
+1 Chandra, Torch of Defiance
+1 Anger
+1 Battle Cry Goblin
+1 Conspicuous Snoop
+1 Dropkick Bomber
+1 Feldon of the Third Path
+1 General Kreat, the Boltbringer
+1 Goblin Chieftain
+1 Goblin King
+1 Goblin Lackey
+1 Goblin Matron
+1 Goblin Piledriver
+1 Goblin Recruiter
+1 Goblin Trashmaster
+1 Goblin Warchief
+1 Goro-Goro, Disciple of Ryusei
+1 Hobgoblin Bandit Lord
+1 Howlsquad Heavy
+1 Imperial Recruiter
+1 Purphoros, God of the Forge
+1 Kiki-Jiki, Mirror Breaker
+1 Krenko, Tin Street Kingpin
+1 Marvin, Murderous Mimic
+1 Muxus, Goblin Grandee
+1 Pashalik Mons
+1 Rundvelt Hordemaster
+1 Skirk Prospector
+1 Squee, Dubious Monarch
+1 Torbran, Thane of Red Fell
+1 Warren Instigator
+1 Zealous Conscripts
+1 Ragavan, Nimble Pilferer
+1 Blasphemous Act
+1 Dragon Fodder
+1 Faithless Looting
+1 Hordeling Outburst
+1 Jeska's Will
+1 Krenko's Command
+1 Battle Hymn
+1 Brightstone Ritual
+1 Final Fortune
+1 Ashnod's Altar
+1 Embercleave
+1 Illusionist's Bracers
+1 Lightning Greaves
+1 Patchwork Banner
+1 Patriar's Seal
+1 Sword of Fire and Ice
+1 Rings of Brighthearth
+1 Ruby Medallion
+1 Skullclamp
+1 Sol Ring
+1 Staff of Domination
+1 Swiftfoot Boots
+1 The Fire Crystal
+1 Thousand-Year Elixir
+1 Fable of the Mirror-Breaker
+1 Fiery Emancipation
+1 Goblin Bombardment
+1 Impact Tremors
+1 Mana Echoes
+1 Outpost Siege
+1 Shared Animosity
+1 Ancient Tomb
+1 Arena of Glory
+1 Buried Ruin
+1 Castle Embereth
+1 Cavern of Souls
+1 Command Beacon
+23 Mountain
+1 Myriad Landscape
+1 Nykthos, Shrine to Nyx
+1 Path of Ancestry
+1 Talon Gates of Madara
+1 Three Tree City
+1 Urza's Saga
+1 Valakut, the Molten Pinnacle
+
+Sideboard
+1 Abrade
+1 Arcane Signet
+1 Birgi, God of Storytelling
+1 Boggart Shenanigans
+1 Bolt Bend
+1 Chandra, Dressed to Kill
+1 Chrome Mox
+1 Crucible of Worlds
+1 Defense Grid
+1 Deflecting Swat
+1 Everflowing Chalice
+1 Goblin Freerunner
+1 Reckless Bushwhacker
+1 Sneak Attack
+1 The One Ring
+1 Underworld Breach
+1 Warstorm Surge
