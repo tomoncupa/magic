@@ -59,6 +59,11 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 /* A long press on a card is a hold, not a text highlight. iPadOS decides that
    by whether the thing under the finger is selectable text, so it is not. */
 #app{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+/* Nothing in this app shows a scroll bar. Where something does not fit it is
+   made smaller; where it truly cannot be, it still scrolls under your finger,
+   silently, the way a phone does. */
+*{scrollbar-width:none;-ms-overflow-style:none}
+*::-webkit-scrollbar{width:0;height:0;display:none}
 input,textarea{-webkit-user-select:text;user-select:text}
 .topbar{
   display:flex;align-items:center;gap:10px;flex-wrap:nowrap;
@@ -126,7 +131,30 @@ input,textarea{-webkit-user-select:text;user-select:text}
 .syncdot.local{background:var(--warn)}
 
 /* ---------- board ---------- */
-.board{flex:1 1 auto;display:grid;grid-template-columns:1fr 208px;min-height:0}
+.board{flex:1 1 auto;display:grid;grid-template-columns:1fr 176px;min-height:0}
+/* The other three sit across the table from you, so they sit across the top of
+   your board, in one row, in the order they are seated. */
+.seatbar{flex:0 0 auto;display:flex;gap:var(--s3);padding:var(--s2) var(--s3);
+  border-bottom:1px solid var(--line);background:linear-gradient(180deg,rgba(255,255,255,.02),transparent)}
+.seatbar .seatmark{position:static;flex:1 1 0;min-width:0;flex-direction:row;
+  justify-content:center;gap:var(--s3);min-height:38px}
+/* Lands and the zones share one strip, because both are things you reach for
+   rather than things you look at. */
+.landsrow{display:flex;min-height:0;min-width:0}
+.landsrow .band{flex:1 1 auto;min-width:0;border-bottom:0}
+.zonestrip{flex:0 0 186px;min-width:0;padding:var(--s3);overflow:hidden;
+  border-left:1px solid var(--line);display:flex;flex-direction:column;gap:5px}
+.zones.small{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.zones.small .zrow{padding:4px 5px;gap:6px}
+.zones.small .zstack{width:30px;height:40px}
+.zones.small .zstack i{width:25px;height:35px}
+.zones.small .zn{font-size:14px}
+.zones.small .zl{font-size:8px}
+.zones.small .zsub{display:none}
+.zones.small .zacts{grid-column:1/-1}
+.cmdmini{display:flex;align-items:center;gap:var(--s3)}
+.cmdmini img{width:26px;aspect-ratio:63/88;object-fit:cover;border-radius:3px;
+  border:1px solid var(--line2);flex:0 0 auto}
 .field{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
 .band{
   display:flex;flex-direction:column;min-height:0;
@@ -265,6 +293,8 @@ input,textarea{-webkit-user-select:text;user-select:text}
   border-bottom:1px solid rgba(47,65,57,.55);font-size:var(--t2);color:var(--ink2)}
 .logrow b{font-family:var(--mono);font-size:var(--t1);color:var(--ink3);
   flex:0 0 32px;font-weight:500}
+button.val{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+button.val:hover{color:var(--brass)}
 .tablecode{font-family:var(--mono);font-size:17px;font-weight:600;color:var(--brass);letter-spacing:.14em}
 .zones{display:flex;flex-direction:column;gap:6px}
 /* A zone reads as a pile of cards, thicker when it holds more, with whatever
@@ -294,8 +324,10 @@ input,textarea{-webkit-user-select:text;user-select:text}
   border:1px solid var(--line2);color:var(--ink2);font-size:14px;line-height:1}
 .tkcount b{font-family:var(--mono);font-size:14px;min-width:20px;text-align:center;color:var(--ink)}
 .cmdrow{display:flex;align-items:center;gap:10px}
-.cmdrow .cmdname{font-family:var(--disp);font-size:13px;font-weight:700;color:var(--ink);line-height:1.2}
-.cmdrow .cmdwhere{font-size:10.5px;color:var(--ink3);margin-top:3px}
+.cmdrow .cmdname,.cmdmini .cmdname{font-family:var(--disp);font-size:12.5px;font-weight:700;
+  color:var(--ink);line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cmdrow .cmdwhere,.cmdmini .cmdwhere{font-size:10px;color:var(--ink3);margin-top:2px}
+.seatmark .sm-l{font-family:var(--mono);font-size:var(--t3);font-weight:600;color:var(--ink)}
 .zrow .zn{font-family:var(--mono);font-size:19px;font-weight:600;color:var(--ink);
   font-variant-numeric:tabular-nums;line-height:1.1}
 .zrow .zsub{font-size:10.5px;color:var(--ink3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -318,6 +350,12 @@ input,textarea{-webkit-user-select:text;user-select:text}
   position:relative;width:var(--cw);height:calc(var(--cw) * 88 / 63);flex:0 0 auto;
 }
 .cw.tapped{margin-left:calc(var(--cw) * .11);margin-right:calc(var(--cw) * .11)}
+/* Dragging: the card you are holding, and the place it would land. */
+.cw.ghost{position:fixed;z-index:90;pointer-events:none;opacity:.92;margin:0;
+  filter:drop-shadow(0 14px 26px rgba(0,0,0,.65))}
+.cw.lifted .card{opacity:.35}
+.dropping{outline:2px dashed var(--brass);outline-offset:3px}
+.seatmark.dropping{background:#2a2415;border-color:var(--brass)}
 .card{
   position:absolute;inset:0;border-radius:calc(var(--cw)*.048);overflow:hidden;
   background:var(--bg3);border:1px solid #0b100d;box-shadow:var(--shadow);
@@ -415,6 +453,7 @@ input,textarea{-webkit-user-select:text;user-select:text}
   font-family:var(--mono);font-size:13px;font-weight:600;line-height:1;
   padding:4px 6px;border-radius:99px;background:var(--brass);color:#20180a;
   border:1px solid #0b100d;pointer-events:none}
+.bdg.must{background:rgba(217,83,74,.92);color:#fff;border-color:rgba(255,255,255,.3)}
 .bdg.buffed{background:rgba(74,157,92,.92);color:#06180b;border-color:rgba(255,255,255,.3)}
 .bdg.tok{background:rgba(212,169,75,.9);color:#20180a;font-size:9px;letter-spacing:.06em}
 
@@ -553,7 +592,7 @@ input:focus,textarea:focus,select:focus{border-color:var(--brass-dim);outline:no
     <span class="syncdot" id="dot" title="sync status"></span>
     <div id="topMana" class="manabar"></div>
     <div class="spacer"></div>
-    <div id="topActions" style="display:flex;gap:7px;align-items:center;overflow-x:auto"></div>
+    <div id="topActions" style="display:flex;gap:7px;align-items:center;overflow:hidden;min-width:0"></div>
     <div id="topTail" style="display:flex;gap:7px;align-items:center;flex:0 0 auto"></div>
   </div>
   <div id="main" style="flex:1 1 auto;min-height:0;display:flex;flex-direction:column"></div>
@@ -664,6 +703,27 @@ function newOpponent(n){
   return { id:'o'+n, name:'Opponent '+n, life:40, poison:0, cmdDmg:{}, opp:1 };
 }
 function seats(){ return state.seats || []; }
+// The same people, at a fresh game. buildGame already seated three, so these
+// REPLACE them rather than joining them.
+function carryOpponents(keep){
+  if(!keep || !keep.length) return;
+  var me = state.seats[0];
+  keep.forEach(function(o){ o.life = 40; o.poison = 0; o.cmdDmg = {}; });
+  state.seats = [me].concat(keep);
+}
+// One seat per person. Games saved while the bug above was live carry each
+// opponent twice; the second copy goes, and its life goes with it.
+function dedupeSeats(d){
+  var out = [], seen = {};
+  (d.seats || []).forEach(function(sx){
+    if(!sx || !sx.id) return;
+    if(seen[sx.id]) return;
+    seen[sx.id] = 1;
+    out.push(sx);
+  });
+  d.seats = out;
+  return d;
+}
 function seatById(id){
   var a = seats();
   for(var i=0;i<a.length;i++){ if(a[i].id === id) return a[i]; }
@@ -918,7 +978,7 @@ function normalise(d){
     sx.poison = sx.poison || 0;
   });
   d.log = toArr(d.log);
-  return d;
+  return dedupeSeats(d);
 }
 
 async function initSync(){
@@ -1027,6 +1087,8 @@ function nextTurn(silent){
   s.landDrop = 0;
   clearPool();
   clearAttacks();
+  // "Attacks this combat if able" was about that combat, not every one after.
+  state.z.bf.forEach(function(iid){ var c = state.cards[iid]; if(c) delete c.must; });
   if(autoUntap){ state.z.bf.forEach(function(iid){ var c=state.cards[iid]; if(c) c.tp=0; }); }
   logg('Turn '+state.turn+'');
   if(autoDraw && state.z.lib.length){ move(state.z.lib[0],'hand'); logg('Drew for turn'); }
@@ -1106,11 +1168,47 @@ function costNeed(m){
   return { need:need, generic:generic };
 }
 
+// Which colours a permanent makes for FREE, meaning you tap it and pay nothing.
+// Scryfall lists every colour a card can ever make, including the ones behind a
+// price: Talon Gates of Madara is listed as all five colours, but only {C} is
+// free and the rest want {1} first. Auto tap must not spend mana it has not got.
+//
+// This reads the written ability, which the rest of the app refuses to do, so it
+// is deliberately timid: it only ever takes colours AWAY, and anything it cannot
+// read falls back to Scryfall's list.
+function freeMana(d){
+  var pm = ((d && d.pm) || []).filter(function(c){ return MANA.indexOf(c) >= 0; });
+  var o = (d && d.o) || '';
+  if(!pm.length || !/:\s*Add\b/i.test(o)) return pm;    // nothing written, take the list
+  var out = {}, sawAdd = false, unreadable = false;
+  o.split('\n').forEach(function(line){
+    var i = line.indexOf(':');
+    if(i < 0) return;
+    var cost = line.slice(0, i), add = line.slice(i + 1);
+    if(!/^\s*Add\b/i.test(add)) return;
+    sawAdd = true;
+    if(!/\{T\}/.test(cost)) return;                            // has to be a tap
+    if(/\{[0-9XWUBRGC]/.test(cost.replace(/\{T\}/g, ''))) return;  // costs mana first
+    var before = Object.keys(out).length;
+    if(/any colou?r/i.test(add)) ['W','U','B','R','G'].forEach(function(k){ out[k] = 1; });
+    (add.match(/\{([WUBRGC])\}/g) || []).forEach(function(sym){ out[sym.charAt(1)] = 1; });
+    // A free ability we could not read at all, like "any type a land you
+    // control could produce". Say nothing rather than something wrong.
+    if(Object.keys(out).length === before) unreadable = true;
+  });
+  if(!sawAdd || unreadable) return pm;
+  return pm.filter(function(c){ return out[c]; });
+}
+// True when a colour is only there if you pay mana for it first.
+function costsToMake(d, m){
+  return ((d && d.pm) || []).indexOf(m) >= 0 && freeMana(d).indexOf(m) < 0;
+}
+
 // What one permanent makes when it taps. Scryfall says which colours; the
 // rules text says how many, which is how Sol Ring is worth two and a Forest
 // is worth one.
 function sourceOut(d){
-  var cols = ((d && d.pm) || []).filter(function(c){ return MANA.indexOf(c) >= 0; });
+  var cols = freeMana(d);
   if(!cols.length) return null;
   var amount = 1;
   var m = /Add ([^.]*)/i.exec((d && d.o) || '');
@@ -1340,6 +1438,64 @@ var ANTHEMS = [
   { n:'Hobgoblin Bandit Lord', p:1, t:1, type:'Goblin', others:true }
 ];
 
+// Anthems written the ordinary way are read off the card, so a deck does not
+// need every lord listed here by hand. Only the plain, permanent sentence is
+// taken: "Other Goblins you control get +1/+1."
+//
+// Anything with a trigger, a cost, a condition or an end of turn is left alone,
+// because those are the ones a reader gets wrong, and a wrong number here would
+// never announce itself. The table above still wins for irregular cards.
+var RE_ANTHEM = /(Other )?([A-Za-z][A-Za-z' -]*?) you control get ([+-][0-9]+)\/([+-][0-9]+)/g;
+
+function anthemSubject(subj){
+  var w = String(subj || '').trim().replace(/\s+creatures?$/i, '').trim();
+  if(!w || /^creatures?$/i.test(w)) return '';    // empty means every creature
+  return w;
+}
+
+var anthemCache = {};
+function writtenAnthems(sd){
+  if(!sd || !sd.o) return [];
+  // A spell is not a permanent. Triumph of the Hordes reads exactly like a
+  // lord and is neither one.
+  if(!/Creature|Artifact|Enchantment|Land|Planeswalker|Battle/.test(sd.t || '')) return [];
+  if(anthemCache[sd.n]) return anthemCache[sd.n];
+  var out = [];
+  String(sd.o).split('\n').forEach(function(line){
+    // A cost, a trigger or a condition means the app cannot know if it applies.
+    if(line.indexOf(':') >= 0) return;
+    if(/^\s*(When|Whenever|At |As long as|If )/i.test(line)) return;
+    RE_ANTHEM.lastIndex = 0;
+    var m;
+    while((m = RE_ANTHEM.exec(line))){
+      // The rest of that sentence decides whether it lasts.
+      var rest = line.slice(m.index + m[0].length);
+      var stop = rest.indexOf('.');
+      if(/until end of turn|this turn/i.test(stop < 0 ? rest : rest.slice(0, stop))) continue;
+      out.push({ p: parseInt(m[3], 10), t: parseInt(m[4], 10),
+                 type: anthemSubject(m[2]), others: !!m[1] });
+    }
+  });
+  anthemCache[sd.n] = out;
+  return out;
+}
+
+// The written kind and the listed kind, with the list winning so a hand
+// written rule is never doubled by a reading of the same sentence.
+function anthemsOf(sd){
+  var listed = [];
+  for(var i=0;i<ANTHEMS.length;i++){ if(ANTHEMS[i].n === sd.n) listed.push(ANTHEMS[i]); }
+  return listed.length ? listed : writtenAnthems(sd);
+}
+
+// Does this creature's type line answer to that subject?
+function anthemHits(d, type){
+  if(!type) return true;                                   // every creature
+  var t = (d.t || '');
+  if(t.indexOf(type) >= 0) return true;
+  return /s$/.test(type) && t.indexOf(type.replace(/s$/, '')) >= 0;
+}
+
 function anthemsFor(iid){
   var blank = { p:0, t:0, why:[] };
   if(!cardEffects) return blank;
@@ -1351,13 +1507,11 @@ function anthemsFor(iid){
     if(!sc || sc.fd) return;
     var sd = defOf(sc);
     if(!sd) return;
-    for(var i=0;i<ANTHEMS.length;i++){
-      var a = ANTHEMS[i];
-      if(a.n !== sd.n) continue;
-      if(a.others && sid === iid) continue;
-      if(a.type && (d.t || '').indexOf(a.type) < 0) continue;
+    anthemsOf(sd).forEach(function(a){
+      if(a.others && sid === iid) return;
+      if(!anthemHits(d, a.type)) return;
       p += a.p; t += a.t; why.push(sd.n);
-    }
+    });
   });
   return { p:p, t:t, why:why };
 }
@@ -1476,10 +1630,21 @@ function openCounters(iid){
         var row = el('div','cdgrid');
         row.appendChild(el('div','lbl', counterLabel(k)));
         var dn = el('button',null,'\u2212');
-        var val = el('div','val', String(ctr[k]));
+        var val = el('button','val', String(ctr[k]));
+        val.setAttribute('aria-label', counterLabel(k) + ' is ' + ctr[k] + '. Tap to type a number.');
         var up = el('button',null,'+');
         dn.onclick = function(){ addCounter(iid, k, -1, true); paint(); };
         up.onclick = function(){ addCounter(iid, k, 1); paint(); };
+        // Typed straight in, with no doubling applied: a number you type is a
+        // correction, not a new counter arriving.
+        val.onclick = (function(kind){ return function(){
+          askNumber(counterLabel(kind), 'On ' + (d ? d.n : 'this'), c.ctr[kind] || 0, function(v){
+            c.ctr = c.ctr || {};
+            if(v) c.ctr[kind] = v; else delete c.ctr[kind];
+            commit((d ? d.n : 'Card') + ': ' + counterLabel(kind) + ' set to ' + v);
+            paint();
+          });
+        }; })(k);
         row.appendChild(dn); row.appendChild(val); row.appendChild(up);
         body.appendChild(row);
       });
@@ -1604,7 +1769,7 @@ function playCard(iid, opts){
     + (ent ? ', entered with ' + ent.n + ' +1/+1 (' + ent.why.join(', ') + ')' : ''));
 }
 
-function makeToken(td, count){
+function makeToken(td, count, must){
   count = count||1;
   var tm = tokenMath(count);
   var tokenNote = tm.why.length ? ' (' + tm.why.join(', ') + ')' : '';
@@ -1612,6 +1777,7 @@ function makeToken(td, count){
   for(var i=0;i<count;i++){
     var iid = 'k'+(nextId++)+Math.random().toString(36).slice(2,5);
     state.cards[iid] = { i:iid, d:-1, tp:0, ctr:{}, fd:0, tok:1, td:td };
+    if(must) state.cards[iid].must = must;
     state.z.bf.push(iid);
     var e = applyEnterCounters(iid);
     if(e && !tokenNote) tokenNote = ' (each entered with ' + e.n + ' +1/+1)';
@@ -1680,8 +1846,8 @@ function fitTray(tray, n){
   var W = tray.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
   var H = tray.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
   if(W <= 0 || H <= 0) return;
-  var gx = 8, gy = 12, best = 34;
-  for(var w = 280; w >= 34; w -= 2){
+  var gx = 8, gy = 12, best = 26;
+  for(var w = 280; w >= 26; w -= 2){
     var h = w * 88 / 63;
     var perRow = Math.max(1, Math.floor((W + gx) / (w + gx)));
     var rows = Math.ceil(n / perRow);
@@ -1752,6 +1918,117 @@ function cardFace(d, forZoom){
   return f;
 }
 
+// Dragging a card. In combat mode it means "this one swings at that player".
+// Any other time it means "this one sits there", which is what you do with real
+// cards on a mat all game.
+function cardDrag(btn, wrap, iid, opts, cancelTap){
+  var pid = null, live = false, x0 = 0, y0 = 0, ghost = null, over = null;
+
+  function targetSel(){ return combatMode ? '.seatmark' : '.cw'; }
+
+  function lift(e){
+    live = true;
+    cancelTap();
+    var b = wrap.getBoundingClientRect();
+    ghost = wrap.cloneNode(true);
+    ghost.classList.add('ghost');
+    ghost.style.width = b.width + 'px';
+    ghost.style.height = b.height + 'px';
+    ghost.style.left = b.left + 'px';
+    ghost.style.top = b.top + 'px';
+    ghost.dataset.dx = (e.clientX - b.left);
+    ghost.dataset.dy = (e.clientY - b.top);
+    document.body.appendChild(ghost);
+    wrap.classList.add('lifted');
+  }
+
+  function follow(e){
+    ghost.style.left = (e.clientX - ghost.dataset.dx) + 'px';
+    ghost.style.top  = (e.clientY - ghost.dataset.dy) + 'px';
+    if(over){ over.classList.remove('dropping'); over = null; }
+    ghost.style.display = 'none';
+    var el2 = document.elementFromPoint(e.clientX, e.clientY);
+    ghost.style.display = '';
+    var t = el2 && el2.closest ? el2.closest(targetSel()) : null;
+    if(t && t !== wrap && !t.classList.contains('ghost')){ over = t; t.classList.add('dropping'); }
+  }
+
+  function land(e){
+    var t = over;
+    if(over){ over.classList.remove('dropping'); over = null; }
+    if(ghost && ghost.parentNode) ghost.parentNode.removeChild(ghost);
+    ghost = null;
+    wrap.classList.remove('lifted');
+    if(!t) return;
+    if(combatMode && t.dataset.seat){
+      setAttack(opts.ids || [iid], t.dataset.seat);
+    } else if(!combatMode && t.dataset.iid){
+      reorderCard(opts.ids || [iid], t.dataset.iid, e.clientX, t);
+    }
+  }
+
+  btn.addEventListener('pointerdown', function(e){
+    if(pid !== null) return;
+    pid = e.pointerId; live = false; x0 = e.clientX; y0 = e.clientY;
+    function move(ev){
+      if(ev.pointerId !== pid) return;
+      if(!live){
+        if(Math.abs(ev.clientX - x0) < 9 && Math.abs(ev.clientY - y0) < 9) return;
+        lift(ev);
+      }
+      ev.preventDefault();
+      follow(ev);
+    }
+    function up(ev){
+      if(ev.pointerId !== pid) return;
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      document.removeEventListener('pointercancel', up);
+      pid = null;
+      if(live){ live = false; land(ev); }
+    }
+    document.addEventListener('pointermove', move, { passive:false });
+    document.addEventListener('pointerup', up);
+    document.addEventListener('pointercancel', up);
+  });
+  return function(){ return live; };
+}
+
+// Everything in the pile swings, or none of it does.
+function setAttack(ids, seatId){
+  var on = false;
+  ids.forEach(function(i){ var c = state.cards[i]; if(c && c.atk !== seatId) on = true; });
+  var d = defOf(state.cards[ids[0]]);
+  ids.forEach(function(i){
+    var c = state.cards[i]; if(!c) return;
+    if(on) c.atk = seatId; else delete c.atk;
+  });
+  var who = seatById(seatId);
+  blip('tick');
+  commit(on
+    ? (ids.length > 1 ? ids.length + ' ' : '') + (d ? d.n : 'Creature')
+      + ' attacking ' + (who ? who.name : 'them')
+    : (d ? d.n : 'Creature') + ' pulled back');
+}
+
+// Where a card sits is yours to decide. Dropped past the middle of a card it
+// goes after it, before the middle it goes in front.
+function reorderCard(ids, ontoIid, x, node){
+  if(ids.indexOf(ontoIid) >= 0) return;
+  var a = state.z.bf;
+  var b = node.getBoundingClientRect();
+  var after = x > b.left + b.width / 2;
+  ids.forEach(function(i){
+    var from = a.indexOf(i);
+    if(from >= 0) a.splice(from, 1);
+  });
+  var to = a.indexOf(ontoIid);
+  if(to < 0) to = a.length; else if(after) to += 1;
+  for(var k = ids.length - 1; k >= 0; k--) a.splice(to, 0, ids[k]);
+  blip('tick');
+  commit(null);
+}
+
 function cardNode(iid, opts){
   opts = opts||{};
   var c = state.cards[iid], d = defOf(c);
@@ -1794,6 +2071,11 @@ function cardNode(iid, opts){
       left.appendChild(b);
     });
     if(c && c.tok) left.appendChild(el('span','bdg tok','TOKEN'));
+    if(c && c.must){
+      var mb2 = el('span','bdg must','MUST ATTACK');
+      mb2.title = c.must;
+      left.appendChild(mb2);
+    }
     bar.appendChild(left);
     var pt = effectivePT(iid);
     if(pt){
@@ -1827,6 +2109,10 @@ function cardNode(iid, opts){
     longFired=false;
     timer = setTimeout(function(){ longFired=true; onHold(); }, 430);
   });
+  // Only cards on the table can be dragged. In hand they are on the phone.
+  if(opts.zone === 'bf'){
+    cardDrag(btn, w, iid, opts, function(){ clearTimeout(timer); longFired = true; });
+  }
   var cancel=function(){ clearTimeout(timer); };
   btn.addEventListener('pointerup', cancel);
   btn.addEventListener('pointerleave', cancel);
@@ -1857,8 +2143,8 @@ function render(){
   else main.appendChild(renderBoard());
   restoreScrolls();
   if(window.requestAnimationFrame){
-    requestAnimationFrame(function(){ restoreScrolls(); fitAllTrays(); redrawArrows(); });
-    setTimeout(function(){ fitAllTrays(); redrawArrows(); }, 140);
+    requestAnimationFrame(function(){ restoreScrolls(); fitAllTrays(); redrawArrows(); fitTopBar(); });
+    setTimeout(function(){ fitAllTrays(); redrawArrows(); fitTopBar(); }, 140);
   } else {
     fitAllTrays();
   }
@@ -1902,7 +2188,20 @@ function redrawArrows(){
   var f = document.querySelector('.field');
   if(f) drawArrows(f);
 }
-window.addEventListener('resize', function(){ fitAllTrays(); redrawArrows(); });
+// The bar carries the pool, the phases and the turn buttons, and on a narrower
+// screen that is more than fits. It zooms out instead of sliding away.
+function fitTopBar(){
+  var t = document.getElementById('topActions');
+  if(!t) return;
+  t.style.zoom = '';
+  for(var pass = 0; pass < 2; pass++){
+    var need = t.scrollWidth, have = t.clientWidth;
+    if(need <= have + 1) break;
+    var z = parseFloat(t.style.zoom || 1) * (have / need);
+    t.style.zoom = String(Math.max(0.62, z));
+  }
+}
+window.addEventListener('resize', function(){ fitAllTrays(); redrawArrows(); fitTopBar(); });
 window.addEventListener('orientationchange', function(){ setTimeout(fitAllTrays, 250); });
 
 function renderTop(){
@@ -1982,6 +2281,8 @@ function renderBoard(){
     (isLand(d) ? lands : others).push(iid);
   });
 
+  field.appendChild(seatBar());
+
   var mb = band('Battlefield', others, 'Nothing on the battlefield yet, play a card from your hand.');
   var lb = band('Lands', lands, 'No lands in play.');
   lb.className = 'band lands';
@@ -1990,13 +2291,20 @@ function renderBoard(){
   var wMain = Math.max(1, Math.round(Math.sqrt(others.length || 0.4) * 10));
   var wLand = Math.max(1, Math.round(Math.sqrt(lands.length  || 0.4) * 10));
   mb.style.flex = others.length ? (wMain + ' 1 0') : '0 1 auto';
-  lb.style.flex = lands.length  ? (wLand + ' 1 0') : '0 1 auto';
   field.appendChild(mb);
   var s = seat();
   lb.querySelector('.bandhead').appendChild(landMark());
-  field.appendChild(lb);
 
-  placeSeatMarks(field);
+  // The lands and the zones are the same strip now.
+  var lrow = el('div','landsrow');
+  lrow.style.flex = lands.length ? (wLand + ' 1 0') : '0 1 auto';
+  lrow.appendChild(lb);
+  var strip = el('div','zonestrip');
+  var zg = zoneGrid();
+  zg.classList.add('small');
+  strip.appendChild(zg);
+  lrow.appendChild(strip);
+  field.appendChild(lrow);
   board.appendChild(field);
   board.appendChild(renderRail());
   wrap.appendChild(board);
@@ -2013,8 +2321,12 @@ function groupKey(iid){
   var c = state.cards[iid];
   if(!c || !c.tok) return 'one:' + iid;
   var d = defOf(c);
+  // Who is attacking is part of what a card looks like, so twelve swinging
+  // goblins stand apart from the eighteen that stayed home, and the arrow that
+  // leaves them is one arrow rather than twelve.
   return ['tok', d ? d.n : '?', d ? d.p : '', d ? d.tg : '',
-          c.tp ? 1 : 0, c.fd ? 1 : 0, JSON.stringify(c.ctr || {})].join('|');
+          c.tp ? 1 : 0, c.fd ? 1 : 0, c.atk || '', c.must ? 1 : 0,
+          JSON.stringify(c.ctr || {})].join('|');
 }
 function groupIds(ids){
   var order = [], byKey = {};
@@ -2092,7 +2404,7 @@ function band(label, ids, emptyMsg){
   if(!ids.length) tray.classList.add('empty');
   groupIds(ids).forEach(function(g){
     if(g.length === 1) return tray.appendChild(cardNode(g[0],{zone:'bf'}));
-    var w = cardNode(g[0], { zone:'bf',
+    var w = cardNode(g[0], { zone:'bf', ids:g,
       onTap:  function(){ openGroupSheet(g); },
       onHold: function(){ openCardSheet(g[0], 'bf'); } });
     w.classList.add('pile');
@@ -2165,19 +2477,23 @@ function renderRail(){
   var sec2 = el('div','railsec');
   var ch = el('div','sechead');
   ch.appendChild(el('h3',null,'Command zone'));
+  var you = el('button','btn sm ghost','You');
+  you.setAttribute('aria-label','Your own life, poison and commander damage taken');
+  you.onclick = function(){ openPlayerSheet(state.seats[0].id); };
+  ch.appendChild(you);
   var tax = el('button','btn sm ghost','Tax +'+((s.cmdTax||0)*2));
-  tax.setAttribute('aria-label','Commander tax. Tap for the next two.');
-  tax.onclick=function(){ s.cmdTax=((s.cmdTax||0)+1)%6; commit(null); };
+  tax.setAttribute('aria-label','Commander tax is plus ' + ((s.cmdTax||0)*2)
+    + '. Tap to add two, hold to type it.');
+  tax.onclick=function(){ s.cmdTax=(s.cmdTax||0)+1; commit(null); };
+  holdToType(tax, 'Commander tax', 'Times cast before now. Each one adds two mana.',
+    function(){ return s.cmdTax || 0; },
+    function(v){ s.cmdTax = Math.max(0, v); commit('Commander tax set to +' + (s.cmdTax*2)); });
   ch.appendChild(tax);
   sec2.appendChild(ch);
   sec2.appendChild(commanderRow());
   r.appendChild(sec2);
 
-  // zones
-  var sec3 = el('div','railsec');
-  sec3.appendChild(el('h3',null,'Zones'));
-  sec3.appendChild(zoneGrid());
-  r.appendChild(sec3);
+  // The zones moved out to the strip beside the lands, where your hands are.
 
   return r;
 }
@@ -2273,7 +2589,48 @@ function openLandAllowance(){
   sh.appendChild(el('p','note','Nothing is blocked either way. This only keeps count.'));
 }
 
-// Opponent markers sit on the edge of the board where that person is sitting.
+// One row, in front of your board. Everyone is opposite you at a kitchen
+// table, so where they are sitting only matters for pointing an arrow, and an
+// arrow that always points the same way is easier to read than a true map.
+function seatBar(){
+  var bar = el('div','seatbar');
+  var opps = seats().filter(function(o){ return o.opp; });
+  if(!opps.length){
+    bar.appendChild(el('p','note','Nobody else at the table. Menu, Players, to add them.'));
+    return bar;
+  }
+  opps.forEach(function(sx){
+    var m = el('button','seatmark');
+    m.type = 'button';
+    m.dataset.seat = sx.id;
+    var dmg = damageTo(sx.id);
+    if(dmg) m.classList.add('hit');
+    else if(combatTarget === sx.id) m.classList.add('target');
+    m.appendChild(el('div','sm-n', sx.name));
+    if(showLife) m.appendChild(el('div','sm-l', String(sx.life)));
+    if(dmg) m.appendChild(el('div','sm-d', String(dmg)));
+    m.setAttribute('aria-label', sx.name + (dmg ? ', taking ' + dmg : '')
+      + '. Tap to make them the target, hold for their sheet.');
+    m.onclick = function(){
+      if(combatMode){ combatTarget = sx.id; render(); }
+      else openPlayerSheet(sx.id);
+    };
+    var t = null, fired = false;
+    m.addEventListener('pointerdown', function(){
+      fired = false;
+      t = setTimeout(function(){ fired = true; openPlayerSheet(sx.id); }, 430);
+    });
+    ['pointerup','pointerleave','pointercancel'].forEach(function(ev){
+      m.addEventListener(ev, function(){ clearTimeout(t); });
+    });
+    m.addEventListener('click', function(ev){ if(fired){ ev.stopPropagation(); ev.preventDefault(); } }, true);
+    bar.appendChild(m);
+  });
+  return bar;
+}
+
+// KEPT, not called: markers placed around the field by where each person is
+// sitting. Flip seatBar back to this if the row in front stops making sense.
 function placeSeatMarks(field){
   var opps = seats().filter(function(o){ return o.opp; });
   opps.forEach(function(sx, i){
@@ -2438,16 +2795,77 @@ function seatRow(sx){
   return row;
 }
 
+// Three other people are doing things to this board that the app cannot see.
+// Every count it keeps therefore has to be correctable in one go, without
+// pressing plus eleven times.
+function askNumber(title, sub, current, onSet){
+  var sh = sheet(title, sub || 'Type what it should be.');
+  var inp = el('input');
+  inp.type = 'number';
+  inp.value = String(current);
+  inp.setAttribute('inputmode','numeric');
+  inp.setAttribute('aria-label', title);
+  sh.appendChild(inp);
+
+  function done(){
+    var v = parseInt(inp.value, 10);
+    if(isNaN(v)) return;
+    onSet(v);
+    closeLayer();
+  }
+  inp.addEventListener('keydown', function(ev){ if(ev.key === 'Enter') done(); });
+
+  var g = el('div','grid');
+  g.style.marginTop = 'var(--s3)';
+  [-10,-5,-1,1,5,10].forEach(function(n){
+    var b = el('button','btn', (n > 0 ? '+' : '') + n);
+    b.onclick = function(){
+      var v = parseInt(inp.value, 10) || 0;
+      inp.value = String(v + n);
+    };
+    g.appendChild(b);
+  });
+  sh.appendChild(g);
+
+  var ok = el('button','btn primary','Set it');
+  ok.style.cssText = 'width:100%;justify-content:center;margin-top:var(--s4)';
+  ok.onclick = done;
+  sh.appendChild(ok);
+  setTimeout(function(){ try{ inp.focus(); inp.select(); }catch(e){} }, 60);
+}
+
+// Press and hold anything that shows a number to type it instead.
+function holdToType(node, title, sub, get, set){
+  var t = null, fired = false;
+  node.addEventListener('pointerdown', function(){
+    fired = false;
+    t = setTimeout(function(){
+      fired = true;
+      askNumber(title, sub, get(), set);
+    }, 430);
+  });
+  ['pointerup','pointerleave','pointercancel'].forEach(function(ev){
+    node.addEventListener(ev, function(){ clearTimeout(t); });
+  });
+  node.addEventListener('click', function(ev){ if(fired){ ev.stopPropagation(); ev.preventDefault(); } }, true);
+  return node;
+}
+
 function stepRow(parent, label, get, set, lethalAt){
   var g = el('div','cdgrid');
   g.appendChild(el('div','lbl', label));
   var dn = el('button',null,'\u2212');
-  var val = el('div','val' + (lethalAt && get() >= lethalAt ? ' lethal' : ''), String(get()));
+  var val = el('button','val' + (lethalAt && get() >= lethalAt ? ' lethal' : ''), String(get()));
+  val.setAttribute('aria-label', label + ' is ' + get() + '. Tap to type a number.');
   var up = el('button',null,'+');
-  dn.onclick = function(){ set(get()-1); commit(null); val.textContent=String(get());
-                           val.className='val'+(lethalAt && get()>=lethalAt?' lethal':''); };
-  up.onclick = function(){ set(get()+1); commit(null); val.textContent=String(get());
-                           val.className='val'+(lethalAt && get()>=lethalAt?' lethal':''); };
+  function show(){
+    val.textContent = String(get());
+    val.className = 'val' + (lethalAt && get() >= lethalAt ? ' lethal' : '');
+    val.setAttribute('aria-label', label + ' is ' + get() + '. Tap to type a number.');
+  }
+  dn.onclick = function(){ set(get()-1); commit(null); show(); };
+  up.onclick = function(){ set(get()+1); commit(null); show(); };
+  val.onclick = function(){ askNumber(label, null, get(), function(v){ set(v); commit(null); show(); }); };
   g.appendChild(dn); g.appendChild(val); g.appendChild(up);
   parent.appendChild(g);
   return g;
@@ -2492,6 +2910,37 @@ function openPlayerSheet(id){
         function(){ return (sx.cmdDmg && sx.cmdDmg[o.id]) || 0; },
         function(v){ sx.cmdDmg = sx.cmdDmg||{}; sx.cmdDmg[o.id] = Math.max(0,v); }, 21);
     });
+  }
+
+  if(sx.opp){
+    sh.appendChild(el('div','divider'));
+    var dh = el('p','sub','What they did to you');
+    dh.style.marginBottom = '8px';
+    sh.appendChild(dh);
+    actionGrid(sh, [
+      ['They dealt damage', function(){
+          askNumber('Damage from ' + sx.name, 'Taken off your life total.', 0, function(v){
+            me.life -= v; commit(sx.name + ' dealt ' + v + ' to you');
+          });
+        }],
+      ['Their commander hit you', function(){
+          askNumber('Commander damage from ' + sx.name, '21 is lethal, and it comes off your life too.',
+            (me.cmdDmg && me.cmdDmg[sx.id]) || 0, function(v){
+              var was = (me.cmdDmg && me.cmdDmg[sx.id]) || 0;
+              me.cmdDmg = me.cmdDmg || {};
+              me.cmdDmg[sx.id] = Math.max(0, v);
+              me.life -= (me.cmdDmg[sx.id] - was);
+              commit(sx.name + "'s commander has dealt " + me.cmdDmg[sx.id] + ' to you');
+            });
+        }],
+      ['They poisoned you', function(){
+          askNumber('Poison counters on you', 'Ten is lethal.', me.poison || 0, function(v){
+            me.poison = Math.max(0, v); commit('You are on ' + me.poison + ' poison');
+          });
+        }],
+      ['They proliferated', function(){ closeLayer(); openProliferate(); }],
+      ['Something of yours left', function(){ closeLayer(); openTakePicker(sx); }]
+    ]);
   }
 
   sh.appendChild(el('div','divider'));
@@ -2703,7 +3152,7 @@ function openDeckSheet(){
     ng.onclick = function(){
       var keep = seats().filter(function(o){ return o.opp; });
       state = buildGame(defs, importedCommander);
-      keep.forEach(function(o){ o.life=40; o.poison=0; o.cmdDmg={}; state.seats.push(o); });
+      carryOpponents(keep);
       dealOpeningHand();
       undoStack = [];
       commit('New game, ' + totalCards() + ' cards');
@@ -2903,6 +3352,53 @@ function openDeckPicker(){
   }
 }
 
+// Killed, exiled, bounced or taken. The app only ever sees your own board, so
+// when somebody else removes something from it, you say which and where.
+function openTakePicker(sx){
+  var sh = sheet('Something of yours left', sx
+    ? (sx.name + ' did something to one of your permanents. Which one?')
+    : 'Which permanent, and where did it go?');
+  if(!state.z.bf.length){
+    sh.appendChild(el('p','note','Nothing on your battlefield.'));
+    return;
+  }
+  var list = el('div','cardlist');
+  groupIds(state.z.bf).forEach(function(g){
+    var node = cardNode(g[0], { zone:'bf', ids:g,
+      onTap: function(){ closeLayer(); openTakeWhere(g, sx); },
+      onHold: function(){ closeLayer(); openTakeWhere(g, sx); } });
+    if(g.length > 1) node.appendChild(el('span','pilecount', '\u00d7' + g.length));
+    list.appendChild(node);
+  });
+  sh.appendChild(list);
+}
+
+function openTakeWhere(g, sx){
+  var d = defOf(state.cards[g[0]]);
+  var who = sx ? sx.name : 'An opponent';
+  var one = g.length === 1;
+  var sh = sheet(d ? d.n : 'That permanent', who + ' got to it. Where did it go?');
+  function send(zone, word){
+    return function(){
+      var ids = one ? [g[0]] : g.slice();
+      ids.forEach(function(i){ move(i, zone); });
+      commit(who + ' ' + word + ' ' + (one ? '' : ids.length + ' ') + (d ? d.n : 'a permanent'));
+      closeLayer();
+    };
+  }
+  actionGrid(sh, [
+    ['Destroyed, to the graveyard', send('gy','destroyed'), true],
+    ['Exiled', send('ex','exiled')],
+    ['Bounced to your hand', send('hand','bounced')],
+    ['Shuffled into your library', send('lib','put away')],
+    ['They took it, off your board', send('ex','took')]
+  ]);
+  if(!one){
+    sh.appendChild(el('p','note','This is a pile of ' + g.length
+      + '. All of them go, so put back the ones that stayed.'));
+  }
+}
+
 function openTableSheet(){
   var sh = sheet('Players at the table',
                  'Opponents playing with real cards, life and commander damage only.');
@@ -2948,6 +3444,23 @@ function commanderIid(){
 function commanderRow(){
   var wrap = el('div','cmdrow');
   var iid = commanderIid();
+  // Once he is on the board there is a card to look at out there, so the rail
+  // only needs to say so.
+  if(iid && zoneOf(iid) !== 'cmd'){
+    var mini = el('div','cmdmini');
+    var md = defOf(state.cards[iid]);
+    if(hasArt(md)){
+      var mim = new Image(); mim.src = artSrc(md); mim.alt=''; mim.loading='lazy';
+      mini.appendChild(mim);
+    }
+    var mt = el('div');
+    mt.style.cssText = 'flex:1;min-width:0';
+    mt.appendChild(el('div','cmdname', md ? md.n : 'Commander'));
+    mt.appendChild(el('div','cmdwhere', zoneOf(iid) === 'bf' ? 'On the battlefield'
+      : 'In your ' + (ZONES[zoneOf(iid)] || '').toLowerCase()));
+    mini.appendChild(mt);
+    return mini;
+  }
   if(!iid){
     var none = el('p','note','This deck has no commander named. Import one with a Commander header.');
     none.style.margin = '0';
@@ -3331,6 +3844,20 @@ function openCardSheet(iid, zone){
     d.tk.forEach(function(td){ s.appendChild(tokenMakeRow(iid, d, td)); });
     s.appendChild(el('div','divider'));
   }
+  var borrowed = borrowsFrom(d);
+  if(borrowed.length){
+    var bh = el('p','sub','Borrowed from the rest of your board');
+    bh.style.margin = '0 0 7px';
+    s.appendChild(bh);
+    borrowed.forEach(function(b){
+      var row = tokenMakeRow(b.iid, b.from, b.td);
+      var tag = el('p','note', 'From ' + b.from.n + '.');
+      tag.style.cssText = 'margin:-4px 0 8px;padding-left:2px';
+      row.appendChild(tag);
+      s.appendChild(row);
+    });
+    s.appendChild(el('div','divider'));
+  }
 
   var acts = [];
   if(z === 'hand'){
@@ -3521,15 +4048,19 @@ function openZoom(d){
 }
 
 function openManaChoice(d, iid){
-  var s = sheet('Tap '+d.n+' for\u2026', 'This land produces more than one colour.');
+  var paid = (d.pm || []).filter(function(m){ return costsToMake(d, m); });
+  var s = sheet('Tap '+d.n+' for\u2026', paid.length
+    ? 'Some of these want mana paid first, and that is not taken out of your pool.'
+    : 'This land produces more than one colour.');
   var g = el('div','grid');
   d.pm.forEach(function(m){
     var b = el('button','btn');
     b.style.justifyContent='center';
+    if(costsToMake(d, m)) b.title = 'Costs mana before it makes this';
     var sym = el('span','sym '+m, m);
     sym.style.cssText='width:20px;height:20px;border-radius:50%;display:inline-grid;place-items:center;font-family:var(--disp);font-weight:800;font-size:11px;background:'+manaColorVar(m)+';color:'+((m==='U'||m==='B')?'#eef3ff':'#10160f');
     b.appendChild(sym);
-    b.appendChild(document.createTextNode(' '+MANA_NAME[m]));
+    b.appendChild(document.createTextNode(' ' + MANA_NAME[m] + (costsToMake(d, m) ? ' \u00b7 pay first' : '')));
     b.onclick=function(){
       addMana(m,1);
       var cc = state.cards[iid]; if(cc) cc.gave = m;
@@ -3614,6 +4145,37 @@ function openBrowse(z){
 // How many a card makes, for the few where the number only looks at your own
 // board. Matched by printed name, never by reading the rules text, and the
 // working is always shown so it can be overruled.
+// Tokens that arrive with a string attached. The token itself does not say so,
+// the card that made it does, so the note is kept on the token.
+// A few cards do what another creature does. Marvin is the one in the deck, so
+// his sheet offers what the rest of the board can do, borrowed.
+var BORROWS_ABILITIES = ['Marvin, Murderous Mimic'];
+function borrowsFrom(d){
+  if(!d || BORROWS_ABILITIES.indexOf(d.n) < 0) return [];
+  var out = [];
+  state.z.bf.forEach(function(sid){
+    var sc = state.cards[sid];
+    if(!sc || sc.fd) return;
+    var sd = defOf(sc);
+    if(!sd || sd.n === d.n) return;                       // not its own name
+    if(!/Creature/.test(sd.t || '')) return;              // creatures you control
+    if(!sd.tk || !sd.tk.length) return;                   // only the ones that make things
+    sd.tk.forEach(function(td){ out.push({ from:sd, iid:sid, td:td }); });
+  });
+  return out;
+}
+
+var TOKEN_NOTE = [
+  { n:'Howlsquad Heavy', tok:'Goblin', must:'Attacks this combat if able' }
+];
+function tokenNoteFor(d, td){
+  for(var i=0;i<TOKEN_NOTE.length;i++){
+    var r = TOKEN_NOTE[i];
+    if(r.n === d.n && td.n.indexOf(r.tok) >= 0) return r.must;
+  }
+  return null;
+}
+
 var TOKEN_COUNT = [
   { n:'Krenko, Mob Boss', tok:'Goblin',
     amount:function(){ return countOnBoard('Goblin'); },
@@ -3680,8 +4242,9 @@ function tokenMakeRow(iid, d, td){
   cnt.appendChild(minus); cnt.appendChild(num); cnt.appendChild(plus);
   row.appendChild(cnt);
 
+  var must = tokenNoteFor(d, td);
   mk.onclick = function(){
-    makeToken(JSON.parse(JSON.stringify(td)), n);
+    makeToken(JSON.parse(JSON.stringify(td)), n, must);
     closeLayer();
   };
   mk.disabled = n < 1;
@@ -3694,6 +4257,11 @@ function tokenMakeRow(iid, d, td){
     w.setAttribute('data-auto','1');
     w.style.cssText = 'margin:-2px 0 8px;padding-left:2px';
     wrap.appendChild(w);
+  }
+  if(must){
+    var mn = el('p','note', must + ', so it comes in marked. The mark clears at end of turn.');
+    mn.style.cssText = 'margin:-2px 0 8px;padding-left:2px';
+    wrap.appendChild(mn);
   }
   return wrap;
 }
@@ -3964,7 +4532,7 @@ function openMenu(){
         'Start new game', function(){
           var keep = seats().filter(function(o){ return o.opp; });
           state = buildGame(defs, defsAreBuiltin ? (builtinDeck() || {}).commander : importedCommander);
-          keep.forEach(function(o){ o.life = 40; o.poison = 0; o.cmdDmg = {}; state.seats.push(o); });
+          carryOpponents(keep);
           dealOpeningHand();
           undoStack = [];
           commit('New game, '+deckName);
