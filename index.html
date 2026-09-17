@@ -329,6 +329,32 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .pr-n{font-size:var(--t2);color:var(--ink)}
 .prolrow.on .pr-n{color:var(--brass)}
 .pr-c{font-family:var(--mono);font-size:var(--t1);color:var(--ink3);margin-top:2px}
+/* Combat. The arrow layer sits over the battlefield and never eats a tap. */
+.field{position:relative}
+.arrows{position:absolute;inset:0;pointer-events:none;z-index:4;overflow:visible}
+.seatmark{
+  position:absolute;z-index:5;display:flex;flex-direction:column;align-items:center;
+  gap:2px;padding:var(--s2) var(--s3);border-radius:var(--r-md);
+  background:var(--bg2);border:1px solid var(--line2);min-width:64px;
+  box-shadow:var(--shadow);
+}
+.seatmark.target{border-color:var(--brass);background:#2a2415}
+.seatmark.hit{border-color:var(--danger);background:#2e1b18}
+.seatmark .sm-n{font-size:var(--t1);color:var(--ink2);white-space:nowrap;
+  max-width:96px;overflow:hidden;text-overflow:ellipsis}
+.seatmark.target .sm-n{color:var(--brass)}
+.seatmark .sm-d{font-family:var(--mono);font-size:var(--t4);font-weight:600;
+  color:var(--danger);line-height:1}
+.combatbar{
+  flex:0 0 auto;display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap;
+  padding:var(--s2) var(--s4);border-top:1px solid var(--line);
+  background:linear-gradient(#1d2a20,#16201b);
+}
+.combatbar .cb-t{font-size:var(--t1);letter-spacing:.14em;text-transform:uppercase;
+  color:var(--brass)}
+.combatbar .cb-s{font-size:var(--t2);color:var(--ink2)}
+.cw.attacking .card{box-shadow:0 0 0 2px var(--danger),0 6px 18px rgba(0,0,0,.6)}
+.cw.attacking{transform:translateY(-5px)}
 .pile .card{box-shadow:3px 3px 0 -1px var(--bg3), 3px 3px 0 0 #0b100d,
   6px 6px 0 -1px var(--bg3), 6px 6px 0 0 #0b100d, 0 2px 10px rgba(0,0,0,.45)}
 .pilecount{position:absolute;top:-6px;right:-6px;z-index:3;
@@ -888,6 +914,7 @@ function nextTurn(silent){
   var carried = (s.landMax == null) ? 1 : s.landMax;
   s.landDrop = 0;
   clearPool();
+  clearAttacks();
   if(autoUntap){ state.z.bf.forEach(function(iid){ var c=state.cards[iid]; if(c) c.tp=0; }); }
   logg('Turn '+state.turn+'');
   if(autoDraw && state.z.lib.length){ move(state.z.lib[0],'hand'); logg('Drew for turn'); }
@@ -1154,6 +1181,44 @@ var COUNTER_RULES = [
 ];
 
 var cardEffects = lsGet('ktm.effects','1') === '1';
+
+// Combat. `c.atk` holds the id of the seat a creature is swinging at. Where an
+// opponent SITS is a per-table fact, so it lives on the seat.
+var combatMode = false;
+var DIRS = ['w','nw','n','ne','e','se','sw'];
+var DIR_NAME = { w:'Left', nw:'Top left', n:'Across', ne:'Top right',
+                 e:'Right', se:'Bottom right', sw:'Bottom left' };
+function defaultDir(i){ return ['w','n','e','nw','ne','sw'][i] || 'n'; }
+function seatDir(sx, i){ return sx.dir || defaultDir(i); }
+
+function attackersFor(seatId){
+  return state.z.bf.filter(function(iid){
+    var c = state.cards[iid];
+    return c && c.atk === seatId;
+  });
+}
+function damageTo(seatId){
+  var n = 0;
+  attackersFor(seatId).forEach(function(iid){
+    var pt = effectivePT(iid);
+    var p = pt ? parseInt(pt.p, 10) : 0;
+    if(!isNaN(p)) n += p;
+  });
+  return n;
+}
+function anyAttacking(){
+  for(var i=0;i<state.z.bf.length;i++){
+    var c = state.cards[state.z.bf[i]];
+    if(c && c.atk) return true;
+  }
+  return false;
+}
+function clearAttacks(){
+  state.z.bf.forEach(function(iid){
+    var c = state.cards[iid];
+    if(c) delete c.atk;
+  });
+}
 
 // Static bonuses. Nothing is placed on the creature; it is bigger while the
 // source is on the battlefield, and shrinks the moment the source leaves.
@@ -1580,6 +1645,7 @@ function cardNode(iid, opts){
   var c = state.cards[iid], d = defOf(c);
   var w = el('div','cw');
   w.dataset.iid = iid;
+  if(c && c.atk) w.classList.add('attacking');
   if(c && c.tp && opts.zone === 'bf') w.classList.add('tapped');
 
   var btn = el('button','card');
@@ -1630,6 +1696,16 @@ function cardNode(iid, opts){
   // Single tap on the battlefield = tap/untap (fastest path for mana).
   // Long press, or a tap anywhere else, opens the card sheet.
   var onTap = opts.onTap || function(){
+    if(combatMode && opts.zone === 'bf'){
+      var cc = state.cards[iid], dd = defOf(cc);
+      if(cc && dd && /Creature/.test(dd.t || '')){
+        if(cc.atk === combatTarget) delete cc.atk;
+        else cc.atk = combatTarget;
+        blip('tick');
+        commit(null);
+        return;
+      }
+    }
     if(opts.zone === 'bf' && !opts.hidden) tapCard(iid);
     else openCardSheet(iid, opts.zone);
   };
@@ -1665,13 +1741,17 @@ function render(){
   else main.appendChild(renderBoard());
   restoreScrolls();
   if(window.requestAnimationFrame){
-    requestAnimationFrame(function(){ restoreScrolls(); fitAllTrays(); });
-    setTimeout(fitAllTrays, 120);
+    requestAnimationFrame(function(){ restoreScrolls(); fitAllTrays(); redrawArrows(); });
+    setTimeout(function(){ fitAllTrays(); redrawArrows(); }, 140);
   } else {
     fitAllTrays();
   }
 }
-window.addEventListener('resize', function(){ fitAllTrays(); });
+function redrawArrows(){
+  var f = document.querySelector('.field');
+  if(f) drawArrows(f);
+}
+window.addEventListener('resize', function(){ fitAllTrays(); redrawArrows(); });
 window.addEventListener('orientationchange', function(){ setTimeout(fitAllTrays, 250); });
 
 function renderTop(){
@@ -1699,6 +1779,20 @@ function renderTop(){
   if(mode === 'board'){
     var untap = el('button','btn','Untap all'); untap.onclick = untapAll; t.appendChild(untap);
     var nt = el('button','btn primary','Next turn \u25b8'); nt.onclick = function(){ nextTurn(); }; t.appendChild(nt);
+  }
+
+  if(mode === 'board'){
+    var ab = el('button','btn' + (combatMode ? ' primary' : ' ghost'), 'Attack');
+    ab.setAttribute('aria-label','Declare attackers');
+    ab.onclick = function(){
+      combatMode = !combatMode;
+      if(combatMode && !combatTarget){
+        var o = seats().filter(function(x){ return x.opp; })[0];
+        combatTarget = o ? o.id : null;
+      }
+      render();
+    };
+    t.appendChild(ab);
   }
 
   var ub = el('button','btn ghost','Undo');
@@ -1746,9 +1840,11 @@ function renderBoard(){
   lb.querySelector('.bandhead').appendChild(landMark());
   field.appendChild(lb);
 
+  placeSeatMarks(field);
   board.appendChild(field);
   board.appendChild(renderRail());
   wrap.appendChild(board);
+  if(combatMode || anyAttacking()) wrap.appendChild(combatBar());
   // No hand strip: this screen sits on the table where opponents can read it,
   // so it shows only what they could see in a real game. The cards themselves
   // live on the phone. The Zones panel still carries the count.
@@ -1989,6 +2085,150 @@ function openLandAllowance(){
   sh.appendChild(r);
   sh.appendChild(el('p','note','Nothing is blocked either way. This only keeps count.'));
 }
+
+// Opponent markers sit on the edge of the board where that person is sitting.
+function placeSeatMarks(field){
+  var opps = seats().filter(function(o){ return o.opp; });
+  opps.forEach(function(sx, i){
+    var dir = seatDir(sx, i);
+    var m = el('button','seatmark');
+    m.dataset.seat = sx.id;
+    var dmg = damageTo(sx.id);
+    if(dmg) m.classList.add('hit');
+    else if(combatTarget === sx.id) m.classList.add('target');
+    m.appendChild(el('div','sm-n', sx.name));
+    if(dmg) m.appendChild(el('div','sm-d', String(dmg)));
+    var pos = {
+      w:  { left:'6px',  top:'50%',   tx:'0,-50%' },
+      nw: { left:'6px',  top:'8px',   tx:'0,0' },
+      n:  { left:'50%',  top:'8px',   tx:'-50%,0' },
+      ne: { right:'6px', top:'8px',   tx:'0,0' },
+      e:  { right:'6px', top:'50%',   tx:'0,-50%' },
+      se: { right:'6px', bottom:'8px',tx:'0,0' },
+      sw: { left:'6px',  bottom:'8px',tx:'0,0' }
+    }[dir] || { left:'50%', top:'8px', tx:'-50%,0' };
+    if(pos.left) m.style.left = pos.left;
+    if(pos.right) m.style.right = pos.right;
+    if(pos.top) m.style.top = pos.top;
+    if(pos.bottom) m.style.bottom = pos.bottom;
+    m.style.transform = 'translate(' + pos.tx + ')';
+    m.onclick = function(){
+      if(combatMode){ combatTarget = sx.id; render(); }
+      else openSeatPlace(sx, i);
+    };
+    field.appendChild(m);
+  });
+}
+
+// Where an opponent is sitting, so the arrow points at the right person.
+function openSeatPlace(sx, i){
+  var sh = sheet(sx.name, 'Where are they sitting?');
+  var g = el('div','grid');
+  DIRS.forEach(function(d){
+    var b = el('button','btn' + (seatDir(sx,i) === d ? ' primary' : ''), DIR_NAME[d]);
+    b.onclick = function(){ sx.dir = d; commit(null); closeLayer(); };
+    g.appendChild(b);
+  });
+  sh.appendChild(g);
+  sh.appendChild(el('div','divider'));
+  actionGrid(sh, [['Rename or track life', function(){ closeLayer(); openPlayerSheet(sx.id); }]]);
+}
+
+// One line per attacker, and the total riding on the bundle.
+function drawArrows(field){
+  var old = field.querySelector('.arrows');
+  if(old) old.parentNode.removeChild(old);
+  if(!anyAttacking()) return;
+  var fb = field.getBoundingClientRect();
+  var svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('class','arrows');
+  svg.setAttribute('width', fb.width);
+  svg.setAttribute('height', fb.height);
+  var defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+  defs.innerHTML = '<marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" '
+    + 'markerWidth="5" markerHeight="5" orient="auto-start-reverse">'
+    + '<path d="M 0 0 L 10 5 L 0 10 z" fill="#d9534a"/></marker>';
+  svg.appendChild(defs);
+
+  seats().filter(function(o){ return o.opp; }).forEach(function(sx){
+    var ids = attackersFor(sx.id);
+    if(!ids.length) return;
+    var mark = field.querySelector('.seatmark[data-seat="' + sx.id + '"]');
+    if(!mark) return;
+    var mb = mark.getBoundingClientRect();
+    var tx = mb.left - fb.left + mb.width / 2;
+    var ty = mb.top - fb.top + mb.height / 2;
+    var sx2 = 0, sy2 = 0, n = 0;
+    ids.forEach(function(iid){
+      var w = field.querySelector('.cw[data-iid="' + iid + '"]');
+      if(!w) return;
+      var b = w.getBoundingClientRect();
+      var x = b.left - fb.left + b.width / 2;
+      var y = b.top - fb.top + b.height / 2;
+      sx2 += x; sy2 += y; n++;
+      var line = document.createElementNS('http://www.w3.org/2000/svg','line');
+      line.setAttribute('x1', x); line.setAttribute('y1', y);
+      line.setAttribute('x2', tx); line.setAttribute('y2', ty);
+      line.setAttribute('stroke', 'rgba(217,83,74,.55)');
+      line.setAttribute('stroke-width', '2.5');
+      line.setAttribute('marker-end', 'url(#ah)');
+      svg.appendChild(line);
+    });
+    if(!n) return;
+    // the total sits on the bundle, two thirds of the way to the target
+    var cx = sx2 / n, cy = sy2 / n;
+    var lx = cx + (tx - cx) * 0.62, ly = cy + (ty - cy) * 0.62;
+    var total = damageTo(sx.id);
+    var txt = String(total);
+    var rw = 22 + txt.length * 11, rh = 26;
+    var rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('x', lx - rw/2); rect.setAttribute('y', ly - rh/2);
+    rect.setAttribute('width', rw); rect.setAttribute('height', rh);
+    rect.setAttribute('rx', 13);
+    rect.setAttribute('fill', '#d9534a');
+    rect.setAttribute('stroke', '#0b100d');
+    svg.appendChild(rect);
+    var label = document.createElementNS('http://www.w3.org/2000/svg','text');
+    label.setAttribute('x', lx); label.setAttribute('y', ly + 6);
+    label.setAttribute('text-anchor', 'middle');
+    label.setAttribute('font-family', 'IBM Plex Mono, monospace');
+    label.setAttribute('font-size', '15');
+    label.setAttribute('font-weight', '600');
+    label.setAttribute('fill', '#2a0605');
+    label.textContent = txt;
+    svg.appendChild(label);
+  });
+  field.appendChild(svg);
+}
+
+function combatBar(){
+  var bar = el('div','combatbar');
+  bar.appendChild(el('span','cb-t', combatMode ? 'Choose attackers' : 'Attacking'));
+  var opps = seats().filter(function(o){ return o.opp; });
+  var any = false;
+  opps.forEach(function(sx){
+    var d = damageTo(sx.id);
+    if(!d) return;
+    any = true;
+    var b = el('button','btn sm', sx.name + ' takes ' + d);
+    b.onclick = function(){
+      sx.life = (sx.life == null ? 40 : sx.life) - d;
+      clearAttacks();
+      blip('turn');
+      commit(sx.name + ' took ' + d);
+    };
+    bar.appendChild(b);
+  });
+  if(!any) bar.appendChild(el('span','cb-s','Tap your creatures, then tap who they are hitting.'));
+  var done = el('button','btn sm ghost', combatMode ? 'Done' : 'Clear');
+  done.onclick = function(){
+    if(combatMode){ combatMode = false; render(); }
+    else { clearAttacks(); commit('Combat cleared'); }
+  };
+  bar.appendChild(done);
+  return bar;
+}
+var combatTarget = null;
 
 function seatRow(sx){
   var row = el('div','seatrow' + (sx.opp ? '' : ' me'));

@@ -1,7 +1,7 @@
 // Offline support. The app shell is cached up front; card pictures are cached
 // as they are seen. A shop with no wifi can still deal a game, though the two
 // devices will not sync until there is a connection again.
-const SHELL = 'ktm-shell-v8';
+const SHELL = 'ktm-shell-v9';
 const CARDS = 'ktm-cards-v2';
 const SHELL_FILES = ['./', './index.html', './decks.js', './config.js'];
 
