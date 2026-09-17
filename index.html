@@ -404,6 +404,14 @@ button.val:hover{color:var(--brass)}
 }
 
 /* badges on battlefield cards */
+/* Keywords along the top of the card. Green means something else on the board
+   handed it over, which is the kind you forget. */
+.kwbar{position:absolute;left:0;right:0;top:0;display:flex;flex-wrap:wrap;gap:2px;
+  padding:3px;pointer-events:none;z-index:2}
+.kw{font-family:var(--mono);font-size:8.5px;letter-spacing:.04em;line-height:1;
+  padding:2px 3px;border-radius:3px;background:rgba(8,12,10,.82);color:var(--ink2);
+  border:1px solid rgba(255,255,255,.14)}
+.kw.got{background:rgba(74,157,92,.92);color:#06180b;border-color:rgba(255,255,255,.3)}
 .badges{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:space-between;
   align-items:flex-end;padding:3px;gap:3px;pointer-events:none;z-index:2}
 .bdg{
@@ -1121,6 +1129,82 @@ function nextTurn(silent){
   // Extra land drops usually come from a permanent that can leave, so a turn
   // that carried an allowance checks whether it still applies.
   if(carried !== 1 && !silent) setTimeout(function(){ askLandAllowance(carried); }, 60);
+  else if(turnList && !silent) setTimeout(openTurnList, 60);
+}
+
+// The app cannot fire anything, because firing means knowing what the other
+// three did. What it can do is read your own board at the start of a turn and
+// say what is waiting. That is the whole list, in the order it happens.
+var turnList = lsGet('ktm.turnlist','1') === '1';
+var TRIG_WHEN = [
+  { k:'upkeep',  re:/At the beginning of (your |each )?upkeep/i,  label:'Upkeep' },
+  { k:'draw',    re:/At the beginning of (your )?draw step/i,      label:'Draw step' },
+  { k:'combat',  re:/At the beginning of combat/i,                 label:'Combat' },
+  { k:'end',     re:/At the beginning of (your |the )?end step/i,   label:'End step' },
+  { k:'attack',  re:/Whenever (this creature|[A-Z][^,]{0,28}) attacks/,label:'When it attacks' }
+];
+function turnTriggers(){
+  var out = [];
+  state.z.bf.forEach(function(iid){
+    var c = state.cards[iid];
+    if(!c || c.fd) return;
+    var d = defOf(c);
+    if(!d || !d.o) return;
+    String(d.o).split('\n').forEach(function(line){
+      var l = line.trim();
+      for(var i = 0; i < TRIG_WHEN.length; i++){
+        if(!TRIG_WHEN[i].re.test(l)) continue;
+        // The ones the app already works out for itself are not waiting on him.
+        var handled = false;
+        ATTACK_PUMP.forEach(function(r){ if(r.n === d.n) handled = true; });
+        if(handled) return;
+        out.push({ iid:iid, d:d, when:TRIG_WHEN[i], line:l });
+        return;
+      }
+    });
+  });
+  out.sort(function(a, b){
+    return TRIG_WHEN.indexOf(a.when) - TRIG_WHEN.indexOf(b.when);
+  });
+  return out;
+}
+
+function openTurnList(){
+  var list = turnTriggers();
+  if(!list.length) return;
+  var sh0 = sheet('Turn ' + state.turn + ', waiting on you',
+    list.length + ' thing' + (list.length === 1 ? '' : 's') + ' on your board that happen by themselves. '
+    + 'The app cannot fire them, because the rest of the table is real cards.');
+  sh0.classList.add('wide');
+  var last = null;
+  list.forEach(function(t){
+    if(t.when.label !== last){
+      var h = el('div','pbsec');
+      h.appendChild(el('span', null, t.when.label));
+      h.appendChild(el('span','rule'));
+      sh0.appendChild(h);
+      last = t.when.label;
+    }
+    var row = el('div','tkrow');
+    var d = t.d;
+    if(hasArt(d)){
+      var im = new Image(); im.src = artSrc(d); im.alt=''; im.loading='lazy';
+      row.appendChild(im);
+    }
+    var tx = el('div','tkn');
+    tx.appendChild(el('b', null, d.n));
+    tx.appendChild(el('span', null, t.line));
+    row.appendChild(tx);
+    var go = el('button','btn sm', d.tk && d.tk.length ? 'Make it' : 'Open');
+    go.onclick = function(){ closeLayer(); openCardSheet(t.iid, 'bf'); };
+    row.appendChild(go);
+    sh0.appendChild(row);
+  });
+  sh0.appendChild(el('div','divider'));
+  var off = el('button','btn ghost','Stop showing this each turn');
+  off.style.cssText = 'width:100%;justify-content:center';
+  off.onclick = function(){ turnList = false; lsSet('ktm.turnlist','0'); closeLayer(); };
+  sh0.appendChild(off);
 }
 
 function askLandAllowance(carried){
@@ -1146,9 +1230,10 @@ function tapCard(iid){
   // Untapping a land takes back the mana it made, so a misplaced tap costs
   // nothing. Only what this land actually added comes off.
   if(c.tp && c.gave){
-    addMana(c.gave, -1);
-    var gave = c.gave;
-    delete c.gave;
+    var back = c.gaveN || 1;
+    for(var q2 = 0; q2 < back; q2++) addMana(c.gave, -1);
+    var gave = (back > 1 ? back + ' ' : '') + c.gave;
+    delete c.gave; delete c.gaveN;
     c.tp = 0;
     commit('Untapped ' + (d ? d.n : 'a card') + ', took back ' + gave);
     return;
@@ -1158,6 +1243,14 @@ function tapCard(iid){
   if(c.tp && d && isLand(d) && d.pm && d.pm.length){
     // Light assist: one produced colour goes to the pool. Multi-colour lands
     // ask, because guessing wrong is worse than one extra tap.
+    var sc = scaledMana(d, iid);
+    if(sc){
+      for(var q = 0; q < sc.n; q++) addMana(sc.col, 1);
+      c.gave = sc.n ? sc.col : null;
+      c.gaveN = sc.n;
+      commit('Tapped ' + d.n + ' for ' + sc.n + ' ' + sc.col + ' (' + sc.why + ')');
+      return;
+    }
     if(d.pm.length === 1){
       addMana(d.pm[0],1); c.gave = d.pm[0];
       commit('Tapped '+d.n+' for '+d.pm[0]); return;
@@ -1173,6 +1266,60 @@ function addMana(sym,n){
 
 // ---- auto-tap ------------------------------------------------------------
 var autoTap = lsGet('ktm.autotap','1') === '1';
+
+// Things on your board that make a spell cheaper. Two regular sentences cover
+// all of them: "Red spells you cast cost {1} less to cast" on a permanent, and
+// "This spell costs {1} less to cast for each attacking creature you control"
+// on the card itself. Generic only, which is what these always reduce.
+var COLOUR_WORD = { White:'W', Blue:'U', Black:'B', Red:'R', Green:'G', Colorless:'C' };
+function costCut(d){
+  if(!cardEffects || !d) return { n:0, why:[] };
+  var cut = 0, why = [];
+
+  // written on the spell itself
+  String(d.o || '').split('\n').forEach(function(line){
+    var m = /This spell costs \{([0-9]+)\} less to cast for each ([^.]+)/i.exec(line);
+    if(!m) return;
+    var what = m[2].trim();
+    var t = /^attacking ([A-Za-z][A-Za-z' -]*?) you control$/i.exec(what)
+         || /^([A-Za-z][A-Za-z' -]*?) you control$/i.exec(what);
+    if(!t) return;
+    var n = /attacking/i.test(what) ? countAttacking(oneWord(t[1])) : countOnBoard(oneWord(t[1]));
+    if(!n) return;
+    cut += parseInt(m[1], 10) * n;
+    why.push(d.n + ' is ' + (parseInt(m[1],10) * n) + ' cheaper, ' + n + ' ' + what);
+  });
+
+  // written on something already on the table
+  state.z.bf.forEach(function(sid){
+    var sc = state.cards[sid];
+    if(!sc || sc.fd) return;
+    var sd = defOf(sc);
+    if(!sd || !sd.o) return;
+    String(sd.o).split('\n').forEach(function(line){
+      var m = /^([A-Za-z][A-Za-z' -]*?) spells you cast cost \{([0-9]+)\} less to cast/i.exec(line.trim());
+      if(!m) return;
+      var subj = m[1].trim(), n = parseInt(m[2], 10);
+      var col = COLOUR_WORD[subj.charAt(0).toUpperCase() + subj.slice(1).toLowerCase()];
+      var hit = col ? ((d.ci || []).indexOf(col) >= 0)
+                    : (String(d.t || '').indexOf(oneWord(subj)) >= 0);
+      if(!hit) return;
+      cut += n;
+      why.push(sd.n + ' takes off ' + n);
+    });
+  });
+  return { n:cut, why:why };
+}
+function countAttacking(word){
+  var n = 0;
+  state.z.bf.forEach(function(iid){
+    var c = state.cards[iid];
+    if(!c || !c.atk || c.fd) return;
+    var d = defOf(c);
+    if(d && anthemHits(d, word)) n++;
+  });
+  return n;
+}
 
 // What a cost actually demands: coloured pips, and a generic number.
 function costNeed(m){
@@ -1210,6 +1357,10 @@ function freeMana(d){
     var cost = line.slice(0, i), add = line.slice(i + 1);
     if(!/^\s*Add\b/i.test(add)) return;
     sawAdd = true;
+    // "Max speed", "Channel" and the like put a condition in front of the cost.
+    // The app cannot check it, so the ability is not free ON DEMAND and is left
+    // out rather than guessed at.
+    if(cost.indexOf('\u2014') >= 0 || /Max speed|Channel|Threshold|Delirium/i.test(cost)) return;
     if(!/\{T\}/.test(cost)) return;                            // has to be a tap
     if(/\{[0-9XWUBRGC]/.test(cost.replace(/\{T\}/g, ''))) return;  // costs mana first
     var before = Object.keys(out).length;
@@ -1227,12 +1378,51 @@ function costsToMake(d, m){
   return ((d && d.pm) || []).indexOf(m) >= 0 && freeMana(d).indexOf(m) < 0;
 }
 
+// Some sources make a pile rather than one. "Add {G} for each creature you
+// control" is a number the app can work out, because it is only ever your own
+// board. Returns null when the sentence is not one of the regular ones.
+function scaledMana(d, iid){
+  var o = (d && d.o) || '';
+  var lines = o.split('\n');
+  for(var i = 0; i < lines.length; i++){
+    var line = lines[i];
+    var m = /Add \{([WUBRGC])\} for each ([^.]+)/i.exec(line);
+    if(!m) continue;
+    if(line.indexOf('\u2014') >= 0 || /Max speed|Channel/i.test(line)) continue;
+    var what = m[2].trim();
+    var n = null, why = '';
+    var t1 = /^([A-Za-z][A-Za-z' -]*?) you control$/.exec(what);
+    var t2 = /^([A-Za-z][A-Za-z' -]*?) on the battlefield$/.exec(what);
+    var t3 = /^([+-][0-9]+\/[+-][0-9]+|charge|[a-z]+) counters? on (this|it)/i.exec(what);
+    if(t1){ n = countOnBoard(oneWord(t1[1])); why = n + ' ' + t1[1] + ' you control'; }
+    else if(t2){
+      // It says the whole battlefield, and the app only sees yours.
+      n = countOnBoard(oneWord(t2[1]));
+      why = n + ' ' + t2[1] + ' on YOUR board, it counts everyone';
+    } else if(t3 && iid){
+      var cc = state.cards[iid], ctr = (cc && cc.ctr) || {};
+      var key = /[+]1/.test(t3[1]) ? 'p1p1' : String(t3[1]).toLowerCase();
+      n = ctr[key] || 0;
+      why = n + ' ' + t3[1] + ' counters on it';
+    }
+    if(n == null) continue;
+    return { col:m[1], n:Math.max(0, n), why:why };
+  }
+  return null;
+}
+function oneWord(sub){
+  var w = String(sub || '').trim().replace(/\s+creatures?$/i, '');
+  return /^creatures?$/i.test(w) ? 'Creature' : w.replace(/s$/, '');
+}
+
 // What one permanent makes when it taps. Scryfall says which colours; the
 // rules text says how many, which is how Sol Ring is worth two and a Forest
 // is worth one.
-function sourceOut(d){
+function sourceOut(d, iid){
   var cols = freeMana(d);
   if(!cols.length) return null;
+  var sc = scaledMana(d, iid);
+  if(sc && cols.indexOf(sc.col) >= 0) return { cols:[sc.col], amount:sc.n, why:sc.why };
   var amount = 1;
   var m = /Add ([^.]*)/i.exec((d && d.o) || '');
   if(m){
@@ -1261,7 +1451,7 @@ function planPayment(cost){
   state.z.bf.forEach(function(iid){
     var c = state.cards[iid];
     if(!c || c.tp) return;
-    var o = sourceOut(defOf(c));
+    var o = sourceOut(defOf(c), iid);
     if(!o) return;
     srcs.push({ iid:iid, cols:o.cols, amount:o.amount, name:(defOf(c) || {}).n || 'a permanent' });
   });
@@ -1333,6 +1523,12 @@ function castCard(iid){
   if(!d || isLand(d) || !autoTap || !d.m) return playCard(iid);
 
   var cost = costNeed(d.m);
+  // Anything on the table that makes this cheaper comes off the generic part.
+  var cut = costCut(d);
+  if(cut.n){
+    cost.generic = Math.max(0, cost.generic - cut.n);
+    cost.cut = cut;
+  }
   if(!cost.generic && !MANA.some(function(k){ return cost.need[k]; })) return playCard(iid);
 
   var plan = planPayment(cost);
@@ -1352,9 +1548,10 @@ function castCard(iid){
   var ent = applyEnterCounters(iid);
   if(ent) logg(d.n + ' entered with ' + ent.n + ' +1/+1 (' + ent.why.join(', ') + ')');
   blip('act');
+  var cutNote = cost.cut ? ' (' + cost.cut.why.join(', ') + ')' : '';
   commit(plan.taps.length
-    ? ('Tapped ' + plan.taps.length + ' for ' + d.n + ' and played it')
-    : ('Played ' + d.n + ' from floating mana'));
+    ? ('Tapped ' + plan.taps.length + ' for ' + d.n + ' and played it' + cutNote)
+    : ('Played ' + d.n + ' from floating mana' + cutNote));
 }
 
 // A planeswalker arrives with its printed loyalty, and doublers apply to it
@@ -1539,6 +1736,81 @@ function anthemsFor(iid){
   return { p:p, t:t, why:why };
 }
 
+// Keywords. A card prints them on a line of their own, so a line that is
+// nothing but keywords is a list of keywords. Short tags because the board is
+// read at a glance and the words are long.
+var KEYWORDS = {
+  'flying':'FLY', 'first strike':'FS', 'double strike':'DS', 'deathtouch':'DT',
+  'lifelink':'LL', 'menace':'MEN', 'reach':'RCH', 'trample':'TRM',
+  'vigilance':'VIG', 'haste':'HST', 'hexproof':'HEX', 'indestructible':'IND',
+  'ward':'WRD', 'shroud':'SHR', 'defender':'DEF', 'flash':'FLA',
+  'infect':'INF', 'prowess':'PRW', 'protection':'PRO', 'annihilator':'ANN',
+  'fear':'FEAR', 'intimidate':'INT', 'skulk':'SKU', 'horsemanship':'HRS'
+};
+function tagFor(word){
+  var w = String(word || '').trim().toLowerCase().replace(/[.]$/, '');
+  if(KEYWORDS[w]) return KEYWORDS[w];
+  // "Protection from red" and "Ward {2}" carry an argument. "Flashback" is not
+  // Flash, so the word has to end where the keyword ends.
+  for(var k in KEYWORDS){
+    if(w.indexOf(k) === 0 && (w.length === k.length || w.charAt(k.length) === ' ')) return KEYWORDS[k];
+  }
+  return null;
+}
+// Every fragment has to be a keyword, or the line is a sentence and not a list.
+function keywordsIn(line){
+  var bare = String(line || '').replace(/\([^)]*\)/g, '').trim().replace(/[.]$/, '');
+  if(!bare) return [];
+  var parts = bare.split(/,| and /);
+  var out = [];
+  for(var i = 0; i < parts.length; i++){
+    var t = tagFor(parts[i]);
+    if(!t) return [];
+    if(out.indexOf(t) < 0) out.push(t);
+  }
+  return out;
+}
+var kwCache = {};
+function printedKeywords(d){
+  if(!d || !d.o) return [];
+  if(kwCache[d.n]) return kwCache[d.n];
+  var out = [];
+  String(d.o).split('\n').forEach(function(line){
+    keywordsIn(line).forEach(function(k){ if(out.indexOf(k) < 0) out.push(k); });
+  });
+  kwCache[d.n] = out;
+  return out;
+}
+// Handed over by something else on the board: a lord, or the thing it carries.
+function grantedKeywords(iid){
+  var c = state.cards[iid], d = defOf(c);
+  if(!d || !/Creature/.test(d.t || '')) return [];
+  var out = [];
+  function take(list){ list.forEach(function(k){ if(out.indexOf(k) < 0) out.push(k); }); }
+  state.z.bf.forEach(function(sid){
+    var sc = state.cards[sid];
+    if(!sc || sc.fd) return;
+    var sd = defOf(sc);
+    if(!sd || !sd.o) return;
+    String(sd.o).split('\n').forEach(function(line){
+      // "Other Goblins you control have haste."
+      var m = /^(Other )?([A-Za-z][A-Za-z' -]*?) you control (?:have|gain) (.+?)[.]?$/.exec(line.trim());
+      if(m && line.indexOf(':') < 0 && !/^(When|Whenever|At |As long as|If )/i.test(line)
+         && !/until end of turn/i.test(line)){
+        if(m[1] && sid === iid) return;
+        if(anthemHits(d, anthemSubject(m[2]))) take(keywordsIn(m[3]));
+        return;
+      }
+      // "Equipped creature gets +1/+1 and has double strike and trample."
+      if(sc.eq === iid){
+        var g = /(?:Equipped|Enchanted) creature(?: gets [+-][0-9]+\/[+-][0-9]+ and)? ha[sve]+ (.+?)[.]?$/.exec(line.trim());
+        if(g) take(keywordsIn(g[1]));
+      }
+    });
+  });
+  return out;
+}
+
 // Equipment and auras. What they give is written the same regular way every
 // time, so it is read rather than listed: "Equipped creature gets +2/+2."
 function isAttachable(d){ return /Equipment|Aura/.test((d && d.t) || ''); }
@@ -1567,6 +1839,71 @@ function gearBonus(iid){
   return { p:p, t:t, why:why };
 }
 
+// Pumps that only happen while attacking. All three read nothing but your own
+// board, which is the whole rule, and all three are the numbers hardest to hold
+// in your head. Matched by printed name, with the working shown.
+var ATTACK_PUMP = [
+  { n:'Goblin Piledriver', self:true,
+    count:function(iid){ return otherAttackers(iid, 'Goblin'); },
+    per:{ p:2, t:0 }, why:'other attacking Goblins' },
+  { n:'Muxus, Goblin Grandee', self:true,
+    count:function(iid){ return countOnBoard('Goblin') - 1; },
+    per:{ p:1, t:1 }, why:'other Goblins you control' },
+  { n:'Shared Animosity', self:false,
+    count:function(iid){ return otherAttackers(iid, null); },
+    per:{ p:1, t:0 }, why:'other attackers sharing a type' }
+];
+// Attacking creatures other than this one, optionally of a type.
+function otherAttackers(iid, type){
+  var me = defOf(state.cards[iid]);
+  var n = 0;
+  state.z.bf.forEach(function(sid){
+    if(sid === iid) return;
+    var sc = state.cards[sid];
+    if(!sc || !sc.atk || sc.fd) return;
+    var sd = defOf(sc);
+    if(!sd || !/Creature/.test(sd.t || '')) return;
+    if(type){ if(!anthemHits(sd, type)) return; }
+    else if(!sharesType(me, sd)) return;
+    n++;
+  });
+  return n;
+}
+// The words after the dash in the type line are the creature's types.
+function subtypes(d){
+  var t = String((d && d.t) || '');
+  var i = t.indexOf('\u2014');
+  if(i < 0) i = t.indexOf(' - ');
+  return i < 0 ? [] : t.slice(i + 1).trim().split(/\s+/);
+}
+function sharesType(a, b){
+  var x = subtypes(a), y = subtypes(b);
+  for(var i = 0; i < x.length; i++){ if(y.indexOf(x[i]) >= 0) return true; }
+  return false;
+}
+function combatBonus(iid){
+  var blank = { p:0, t:0, why:[] };
+  if(!cardEffects) return blank;
+  var c = state.cards[iid];
+  if(!c || !c.atk) return blank;                 // only while it is swinging
+  var p = 0, t = 0, why = [];
+  state.z.bf.forEach(function(sid){
+    var sc = state.cards[sid];
+    if(!sc || sc.fd) return;
+    var sd = defOf(sc);
+    if(!sd) return;
+    ATTACK_PUMP.forEach(function(r){
+      if(r.n !== sd.n) return;
+      if(r.self && sid !== iid) return;           // it pumps only itself
+      var n = Math.max(0, r.count(iid));
+      if(!n) return;
+      p += r.per.p * n; t += r.per.t * n;
+      why.push(sd.n + ', ' + n + ' ' + r.why);
+    });
+  });
+  return { p:p, t:t, why:why };
+}
+
 // Printed numbers, plus counters, plus anthems. A power printed as a symbol
 // stays a symbol.
 function effectivePT(iid){
@@ -1576,10 +1913,11 @@ function effectivePT(iid){
   var add = (c && c.ctr && c.ctr.p1p1) || 0;
   var an = anthemsFor(iid);
   var gr = gearBonus(iid);
+  var cb = combatBonus(iid);
   return {
-    p: isNaN(bp) ? (d.p || '*') : (bp + add + an.p + gr.p),
-    t: isNaN(bt) ? (d.tg || '*') : (bt + add + an.t + gr.t),
-    why: an.why.concat(gr.why)
+    p: isNaN(bp) ? (d.p || '*') : (bp + add + an.p + gr.p + cb.p),
+    t: isNaN(bt) ? (d.tg || '*') : (bt + add + an.t + gr.t + cb.t),
+    why: an.why.concat(gr.why).concat(cb.why)
   };
 }
 
@@ -2290,6 +2628,18 @@ function cardNode(iid, opts){
 
   function addOverlays(){
     if(opts.zone !== 'bf' || !d) return;
+    if(!(c && c.fd)){
+      var printed = printedKeywords(d), got = grantedKeywords(iid);
+      if(printed.length || got.length){
+        var kb = el('div','kwbar');
+        printed.forEach(function(k){ kb.appendChild(el('span','kw', k)); });
+        got.forEach(function(k){
+          if(printed.indexOf(k) >= 0) return;
+          kb.appendChild(el('span','kw got', k));
+        });
+        if(kb.firstChild) btn.appendChild(kb);
+      }
+    }
     var bar = el('div','badges');
     var left = el('div'); left.style.cssText='display:flex;gap:3px;flex-wrap:wrap';
     var ctr = (c && c.ctr) || {};
@@ -4828,6 +5178,7 @@ function openMenu(){
   var ac = el('div','chips');
   [['Card effects', function(){ return cardEffects; }, function(v){ cardEffects=v; lsSet('ktm.effects',v?'1':'0'); render(); }],
    ['Auto tap for mana', function(){ return autoTap; }, function(v){ autoTap=v; lsSet('ktm.autotap',v?'1':'0'); }],
+   ['Turn list', function(){ return turnList; }, function(v){ turnList=v; lsSet('ktm.turnlist',v?'1':'0'); }],
    ['Sound', function(){ return soundOn; }, function(v){ soundOn=v; lsSet('ktm.sound',v?'1':'0'); if(v) blip('act'); }],
    ['Board tab on phone', function(){ return showPhoneBoard; }, function(v){ showPhoneBoard=v; lsSet('ktm.pboard',v?'1':'0'); render(); }],
    ['Life counters', function(){ return showLife; }, function(v){ showLife=v; lsSet('ktm.life',v?'1':'0'); render(); }],
