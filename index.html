@@ -1,0 +1,2529 @@
+<title>Kitchen Table Magic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya:wght@500;700;800&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#131b17; --bg2:#1a2520; --bg3:#22302a; --bg4:#2a3a33;
+  --line:#2f4139; --line2:#3d5349;
+  --ink:#e8efe9; --ink2:#9db0a5; --ink3:#6f847a;
+  --brass:#d4a94b; --brass-dim:#8a6f2e;
+  --danger:#d9534a; --good:#5aab6b; --warn:#d99a3a;
+  --mW:#f4ecd6; --mU:#4a8fd6; --mB:#6b5878; --mR:#d4543c; --mG:#4a9d5c; --mC:#a9b4b0;
+  --disp:'Alegreya',Georgia,'Times New Roman',serif;
+  --ui:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+  --cw:104px; --r:10px;
+  --shadow:0 2px 10px rgba(0,0,0,.45);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{
+  background:var(--bg); color:var(--ink); font-family:var(--ui); font-size:14px;
+  overflow:hidden; overscroll-behavior:none;
+  background-image:radial-gradient(120% 90% at 50% 0%,#1b2721 0%,#131b17 60%,#0e1512 100%);
+}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px;border-radius:4px}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* ---------- shell ---------- */
+#app{display:flex;flex-direction:column;height:100%}
+.topbar{
+  display:flex;align-items:center;gap:10px;flex-wrap:nowrap;
+  padding:8px 12px; padding-top:calc(8px + env(safe-area-inset-top,0px));
+  background:linear-gradient(#1c2823,#16201b); border-bottom:1px solid var(--line);
+  box-shadow:0 1px 0 rgba(255,255,255,.03) inset; flex:0 0 auto; min-height:0;
+}
+.brand{font-family:var(--disp);font-weight:800;font-size:17px;letter-spacing:.01em;
+  color:var(--brass);white-space:nowrap;line-height:1}
+.brand small{display:block;font-family:var(--ui);font-weight:500;font-size:9.5px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-top:2px}
+.spacer{flex:1 1 auto;min-width:0}
+.btn{
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+  padding:7px 11px;border-radius:8px;background:var(--bg3);border:1px solid var(--line2);
+  font-size:12.5px;font-weight:500;color:var(--ink);transition:background .12s,border-color .12s;
+}
+.btn:hover{background:var(--bg4)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:linear-gradient(#e0b658,#c4992f);border-color:#8a6f2e;color:#20180a;font-weight:600}
+.btn.primary:hover{background:linear-gradient(#e8c268,#cea137)}
+.btn.ghost{background:transparent;border-color:var(--line)}
+.btn.sm{padding:5px 8px;font-size:11.5px}
+.btn[disabled]{opacity:.4;pointer-events:none}
+.turnchip{
+  display:flex;align-items:baseline;gap:7px;padding:5px 11px;border-radius:8px;
+  background:var(--bg2);border:1px solid var(--line);
+}
+.turnchip b{font-family:var(--mono);font-size:15px;font-variant-numeric:tabular-nums;color:var(--brass)}
+.turnchip span{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)}
+.phasebar{display:flex;gap:2px;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:2px}
+.phasebar button{padding:4px 8px;border-radius:6px;font-size:10.5px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink3);font-weight:500}
+.phasebar button[aria-pressed=true]{background:var(--bg4);color:var(--brass)}
+.syncdot{width:8px;height:8px;border-radius:50%;background:var(--ink3);flex:0 0 auto}
+.syncdot.live{background:var(--good);box-shadow:0 0 6px rgba(90,171,107,.7)}
+.syncdot.local{background:var(--warn)}
+
+/* ---------- board ---------- */
+.board{flex:1 1 auto;display:grid;grid-template-columns:1fr 208px;min-height:0}
+.field{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
+.band{
+  display:flex;flex-direction:column;min-height:0;
+  border-bottom:1px solid var(--line);
+}
+.band.main{flex:1 1 62%}
+.band.lands{flex:1 1 38%;border-bottom:0;background:linear-gradient(180deg,transparent,rgba(74,157,92,.045))}
+.bandhead{
+  display:flex;align-items:center;gap:8px;padding:5px 12px;flex:0 0 auto;
+  font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3);
+}
+.bandhead .rule{flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+.bandhead b{font-family:var(--mono);color:var(--ink2);font-size:11px;letter-spacing:0}
+.tray{
+  flex:1 1 auto;overflow-y:auto;overflow-x:hidden;padding:2px 22px 12px;
+  display:flex;flex-wrap:wrap;align-content:flex-start;gap:10px 8px;
+}
+.tray.empty::after{
+  content:attr(data-empty);color:var(--ink3);font-size:12px;font-style:italic;
+  padding:14px 4px;opacity:.65;
+}
+
+/* ---------- rail ---------- */
+.rail{
+  border-left:1px solid var(--line);background:linear-gradient(180deg,#17211c,#131b17);
+  display:flex;flex-direction:column;min-height:0;overflow-y:auto;
+}
+.railsec{padding:10px;border-bottom:1px solid var(--line)}
+.railsec h3{
+  margin:0 0 8px;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--ink3);font-weight:600;font-family:var(--ui);
+}
+.lifebox{display:flex;align-items:center;gap:8px}
+.lifebox .num{
+  font-family:var(--mono);font-size:34px;font-weight:600;font-variant-numeric:tabular-nums;
+  color:var(--ink);line-height:1;flex:1;text-align:center;
+}
+.lifebox .num.low{color:var(--danger)}
+.stepper{display:flex;flex-direction:column;gap:4px}
+.stepper button{width:30px;height:24px;border-radius:6px;background:var(--bg3);
+  border:1px solid var(--line2);font-size:14px;line-height:1;color:var(--ink2)}
+.stepper button:hover{background:var(--bg4);color:var(--ink)}
+.subcount{display:flex;gap:6px;margin-top:8px}
+.subcount .sc{flex:1;display:flex;align-items:center;justify-content:space-between;gap:4px;
+  padding:4px 7px;border-radius:6px;background:var(--bg2);border:1px solid var(--line);font-size:10.5px;color:var(--ink3)}
+.subcount .sc b{font-family:var(--mono);color:var(--ink2);font-size:12px}
+
+/* mana */
+.manarow{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.pip{
+  display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 2px 5px;
+  border-radius:8px;background:var(--bg2);border:1px solid var(--line);
+}
+.pip:hover{border-color:var(--line2)}
+.pip .sym{
+  width:24px;height:24px;border-radius:50%;display:grid;place-items:center;
+  font-family:var(--disp);font-weight:800;font-size:13px;color:#10160f;
+  box-shadow:inset 0 -2px 4px rgba(0,0,0,.25),0 1px 2px rgba(0,0,0,.4);
+}
+.pip .ct{font-family:var(--mono);font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink3)}
+.pip.has .ct{color:var(--brass)}
+.pip.has{border-color:var(--brass-dim);background:#26301f}
+.sym.W{background:var(--mW)}.sym.U{background:var(--mU);color:#06121f}
+.sym.B{background:var(--mB);color:#e8dff0}.sym.R{background:var(--mR);color:#2a0a05}
+.sym.G{background:var(--mG);color:#06180b}.sym.C{background:var(--mC);color:#141a18}
+
+/* zone stacks */
+.sechead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 8px}
+.sechead h3{margin:0}
+/* One row per player at the table. Opponents are trackers, not boards. */
+.seatrow{display:flex;align-items:center;gap:6px;padding:5px 7px;border-radius:8px;
+  background:var(--bg2);border:1px solid var(--line);margin-bottom:5px}
+.seatrow.me{border-color:var(--brass-dim);background:#212c1d}
+.seatrow .nm{flex:1;min-width:0;font-size:11.5px;color:var(--ink2);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;text-align:left;padding:3px 0}
+.seatrow.me .nm{color:var(--brass);font-weight:600}
+.seatrow .lf{font-family:var(--mono);font-size:16px;font-weight:600;color:var(--ink);
+  font-variant-numeric:tabular-nums;min-width:26px;text-align:right}
+.seatrow .lf.low{color:var(--warn)}
+.seatrow .lf.out{color:var(--danger);text-decoration:line-through}
+.seatrow .pm{display:flex;gap:3px}
+.seatrow .pm button{width:22px;height:22px;border-radius:5px;background:var(--bg3);
+  border:1px solid var(--line2);font-size:12px;line-height:1;color:var(--ink2)}
+.seatrow .pm button:hover{background:var(--bg4);color:var(--ink)}
+.seatrow .flag{font-family:var(--mono);font-size:9.5px;padding:1px 4px;border-radius:4px;
+  background:rgba(217,83,74,.2);border:1px solid rgba(217,83,74,.5);color:#e8897f}
+.cdgrid{display:grid;grid-template-columns:1fr auto auto auto;gap:6px;align-items:center;margin-bottom:6px}
+.cdgrid .lbl{font-size:12px;color:var(--ink2);min-width:0}
+.cdgrid .val{font-family:var(--mono);font-size:15px;font-weight:600;min-width:30px;text-align:center}
+.cdgrid .val.lethal{color:var(--danger)}
+.cdgrid button{width:28px;height:28px;border-radius:6px;background:var(--bg3);
+  border:1px solid var(--line2);font-size:13px;color:var(--ink2)}
+.deckrow{display:flex;align-items:center;gap:8px;padding:6px 2px;
+  border-bottom:1px solid rgba(47,65,57,.55)}
+.deckrow .dn{flex:1;min-width:0;font-size:12.5px;color:var(--ink);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.deckrow .dt{font-size:9.5px;color:var(--ink3);white-space:nowrap;max-width:88px;
+  overflow:hidden;text-overflow:ellipsis}
+.deckrow .dq{font-family:var(--mono);font-size:13px;font-weight:600;min-width:18px;
+  text-align:center;font-variant-numeric:tabular-nums}
+.deckrow button{width:26px;height:26px;border-radius:6px;background:var(--bg3);
+  border:1px solid var(--line2);font-size:13px;line-height:1;color:var(--ink2);flex:0 0 auto}
+.deckrow button:hover{background:var(--bg4);color:var(--ink)}
+.difflist{background:var(--bg);border:1px solid var(--line2);border-radius:8px;
+  padding:9px 11px;font-family:var(--mono);font-size:12px;line-height:1.7;
+  max-height:150px;overflow-y:auto}
+.difflist .add{color:var(--good)}
+.difflist .rem{color:var(--danger)}
+.scroller{max-height:290px;overflow-y:auto;margin-top:4px}
+.tablecode{font-family:var(--mono);font-size:17px;font-weight:600;color:var(--brass);letter-spacing:.14em}
+.zones{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.zone{
+  position:relative;border-radius:8px;background:var(--bg2);border:1px solid var(--line);
+  padding:7px;text-align:left;overflow:hidden;
+}
+.zone:hover{border-color:var(--line2);background:var(--bg3)}
+.zone .zl{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);display:block}
+.zone .zc{font-family:var(--mono);font-size:19px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.zone.wide{grid-column:1/-1;display:flex;align-items:center;gap:9px}
+.zone.wide .ztext{flex:1;min-width:0}
+.zone .thumb{width:30px;aspect-ratio:63/88;border-radius:3px;background:var(--bg4);
+  object-fit:cover;flex:0 0 auto;border:1px solid var(--line2)}
+
+/* log */
+.log{padding:8px 10px 12px;font-size:11px;color:var(--ink3);line-height:1.5;overflow-y:auto;flex:1 1 auto;min-height:60px}
+.log div{padding:1.5px 0;border-bottom:1px solid rgba(47,65,57,.4)}
+.log b{color:var(--ink2);font-weight:500}
+
+/* ---------- cards ---------- */
+.cw{
+  position:relative;width:var(--cw);height:calc(var(--cw) * 88 / 63);flex:0 0 auto;
+}
+.cw.tapped{margin-left:calc(var(--cw) * .11);margin-right:calc(var(--cw) * .11)}
+.card{
+  position:absolute;inset:0;border-radius:calc(var(--cw)*.048);overflow:hidden;
+  background:var(--bg3);border:1px solid #0b100d;box-shadow:var(--shadow);
+  transition:transform .16s ease, box-shadow .16s ease; transform-origin:center center;
+  display:block;width:100%;height:100%;padding:0;text-align:left;
+}
+.cw.tapped .card{transform:rotate(90deg)}
+.card:hover{box-shadow:0 4px 16px rgba(0,0,0,.6),0 0 0 1px var(--brass-dim)}
+.cw.sel .card{box-shadow:0 0 0 2px var(--brass),0 6px 20px rgba(0,0,0,.6)}
+.card img{width:100%;height:100%;object-fit:cover;display:block;background:var(--bg3)}
+
+/* text-only face (imported decks with no art) */
+.face{
+  width:100%;height:100%;display:flex;flex-direction:column;
+  background:linear-gradient(165deg,var(--fc1,#2b3830),var(--fc2,#1c2620));
+  padding:calc(var(--cw)*.055);gap:calc(var(--cw)*.03);
+}
+.face .fn{font-family:var(--disp);font-weight:700;font-size:calc(var(--cw)*.105);
+  line-height:1.12;color:var(--ink);overflow:hidden;display:-webkit-box;
+  -webkit-line-clamp:2;-webkit-box-orient:vertical}
+.face .fm{display:flex;gap:2px;flex-wrap:wrap}
+.face .fm i{width:calc(var(--cw)*.105);height:calc(var(--cw)*.105);border-radius:50%;
+  font-style:normal;font-size:calc(var(--cw)*.075);display:grid;place-items:center;
+  font-family:var(--disp);font-weight:800;color:#10160f}
+.face .ft{font-size:calc(var(--cw)*.072);color:var(--ink2);line-height:1.2;
+  border-top:1px solid rgba(255,255,255,.08);padding-top:calc(var(--cw)*.03);
+  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.face .fo{font-size:calc(var(--cw)*.065);color:var(--ink3);line-height:1.25;flex:1;
+  overflow:hidden;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical}
+.face .fpt{align-self:flex-end;font-family:var(--mono);font-size:calc(var(--cw)*.095);
+  font-weight:600;color:var(--ink)}
+
+/* card back */
+.back{
+  width:100%;height:100%;
+  background:
+    radial-gradient(60% 45% at 50% 50%, rgba(212,169,75,.16), transparent 70%),
+    linear-gradient(150deg,#243029,#141d18);
+  display:grid;place-items:center;
+}
+.back::after{
+  content:"";width:44%;aspect-ratio:1;border:1.5px solid rgba(212,169,75,.5);
+  transform:rotate(45deg);border-radius:12%;
+  box-shadow:inset 0 0 0 3px rgba(212,169,75,.12);
+}
+
+/* badges on battlefield cards */
+.badges{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:space-between;
+  align-items:flex-end;padding:3px;gap:3px;pointer-events:none;z-index:2}
+.bdg{
+  font-family:var(--mono);font-size:10.5px;font-weight:600;line-height:1;
+  padding:2.5px 4px;border-radius:5px;background:rgba(10,14,12,.86);
+  border:1px solid rgba(255,255,255,.14);color:var(--ink);backdrop-filter:blur(2px);
+}
+.bdg.ctr{background:rgba(74,157,92,.92);border-color:rgba(255,255,255,.3);color:#06180b}
+.bdg.ctr.neg{background:rgba(217,83,74,.92);color:#2a0605}
+.bdg.tok{background:rgba(212,169,75,.9);color:#20180a;font-size:9px;letter-spacing:.06em}
+
+/* ---------- hand strip (board) ---------- */
+.handstrip{
+  flex:0 0 auto;border-top:1px solid var(--line);background:linear-gradient(#18221d,#121a16);
+  padding:8px 12px; padding-bottom:calc(8px + env(safe-area-inset-bottom,0px));
+  display:flex;align-items:center;gap:10px;
+}
+.handstrip .hs-cards{display:flex;gap:6px;overflow-x:auto;flex:1;padding-bottom:2px}
+.handstrip .hs-cards .cw{--cw:66px}
+
+/* ---------- hand mode (phone) ---------- */
+.handview{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+.handmeta{display:flex;gap:8px;padding:8px 14px;align-items:center;flex:0 0 auto;
+  border-bottom:1px solid var(--line);background:var(--bg2)}
+.handmeta .life{font-family:var(--mono);font-size:22px;font-weight:600;color:var(--ink)}
+.handmeta .mini{display:flex;gap:4px;flex:1;justify-content:flex-end;flex-wrap:wrap}
+.mini .msym{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;
+  font-family:var(--disp);font-weight:800;font-size:11px;color:#10160f;position:relative}
+.mini .msym s{position:absolute;right:-3px;bottom:-4px;font-family:var(--mono);font-size:9.5px;
+  text-decoration:none;background:#0d1310;color:var(--brass);border-radius:6px;padding:0 3px;
+  border:1px solid var(--line2);font-weight:600}
+/* Phone: cast on top, the magnified card in the middle, the hand along the bottom. */
+.castrow{flex:0 0 auto;display:grid;grid-template-columns:1fr auto;gap:7px;padding:9px 12px 3px}
+.castrow .btn{justify-content:center;padding:12px 10px;font-size:13.5px}
+.focuswrap{
+  flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;
+  padding:8px 16px;container-type:size;
+}
+.focuswrap .cw{--cw:min(80vw,42vh);max-width:100%}
+/* Container units make the card fill exactly the space the bars leave over. */
+@supports (width:1cqw){
+  .focuswrap .cw{--cw:min(86cqw, calc(100cqh * 63 / 88))}
+}
+.emptyhand{color:var(--ink3);font-style:italic;font-size:13px;text-align:center;padding:0 10px}
+/* Phone tabs: your hand, or your own battlefield. */
+.ptabs{display:flex;gap:5px;padding:8px 12px 0;flex:0 0 auto}
+.ptabs button{
+  flex:1;display:flex;align-items:center;justify-content:center;gap:6px;
+  padding:9px 6px;border-radius:9px;background:var(--bg2);border:1px solid var(--line);
+  font-size:12.5px;font-weight:500;color:var(--ink3);
+}
+.ptabs button[aria-pressed=true]{background:var(--bg4);border-color:var(--brass-dim);color:var(--brass)}
+.ptabs button b{font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums}
+.pboard{flex:1 1 auto;min-height:0;overflow-y:auto;padding:8px 14px 12px}
+.pbsec{display:flex;align-items:center;gap:8px;margin:8px 0 7px;
+  font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)}
+.pbsec .rule{flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+.pbsec b{font-family:var(--mono);font-size:11px;letter-spacing:0;color:var(--ink2)}
+.pbgrid{display:flex;flex-wrap:wrap;gap:10px 8px;align-content:flex-start}
+.pbgrid .cw{--cw:76px}
+.pbhint{font-size:11px;color:var(--ink3);font-style:italic;padding:2px 0 8px}
+.handbar{
+  flex:0 0 auto;display:flex;gap:7px;overflow-x:auto;overflow-y:hidden;
+  padding:9px 12px;scroll-snap-type:x proximity;
+  border-top:1px solid var(--line);background:linear-gradient(#18221d,#121a16);
+}
+.handbar .cw{--cw:58px;scroll-snap-align:center;transition:transform .14s ease}
+.handbar .cw.focus{transform:translateY(-5px)}
+.handbar .cw.focus .card{box-shadow:0 0 0 2px var(--brass),0 5px 14px rgba(0,0,0,.6)}
+.handzones{flex:0 0 auto;display:flex;gap:6px;padding:0 12px 9px;overflow-x:auto}
+.handzones button{flex:1 0 auto;min-width:62px;padding:6px 8px;border-radius:8px;
+  background:var(--bg2);border:1px solid var(--line);text-align:center}
+.handzones button:active{background:var(--bg3)}
+.handzones .zl{display:block;font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3)}
+.handzones .zc{font-family:var(--mono);font-size:15px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.handzones .tokbtn{color:var(--brass);border-color:var(--brass-dim)}
+.actionbar{
+  flex:0 0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;
+  padding:8px 12px;padding-bottom:calc(8px + env(safe-area-inset-bottom,0px));
+  border-top:1px solid var(--line);background:linear-gradient(#18221d,#121a16);
+}
+.actionbar .btn{justify-content:center;padding:11px 4px;font-size:12px}
+
+/* ---------- sheets / modals ---------- */
+.scrim{position:fixed;inset:0;background:rgba(6,10,8,.66);backdrop-filter:blur(3px);z-index:60;
+  display:flex;align-items:flex-end;justify-content:center}
+@media(min-width:760px){.scrim{align-items:center}}
+.sheet{
+  width:100%;max-width:520px;max-height:86vh;overflow-y:auto;
+  background:var(--bg2);border:1px solid var(--line2);
+  border-radius:16px 16px 0 0;box-shadow:0 -8px 40px rgba(0,0,0,.6);
+  padding:14px 16px;padding-bottom:calc(16px + env(safe-area-inset-bottom,0px));
+}
+@media(min-width:760px){.sheet{border-radius:14px;padding-bottom:16px}}
+.sheet h2{margin:0 0 2px;font-family:var(--disp);font-size:21px;font-weight:700;color:var(--ink);text-wrap:balance}
+.sheet .sub{margin:0 0 12px;font-size:11.5px;color:var(--ink3);letter-spacing:.02em}
+.sheet .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:7px}
+.sheet .grid .btn{justify-content:center;padding:11px 6px;font-size:12px;text-align:center}
+.sheet .divider{height:1px;background:var(--line);margin:13px 0 11px}
+.sheet .row{display:flex;gap:7px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.sheet label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);
+  display:block;margin-bottom:5px;font-weight:600}
+input[type=text],input[type=number],textarea,select{
+  width:100%;padding:9px 10px;border-radius:8px;background:var(--bg);border:1px solid var(--line2);
+  color:var(--ink);font:inherit;font-size:13px;
+}
+textarea{min-height:130px;resize:vertical;font-family:var(--mono);font-size:11.5px;line-height:1.5}
+input:focus,textarea:focus,select:focus{border-color:var(--brass-dim);outline:none}
+.cardlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:8px;margin-top:4px}
+.cardlist .cw{--cw:100%;width:100%}
+.zoomwrap{position:fixed;inset:0;z-index:70;background:rgba(6,10,8,.85);display:grid;place-items:center;padding:20px}
+.zoomwrap img,.zoomwrap .face{max-width:min(92vw,430px);width:100%;height:auto;aspect-ratio:63/88;
+  border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.7)}
+.zoomwrap .face{--cw:min(92vw,430px)}
+.chips{display:flex;gap:5px;flex-wrap:wrap}
+.chip{padding:5px 9px;border-radius:99px;background:var(--bg3);border:1px solid var(--line2);font-size:11.5px}
+.chip[aria-pressed=true]{background:var(--brass);color:#20180a;border-color:var(--brass);font-weight:600}
+.note{font-size:11.5px;color:var(--ink3);line-height:1.5}
+.note b{color:var(--ink2);font-weight:600}
+.err{color:var(--danger);font-size:12px;margin-top:8px}
+
+/* ---------- responsive ---------- */
+@media (max-width:1000px){ :root{--cw:88px} .board{grid-template-columns:1fr 180px} }
+@media (max-width:820px){
+  .board{grid-template-columns:1fr}
+  .rail{border-left:0;border-top:1px solid var(--line);max-height:42%}
+  .zones{grid-template-columns:repeat(4,1fr)}
+  .zone.wide{grid-column:span 2}
+}
+.hide{display:none!important}
+</style>
+
+<div id="app">
+  <div class="topbar">
+    <div class="brand">Kitchen Table<small>Magic</small></div>
+    <span class="syncdot" id="dot" title="sync status"></span>
+    <div class="spacer"></div>
+    <div id="topActions" style="display:flex;gap:7px;align-items:center;overflow-x:auto"></div>
+  </div>
+  <div id="main" style="flex:1 1 auto;min-height:0;display:flex;flex-direction:column"></div>
+</div>
+<div id="layer"></div>
+
+<script src="deck.js"></script>
+<script src="config.js" onerror="window.MTG_FIREBASE=null"></script>
+<script>
+(function(){
+"use strict";
+
+/* ========================================================================
+   Kitchen Table Magic \u2014 a two-device Magic playmat.
+   iPad = the board. iPhone = your hand. State syncs through the artifact db.
+   No rules enforcement: the app tracks zones and offers assists, never
+   blocks a play.
+   ======================================================================== */
+
+var MANA = ['W','U','B','R','G','C'];
+var MANA_NAME = {W:'White',U:'Blue',B:'Black',R:'Red',G:'Green',C:'Colorless'};
+var PHASES = ['Untap','Upkeep','Draw','Main 1','Combat','Main 2','End'];
+var ZONES = {lib:'Library', hand:'Hand', bf:'Battlefield', gy:'Graveyard', ex:'Exile', cmd:'Command'};
+
+/* ---------------- device identity + local prefs ---------------- */
+function lsGet(k,d){ try{ var v=localStorage.getItem(k); return v==null?d:v; }catch(e){ return d; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+
+var DEVICE = lsGet('ktm.device','');
+if(!DEVICE){ DEVICE = 'd'+Math.random().toString(36).slice(2,10); lsSet('ktm.device',DEVICE); }
+
+var mode = lsGet('ktm.mode', window.innerWidth < 820 ? 'hand' : 'board');
+var revealHand = lsGet('ktm.reveal','0') === '1';
+var focusIid = null;   // which hand card is magnified on the phone
+var phoneTab = lsGet('ktm.ptab','hand');   // 'hand' | 'board'
+
+// Two app users at one physical table must not share a game, so every game
+// lives under its own table code.
+var tableId = lsGet('ktm.table','main');
+function newTableCode(){
+  var A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', out = '';
+  for(var i=0;i<8;i++) out += A.charAt(Math.floor(Math.random()*A.length));
+  return out;
+}
+var autoDraw = lsGet('ktm.autodraw','1') === '1';
+var autoUntap = lsGet('ktm.autountap','1') === '1';
+var emptyPool = lsGet('ktm.emptypool','1') === '1';
+
+/* ---------------- card definitions ---------------- */
+// Built-in deck ships with real art as same-origin files (art/<slug>.jpg).
+// Imported decks carry no art and render as typographic faces.
+var BUILTIN = (window.MTG_DECK && window.MTG_DECK.cards) ? window.MTG_DECK.cards : [];
+// Art comes from Scryfall's own image host. Anything without a picture draws
+// a typographic face instead.
+function hasArt(d){ return !!(d && d.u); }
+function artSrc(d){ return d.u; }
+function slugify(n){
+  return String(n||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/-+/g,'-')
+    .replace(/^-|-$/g,'').slice(0,60);
+}
+var defs = BUILTIN;               // active definition table
+var defsAreBuiltin = true;
+var deckName = (window.MTG_DECK && window.MTG_DECK.name) || 'Sample deck';
+
+/* ---------------- game state ---------------- */
+var state = null;
+var nextId = 1;
+
+function newSeat(){
+  return { id:'s0', name:'You', life:40, poison:0, cmdTax:0, cmdDmg:{},
+           mana:{W:0,U:0,B:0,R:0,G:0,C:0}, landDrop:0, landMax:1 };
+}
+// Opponents hold real cards: they get a life total and a commander-damage
+// tally, and nothing else.
+function newOpponent(n){
+  return { id:'o'+n, name:'Opponent '+n, life:40, poison:0, cmdDmg:{}, opp:1 };
+}
+function seats(){ return state.seats || []; }
+function seatById(id){
+  var a = seats();
+  for(var i=0;i<a.length;i++){ if(a[i].id === id) return a[i]; }
+  return null;
+}
+function isOut(sx){ return sx.life <= 0 || (sx.poison||0) >= 10 || cmdLethal(sx); }
+function cmdLethal(sx){
+  var d = sx.cmdDmg || {};
+  for(var k in d){ if(d[k] >= 21) return true; }
+  return false;
+}
+
+function isLand(d){ return !!d && /Land/.test(d.t||''); }
+function isCommanderDef(d){ return !!d && !!window.MTG_DECK && d.n === window.MTG_DECK.commander; }
+
+function buildGame(defList, commanderName){
+  var cards = {}, lib = [], cmd = [], id = 1;
+  for(var i=0;i<defList.length;i++){
+    var d = defList[i], q = qOf(d);
+    for(var k=0;k<q;k++){
+      var iid = 'c'+(id++);
+      cards[iid] = { i:iid, d:i, tp:0, ctr:{}, fd:0, tok:0 };
+      if(commanderName && d.n === commanderName && cmd.length===0) cmd.push(iid);
+      else lib.push(iid);
+    }
+  }
+  nextId = id;
+  return {
+    v:1, rev:1, by:DEVICE, turn:1, phase:3, started:false,
+    deck:{ name: deckName, builtin: defsAreBuiltin },
+    seats:[ newSeat(), newOpponent(1), newOpponent(2), newOpponent(3) ],
+    cards: cards,
+    z: { lib:shuffle(lib), hand:[], bf:[], gy:[], ex:[], cmd:cmd },
+    log: []
+  };
+}
+
+function shuffle(a){
+  a = a.slice();
+  for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i];a[i]=a[j];a[j]=t; }
+  return a;
+}
+
+function defOf(c){
+  if(!c) return null;
+  if(c.tok && c.td) return c.td;                    // token carries its own def
+  return defs[c.d] || null;
+}
+function seat(){ return state.seats[0]; }
+function zoneOf(iid){
+  for(var k in state.z){ if(state.z[k].indexOf(iid) >= 0) return k; }
+  return null;
+}
+function move(iid, to, toTop){
+  var from = zoneOf(iid);
+  if(from){ var a = state.z[from]; a.splice(a.indexOf(iid),1); }
+  var c = state.cards[iid];
+  if(to === 'lib' || to === 'hand'){ if(c){ c.tp=0; c.ctr={}; c.fd=0; } }
+  if(to === 'gy' || to === 'ex'){
+    if(c && c.tok){ delete state.cards[iid]; return; }   // tokens cease to exist
+    if(c){ c.tp=0; c.ctr={}; c.fd=0; }
+  }
+  if(toTop) state.z[to].unshift(iid); else state.z[to].push(iid);
+}
+function logg(txt){
+  state.log = state.log || [];
+  state.log.unshift({ t:'T'+state.turn, s:txt });
+  if(state.log.length > 60) state.log.length = 60;
+}
+
+/* ---------------- sync ---------------- */
+var db=null, stateRef=null, deckRef=null, syncMode='local', saveTimer=null, saving=false, pending=false;
+
+function setDot(m){
+  syncMode = m;
+  var d = document.getElementById('dot');
+  d.className = 'syncdot' + (m==='live'?' live':(m==='local'?' local':''));
+  d.title = m==='live' ? 'Synced \u2014 open this same link on your other device'
+          : m==='local' ? 'Local only \u2014 this device is not syncing' : 'Connecting\u2026';
+}
+
+function touch(){ state.rev = (state.rev||0) + 1; state.by = DEVICE; }
+
+function save(){
+  render();
+  try{ lsSet('ktm.state', JSON.stringify(state)); }catch(e){}
+  if(!stateRef) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(flush, 60);
+}
+function flush(){
+  if(!stateRef) return;
+  if(saving){ pending = true; return; }
+  saving = true;
+  var snapshot = JSON.parse(JSON.stringify(state));
+  stateRef.set(snapshot).then(function(){
+    saving = false;
+    if(pending){ pending = false; flush(); }
+  }, function(err){
+    saving = false;
+    if(err && err.code === 'invalid_argument'){ setDot('local'); stateRef = null; }
+    else if(err && err.code === 'revoked'){ setDot('local'); stateRef = null; }
+    else { setTimeout(function(){ saving=false; flush(); }, 900 + Math.random()*600); }
+  });
+}
+
+function commit(msg){ touch(); if(msg) logg(msg); save(); }
+
+// ---- sync ----------------------------------------------------------------
+// Firebase's Realtime Database over plain HTTP: PUT to write, EventSource to
+// listen. No SDK. With no config.js the app runs on this device alone.
+function firebaseDb(base){
+  base = String(base).replace(/\/+$/,'');
+  return {
+    doc: function(path){
+      var url = base + '/' + path + '.json';
+      return {
+        set: function(data){
+          return fetch(url, {
+            method:'PUT', headers:{ 'Content-Type':'application/json' },
+            body: JSON.stringify(data)
+          }).then(function(r){
+            if(!r.ok) return Promise.reject({ code:'unavailable', message:'http '+r.status });
+          });
+        },
+        delete: function(){ return fetch(url, { method:'DELETE' }).then(function(){}); },
+        onSnapshot: function(next, onErr){
+          var es;
+          try { es = new EventSource(url); }
+          catch(e){ if(onErr) onErr({ code:'unavailable', message:String(e) }); return function(){}; }
+          function deliver(raw){
+            var payload = null;
+            try { payload = JSON.parse(raw); } catch(e){ return; }
+            // A patch names the changed key; re-read rather than merge by hand.
+            if(payload && payload.path !== undefined && payload.path !== '/'){
+              fetch(url).then(function(r){ return r.json(); })
+                .then(function(v){ next({ exists: v != null, data: function(){ return v; },
+                                          metadata:{ fromCache:false, hasPendingWrites:false } }); })
+                .catch(function(){});
+              return;
+            }
+            var v = payload ? payload.data : null;
+            next({ exists: v != null, data: function(){ return v; },
+                   metadata:{ fromCache:false, hasPendingWrites:false } });
+          }
+          es.addEventListener('put', function(e){ deliver(e.data); });
+          es.addEventListener('patch', function(e){ deliver(e.data); });
+          es.onerror = function(){
+            // EventSource retries on its own; only a hard close is terminal.
+            if(es.readyState === 2 && onErr) onErr({ code:'unavailable', message:'stream closed' });
+          };
+          return function(){ try{ es.close(); }catch(e){} };
+        }
+      };
+    }
+  };
+}
+
+// Firebase drops empty arrays and empty objects rather than storing them, so a
+// game with an empty graveyard comes back with no graveyard at all. It also
+// hands back sparse arrays as objects keyed by index. Put both right on arrival.
+function toArr(v){
+  if(Array.isArray(v)) return v.filter(function(x){ return x != null; });
+  if(v && typeof v === 'object'){
+    return Object.keys(v)
+      .sort(function(a,b){ return (+a) - (+b); })
+      .map(function(k){ return v[k]; })
+      .filter(function(x){ return x != null; });
+  }
+  return [];
+}
+function normalise(d){
+  if(!d || typeof d !== 'object') return d;
+  d.z = d.z || {};
+  ['lib','hand','bf','gy','ex','cmd'].forEach(function(k){ d.z[k] = toArr(d.z[k]); });
+  d.cards = d.cards || {};
+  for(var id in d.cards){
+    var c = d.cards[id];
+    if(!c) continue;
+    c.ctr = c.ctr || {};
+    c.tp = c.tp || 0;
+  }
+  d.seats = toArr(d.seats);
+  if(!d.seats.length) d.seats = [ newSeat() ];
+  d.seats.forEach(function(sx){
+    sx.mana = sx.mana || {};
+    MANA.forEach(function(m){ if(sx.mana[m] == null) sx.mana[m] = 0; });
+    sx.cmdDmg = sx.cmdDmg || {};
+    if(sx.life == null) sx.life = 40;
+    sx.poison = sx.poison || 0;
+  });
+  d.log = toArr(d.log);
+  return d;
+}
+
+async function initSync(){
+  var cfg = window.MTG_FIREBASE;
+  if(!cfg || !cfg.databaseURL){ setDot('local'); return; }
+  db = firebaseDb(cfg.databaseURL);
+  stateRef = db.doc('tables/' + tableId);
+  deckRef  = db.doc('decks/' + tableId);
+
+  deckRef.onSnapshot(function(snap){
+    if(!snap.exists) return;
+    var data = snap.data();
+    if(!data || !data.cards || !data.cards.length) return;
+    if(defsAreBuiltin || data.stamp !== lastDeckStamp){
+      defs = toArr(data.cards); defsAreBuiltin = false;
+      deckName = data.name || 'Imported deck';
+      importedCommander = data.commander || importedCommander;
+      deckChanges = toArr(data.changes);
+      physChanges = toArr(data.phys);
+      lastDeckStamp = data.stamp;
+      render();
+    }
+  }, function(){});
+
+  stateRef.onSnapshot(function(snap){
+    setDot('live');
+    if(!snap.exists){ flush(); return; }
+    var data = snap.data();
+    if(!data || !data.z) return;
+    if(data.by === DEVICE && (data.rev||0) <= (state.rev||0)) return;  // own echo
+    if((data.rev||0) < (state.rev||0)) return;                          // stale
+    state = normalise(data);
+    render();
+  }, function(err){
+    setDot('local'); stateRef = null;
+  });
+  setDot('live');
+}
+var lastDeckStamp = null;
+
+/* ---------------- actions ---------------- */
+function draw(n){
+  n = n||1; var got=0;
+  for(var i=0;i<n;i++){
+    if(!state.z.lib.length) break;
+    move(state.z.lib[0],'hand'); got++;
+  }
+  commit(got ? ('Drew '+got+' card'+(got>1?'s':'')) : 'Library is empty');
+}
+function mill(n){
+  var got=0;
+  for(var i=0;i<n;i++){ if(!state.z.lib.length) break; move(state.z.lib[0],'gy'); got++; }
+  commit('Milled '+got);
+}
+function doShuffle(){ state.z.lib = shuffle(state.z.lib); commit('Shuffled library'); }
+
+function untapAll(){
+  var n=0;
+  state.z.bf.forEach(function(iid){ var c=state.cards[iid]; if(c && c.tp){ c.tp=0; n++; } });
+  commit('Untapped '+n+' permanent'+(n===1?'':'s'));
+}
+function clearPool(){ var s=seat(); MANA.forEach(function(m){ s.mana[m]=0; }); }
+
+function nextPhase(){
+  state.phase = (state.phase + 1) % PHASES.length;
+  if(emptyPool) clearPool();
+  if(state.phase === 0) return nextTurn(true);
+  commit(null);
+}
+function nextTurn(silent){
+  state.turn++;
+  state.phase = 0;
+  var s = seat();
+  s.landDrop = 0;
+  clearPool();
+  if(autoUntap){ state.z.bf.forEach(function(iid){ var c=state.cards[iid]; if(c) c.tp=0; }); }
+  logg('\u2014 Turn '+state.turn+' \u2014');
+  if(autoDraw && state.z.lib.length){ move(state.z.lib[0],'hand'); logg('Drew for turn'); }
+  state.phase = 3;
+  touch(); save();
+}
+
+function tapCard(iid){
+  var c = state.cards[iid]; if(!c) return;
+  var d = defOf(c);
+  c.tp = c.tp ? 0 : 1;
+  if(c.tp && d && isLand(d) && d.pm && d.pm.length){
+    // Light assist: one produced colour goes to the pool. Multi-colour lands
+    // ask, because guessing wrong is worse than one extra tap.
+    if(d.pm.length === 1){ addMana(d.pm[0],1); commit('Tapped '+d.n+' for '+d.pm[0]); return; }
+    openManaChoice(d, iid); render(); return;
+  }
+  commit((c.tp?'Tapped ':'Untapped ') + (d?d.n:'a card'));
+}
+function addMana(sym,n){
+  var s = seat(); if(!(sym in s.mana)) sym='C';
+  s.mana[sym] = Math.max(0,(s.mana[sym]||0) + n);
+}
+
+function playCard(iid, opts){
+  opts = opts||{};
+  var c = state.cards[iid], d = defOf(c); if(!c) return;
+  move(iid,'bf');
+  var tapped = !!opts.tapped || (d && d.ebt);
+  c.tp = tapped ? 1 : 0;
+  if(d && isLand(d)){ seat().landDrop = (seat().landDrop||0) + 1; }
+  commit('Played '+(d?d.n:'a card') + (tapped?' (tapped)':''));
+}
+
+function makeToken(td, count){
+  count = count||1;
+  for(var i=0;i<count;i++){
+    var iid = 'k'+(nextId++)+Math.random().toString(36).slice(2,5);
+    state.cards[iid] = { i:iid, d:-1, tp:0, ctr:{}, fd:0, tok:1, td:td };
+    state.z.bf.push(iid);
+  }
+  commit('Created '+count+'\u00d7 '+td.n);
+}
+function copyAsToken(iid){
+  var c = state.cards[iid], d = defOf(c); if(!d) return;
+  var td = { n:d.n, t:d.t, m:d.m, p:d.p, tg:d.tg, ci:d.ci, pm:d.pm, s:d.s, o:d.o, copy:1 };
+  makeToken(td,1);
+}
+function bump(iid, key, delta){
+  var c = state.cards[iid]; if(!c) return;
+  c.ctr = c.ctr||{};
+  c.ctr[key] = (c.ctr[key]||0) + delta;
+  if(!c.ctr[key]) delete c.ctr[key];
+  commit(null);
+}
+
+/* ---------------- rendering ---------------- */
+// A remote write re-renders everything; without this the hand strip snaps
+// back to the first card mid-scroll.
+var scrollMem = {};
+function rememberScrolls(){
+  var els = document.querySelectorAll('[data-scroll]');
+  for(var i=0;i<els.length;i++){
+    scrollMem[els[i].getAttribute('data-scroll')] = [els[i].scrollLeft, els[i].scrollTop];
+  }
+}
+function restoreScrolls(){
+  var els = document.querySelectorAll('[data-scroll]');
+  for(var i=0;i<els.length;i++){
+    var v = scrollMem[els[i].getAttribute('data-scroll')];
+    if(v){ els[i].scrollLeft = v[0]; els[i].scrollTop = v[1]; }
+  }
+}
+
+var el = function(tag,cls,txt){ var n=document.createElement(tag); if(cls)n.className=cls; if(txt!=null)n.textContent=txt; return n; };
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];}); }
+
+function manaColorVar(sym){ return 'var(--m'+sym+')'; }
+function faceColors(d){
+  var ci = (d && d.ci) || [];
+  if(!ci.length) return ['#333f38','#1b2520'];
+  if(ci.length > 1) return ['#3a3526','#1f2118'];
+  var map = {W:['#3c3a2e','#22231b'],U:['#22354a','#141f2b'],B:['#2e2736','#1a1620'],
+             R:['#3d261f','#221512'],G:['#233a29','#141f17']};
+  return map[ci[0]] || ['#333f38','#1b2520'];
+}
+function parseCost(m){
+  var out = [], re = /\{([^}]+)\}/g, x;
+  while((x = re.exec(m||''))) out.push(x[1]);
+  return out;
+}
+
+function cardFace(d, forZoom){
+  // Typographic face \u2014 used for tokens and for imported decks (no art available).
+  var f = el('div','face');
+  var fc = faceColors(d);
+  f.style.setProperty('--fc1',fc[0]); f.style.setProperty('--fc2',fc[1]);
+  var top = el('div');
+  top.style.cssText = 'display:flex;gap:4px;align-items:flex-start;justify-content:space-between';
+  var nm = el('div','fn', d.n || 'Token'); top.appendChild(nm);
+  var cost = el('div','fm');
+  parseCost(d.m).slice(0,8).forEach(function(sym){
+    var i = el('i', null, sym.replace(/\//g,''));
+    i.style.background = MANA.indexOf(sym) >= 0 ? manaColorVar(sym) : '#b9c2be';
+    if(sym==='U'||sym==='B') i.style.color = '#eef3ff';
+    cost.appendChild(i);
+  });
+  if(cost.children.length) top.appendChild(cost);
+  f.appendChild(top);
+  f.appendChild(el('div','ft', (d.copy?'Token copy \u2014 ':'') + (d.t || 'Token')));
+  if(!forZoom || true) f.appendChild(el('div','fo', d.o || ''));
+  if(d.p != null || d.tg != null) f.appendChild(el('div','fpt', (d.p==null?'0':d.p)+' / '+(d.tg==null?'0':d.tg)));
+  return f;
+}
+
+function cardNode(iid, opts){
+  opts = opts||{};
+  var c = state.cards[iid], d = defOf(c);
+  var w = el('div','cw');
+  w.dataset.iid = iid;
+  if(c && c.tp && opts.zone === 'bf') w.classList.add('tapped');
+
+  var btn = el('button','card');
+  btn.type = 'button';
+  btn.setAttribute('aria-label', (opts.hidden||!d) ? 'Face-down card' : d.n);
+
+  if(opts.hidden || (c && c.fd)){
+    btn.appendChild(el('div','back'));
+  } else if(hasArt(d) && !(c && c.tok)){
+    var img = new Image();
+    img.src = artSrc(d);
+    img.alt = d.n;
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    img.onerror = function(){ btn.innerHTML=''; btn.appendChild(cardFace(d)); addOverlays(); };
+    btn.appendChild(img);
+  } else if(d){
+    btn.appendChild(cardFace(d));
+  } else {
+    btn.appendChild(el('div','back'));
+  }
+
+  function addOverlays(){
+    if(opts.zone !== 'bf' || !d) return;
+    var bar = el('div','badges');
+    var left = el('div'); left.style.cssText='display:flex;gap:3px;flex-wrap:wrap';
+    var ctr = (c && c.ctr) || {};
+    Object.keys(ctr).forEach(function(k){
+      var v = ctr[k];
+      var b = el('span','bdg ctr' + (v<0?' neg':''), (k==='p1p1' ? (v>0?'+':'')+v+'/'+(v>0?'+':'')+v : k+' '+v));
+      left.appendChild(b);
+    });
+    if(c && c.tok) left.appendChild(el('span','bdg tok','TOKEN'));
+    bar.appendChild(left);
+    if(d.p != null || d.tg != null){
+      var pw = parseInt(d.p,10), tg = parseInt(d.tg,10);
+      var add = ctr.p1p1 || 0;
+      var ptTxt = (isNaN(pw)? (d.p||'*') : pw+add) + '/' + (isNaN(tg)? (d.tg||'*') : tg+add);
+      bar.appendChild(el('span','bdg', ptTxt));
+    }
+    if(bar.firstChild && (left.children.length || bar.children.length>1)) btn.appendChild(bar);
+  }
+  addOverlays();
+
+  // Single tap on the battlefield = tap/untap (fastest path for mana).
+  // Long press, or a tap anywhere else, opens the card sheet.
+  var onTap = opts.onTap || function(){
+    if(opts.zone === 'bf' && !opts.hidden) tapCard(iid);
+    else openCardSheet(iid, opts.zone);
+  };
+  var onHold = opts.onHold || function(){ openCardSheet(iid, opts.zone); };
+  var timer=null, longFired=false;
+  btn.addEventListener('pointerdown', function(){
+    longFired=false;
+    timer = setTimeout(function(){ longFired=true; onHold(); }, 430);
+  });
+  var cancel=function(){ clearTimeout(timer); };
+  btn.addEventListener('pointerup', cancel);
+  btn.addEventListener('pointerleave', cancel);
+  btn.addEventListener('pointercancel', cancel);
+  btn.addEventListener('click', function(ev){
+    ev.preventDefault();
+    if(longFired) return;
+    onTap();
+  });
+  btn.addEventListener('contextmenu', function(ev){ ev.preventDefault(); onHold(); });
+
+  w.appendChild(btn);
+  return w;
+}
+
+/* ---------- board ---------- */
+function render(){
+  if(!state) return;
+  rememberScrolls();
+  renderTop();
+  var main = document.getElementById('main');
+  main.innerHTML = '';
+  if(mode === 'hand') main.appendChild(renderHandView());
+  else main.appendChild(renderBoard());
+  restoreScrolls();
+  if(window.requestAnimationFrame) requestAnimationFrame(restoreScrolls);
+}
+
+function renderTop(){
+  var t = document.getElementById('topActions');
+  t.innerHTML = '';
+  var s = seat();
+
+  var chip = el('div','turnchip');
+  chip.appendChild(el('span','', 'Turn'));
+  chip.appendChild(el('b','', String(state.turn)));
+  t.appendChild(chip);
+
+  if(mode === 'board'){
+    var pb = el('div','phasebar');
+    PHASES.forEach(function(p,i){
+      var b = el('button',null,p);
+      b.type='button';
+      b.setAttribute('aria-pressed', state.phase===i ? 'true':'false');
+      b.onclick = function(){ state.phase=i; if(emptyPool) clearPool(); commit(null); };
+      pb.appendChild(b);
+    });
+    t.appendChild(pb);
+  }
+
+  if(mode === 'board'){
+    var untap = el('button','btn','Untap all'); untap.onclick = untapAll; t.appendChild(untap);
+    var nt = el('button','btn primary','Next turn \u25b8'); nt.onclick = function(){ nextTurn(); }; t.appendChild(nt);
+  }
+
+  var mb = el('button','btn ghost','\u2630');
+  mb.setAttribute('aria-label','Menu');
+  mb.onclick = openMenu;
+  t.appendChild(mb);
+}
+
+function renderBoard(){
+  var wrap = el('div');
+  wrap.style.cssText = 'flex:1 1 auto;display:flex;flex-direction:column;min-height:0';
+
+  var board = el('div','board');
+  var field = el('div','field');
+
+  var bf = state.z.bf.slice();
+  var lands = [], others = [];
+  bf.forEach(function(iid){
+    var d = defOf(state.cards[iid]);
+    (isLand(d) ? lands : others).push(iid);
+  });
+
+  field.appendChild(band('Battlefield', others, 'Nothing on the battlefield yet \u2014 play a card from your hand.'));
+  var lb = band('Lands', lands, 'No lands in play.');
+  lb.className = 'band lands';
+  var s = seat();
+  var dropNote = el('b', null, s.landDrop + '/' + s.landMax + ' land drop' + (s.landMax>1?'s':''));
+  if(s.landDrop > s.landMax) dropNote.style.color = 'var(--warn)';
+  lb.querySelector('.bandhead').appendChild(dropNote);
+  field.appendChild(lb);
+
+  board.appendChild(field);
+  board.appendChild(renderRail());
+  wrap.appendChild(board);
+  wrap.appendChild(renderHandStrip());
+  return wrap;
+}
+
+function band(label, ids, emptyMsg){
+  var b = el('div','band main');
+  var head = el('div','bandhead');
+  head.appendChild(el('span',null,label));
+  head.appendChild(el('span','rule'));
+  head.appendChild(el('b',null,String(ids.length)));
+  b.appendChild(head);
+  var tray = el('div','tray');
+  tray.setAttribute('data-scroll','tray-'+label);
+  tray.dataset.empty = emptyMsg;
+  if(!ids.length) tray.classList.add('empty');
+  ids.forEach(function(iid){ tray.appendChild(cardNode(iid,{zone:'bf'})); });
+  b.appendChild(tray);
+  return b;
+}
+
+function renderRail(){
+  var r = el('div','rail');
+  var s = seat();
+
+  // life
+  var sec1 = el('div','railsec');
+  sec1.appendChild(el('h3',null,'Life'));
+  var lb = el('div','lifebox');
+  var st1 = el('div','stepper');
+  var up = el('button',null,'+'); up.setAttribute('aria-label','Gain 1 life');
+  up.onclick=function(){ s.life++; commit(null); };
+  var dn = el('button',null,'\u2212'); dn.setAttribute('aria-label','Lose 1 life');
+  dn.onclick=function(){ s.life--; commit(null); };
+  st1.appendChild(up); st1.appendChild(dn);
+  var num = el('div','num'+(s.life<=10?' low':''), String(s.life));
+  var st2 = el('div','stepper');
+  var up5 = el('button',null,'+5'); up5.style.fontSize='11px';
+  up5.onclick=function(){ s.life+=5; commit(null); };
+  var dn5 = el('button',null,'\u22125'); dn5.style.fontSize='11px';
+  dn5.onclick=function(){ s.life-=5; commit(null); };
+  st2.appendChild(up5); st2.appendChild(dn5);
+  lb.appendChild(st1); lb.appendChild(num); lb.appendChild(st2);
+  sec1.appendChild(lb);
+
+  var sub = el('div','subcount');
+  var poison = el('button','sc');
+  poison.innerHTML = '<span>Poison</span>';
+  poison.appendChild(el('b',null,String(s.poison||0)));
+  poison.onclick=function(){ s.poison=((s.poison||0)+1)%11; commit(null); };
+  var tax = el('button','sc');
+  tax.innerHTML = '<span>Cmd tax</span>';
+  tax.appendChild(el('b',null,'+'+((s.cmdTax||0)*2)));
+  tax.onclick=function(){ s.cmdTax=((s.cmdTax||0)+1)%6; commit(null); };
+  sub.appendChild(poison); sub.appendChild(tax);
+  sec1.appendChild(sub);
+  r.appendChild(sec1);
+
+  // The opponents hold real cards, so this is the only trace of them the app keeps.
+  var secOpp = el('div','railsec');
+  var oh = el('div','sechead');
+  oh.appendChild(el('h3',null,'Opponents'));
+  var addb = el('button','btn sm ghost','Players');
+  addb.onclick = openTableSheet;
+  oh.appendChild(addb);
+  secOpp.appendChild(oh);
+  var opps = seats().filter(function(o){ return o.opp; });
+  opps.forEach(function(sx){ secOpp.appendChild(seatRow(sx)); });
+  if(!opps.length){
+    var none = el('p','note','Nobody else at the table. Add opponents to track their life.');
+    none.style.margin = '0';
+    secOpp.appendChild(none);
+  }
+  r.appendChild(secOpp);
+
+  // mana pool
+  var sec2 = el('div','railsec');
+  var mh = el('div','sechead');
+  mh.appendChild(el('h3',null,'Mana pool'));
+  var clear = el('button','btn sm ghost','Empty');
+  clear.onclick=function(){ clearPool(); commit('Emptied mana pool'); };
+  mh.appendChild(clear);
+  sec2.appendChild(mh);
+  sec2.appendChild(manaRow());
+  r.appendChild(sec2);
+
+  // zones
+  var sec3 = el('div','railsec');
+  sec3.appendChild(el('h3',null,'Zones'));
+  sec3.appendChild(zoneGrid());
+  r.appendChild(sec3);
+
+  // log
+  var sec4 = el('div','railsec');
+  sec4.style.cssText='border-bottom:0;flex:1 1 auto;display:flex;flex-direction:column;min-height:0';
+  sec4.appendChild(el('h3',null,'Log'));
+  var lg = el('div','log');
+  lg.setAttribute('data-scroll','log');
+  (state.log||[]).slice(0,40).forEach(function(e){
+    var d = el('div'); d.appendChild(el('b',null,e.t+' ')); d.appendChild(document.createTextNode(e.s)); lg.appendChild(d);
+  });
+  if(!(state.log||[]).length) lg.appendChild(el('div',null,'Actions will appear here.'));
+  sec4.appendChild(lg);
+  r.appendChild(sec4);
+  return r;
+}
+
+function manaRow(){
+  var s = seat();
+  var row = el('div','manarow');
+  MANA.forEach(function(m){
+    var b = el('button','pip'+(s.mana[m]?' has':''));
+    b.setAttribute('aria-label', MANA_NAME[m]+' mana: '+s.mana[m]+'. Tap to spend, long press to add.');
+    var sym = el('div','sym '+m, m); b.appendChild(sym);
+    b.appendChild(el('div','ct', String(s.mana[m]||0)));
+    var t=null, fired=false;
+    b.addEventListener('pointerdown',function(){ fired=false; t=setTimeout(function(){ fired=true; addMana(m,1); commit(null); },380); });
+    ['pointerup','pointerleave','pointercancel'].forEach(function(ev){ b.addEventListener(ev,function(){ clearTimeout(t); }); });
+    b.onclick=function(){ if(fired) return; if(s.mana[m]>0){ addMana(m,-1); commit(null);} else { addMana(m,1); commit(null);} };
+    row.appendChild(b);
+  });
+  return row;
+}
+
+function seatRow(sx){
+  var row = el('div','seatrow' + (sx.opp ? '' : ' me'));
+  var nm = el('button','nm', sx.name);
+  nm.onclick = function(){ openPlayerSheet(sx.id); };
+  row.appendChild(nm);
+  if((sx.poison||0) > 0) row.appendChild(el('span','flag','P'+sx.poison));
+  if(cmdLethal(sx)) row.appendChild(el('span','flag','CMD'));
+  var lf = el('div','lf' + (isOut(sx) ? ' out' : (sx.life <= 10 ? ' low' : '')), String(sx.life));
+  row.appendChild(lf);
+  var pm = el('div','pm');
+  var dn = el('button',null,'\u2212');
+  dn.setAttribute('aria-label', sx.name + ' loses 1 life');
+  dn.onclick = function(){ sx.life--; commit(null); };
+  var up = el('button',null,'+');
+  up.setAttribute('aria-label', sx.name + ' gains 1 life');
+  up.onclick = function(){ sx.life++; commit(null); };
+  pm.appendChild(dn); pm.appendChild(up);
+  row.appendChild(pm);
+  return row;
+}
+
+function stepRow(parent, label, get, set, lethalAt){
+  var g = el('div','cdgrid');
+  g.appendChild(el('div','lbl', label));
+  var dn = el('button',null,'\u2212');
+  var val = el('div','val' + (lethalAt && get() >= lethalAt ? ' lethal' : ''), String(get()));
+  var up = el('button',null,'+');
+  dn.onclick = function(){ set(get()-1); commit(null); val.textContent=String(get());
+                           val.className='val'+(lethalAt && get()>=lethalAt?' lethal':''); };
+  up.onclick = function(){ set(get()+1); commit(null); val.textContent=String(get());
+                           val.className='val'+(lethalAt && get()>=lethalAt?' lethal':''); };
+  g.appendChild(dn); g.appendChild(val); g.appendChild(up);
+  parent.appendChild(g);
+  return g;
+}
+
+function openPlayerSheet(id){
+  var sx = seatById(id); if(!sx) return;
+  var me = state.seats[0];
+  var sh = sheet(sx.name, sx.opp ? 'Opponent \u2014 tracked here, cards on the table'
+                                 : 'You \u2014 board and hand live in this app');
+
+  var nameIn = el('input'); nameIn.type='text'; nameIn.value = sx.name;
+  nameIn.setAttribute('aria-label','Player name');
+  nameIn.onchange = function(){ sx.name = nameIn.value.trim() || sx.name; commit(null); };
+  var nw = el('div'); nw.appendChild(el('label',null,'Name')); nw.appendChild(nameIn);
+  sh.appendChild(nw);
+  sh.appendChild(el('div','divider'));
+
+  stepRow(sh, 'Life', function(){ return sx.life; }, function(v){ sx.life = v; });
+  stepRow(sh, 'Poison', function(){ return sx.poison||0; }, function(v){ sx.poison = Math.max(0,v); }, 10);
+  if(!sx.opp){
+    stepRow(sh, 'Commander tax', function(){ return sx.cmdTax||0; }, function(v){ sx.cmdTax = Math.max(0,v); });
+  }
+
+  sh.appendChild(el('div','divider'));
+  var cdh = el('p','sub','Commander damage \u2014 21 is lethal');
+  cdh.style.marginBottom='8px';
+  sh.appendChild(cdh);
+
+  if(sx.opp){
+    stepRow(sh, 'From your commander',
+      function(){ return (sx.cmdDmg && sx.cmdDmg[me.id]) || 0; },
+      function(v){ sx.cmdDmg = sx.cmdDmg||{}; sx.cmdDmg[me.id] = Math.max(0,v); }, 21);
+    stepRow(sh, 'Their commander to you',
+      function(){ return (me.cmdDmg && me.cmdDmg[sx.id]) || 0; },
+      function(v){ me.cmdDmg = me.cmdDmg||{}; me.cmdDmg[sx.id] = Math.max(0,v); }, 21);
+  } else {
+    var opps = seats().filter(function(o){ return o.opp; });
+    if(!opps.length) sh.appendChild(el('p','note','No opponents at the table yet.'));
+    opps.forEach(function(o){
+      stepRow(sh, 'From ' + o.name,
+        function(){ return (sx.cmdDmg && sx.cmdDmg[o.id]) || 0; },
+        function(v){ sx.cmdDmg = sx.cmdDmg||{}; sx.cmdDmg[o.id] = Math.max(0,v); }, 21);
+    });
+  }
+
+  sh.appendChild(el('div','divider'));
+  actionGrid(sh, [
+    ['Reset to 40', function(){ sx.life = 40; sx.poison = 0; sx.cmdDmg = {}; commit(sx.name + ' reset'); closeLayer(); }],
+    sx.opp ? ['Remove player', function(){
+        var a = state.seats; a.splice(a.indexOf(sx),1);
+        a.forEach(function(o){ if(o.cmdDmg) delete o.cmdDmg[sx.id]; });
+        commit(sx.name + ' left the table'); closeLayer();
+      }] : null
+  ]);
+}
+
+function openDeckSheet(){
+  var sh = sheet('Deck & sideboard',
+                 deckName + ' \u00b7 ' + totalCards() + ' cards'
+                 + (sideCount() ? ' \u00b7 ' + sideCount() + ' in the box' : ''));
+
+  var physWrap = el('div');
+  sh.appendChild(physWrap);
+  var diffWrap = el('div');
+  sh.appendChild(diffWrap);
+
+  var addWrap = el('div');
+  addWrap.appendChild(el('label',null,'Add a card from your sideboard box'));
+  var arow = el('div','row');
+  var ain = el('input'); ain.type='text'; ain.placeholder='Card name, exactly as printed';
+  ain.setAttribute('aria-label','Card name to add');
+  ain.style.flex='1 1 150px';
+  var abtn = el('button','btn primary','Add');
+  arow.appendChild(ain); arow.appendChild(abtn);
+  addWrap.appendChild(arow);
+  var astat = el('p','note'); astat.style.marginTop='6px';
+  addWrap.appendChild(astat);
+  sh.appendChild(addWrap);
+
+  sh.appendChild(el('div','divider'));
+  var fin = el('input'); fin.type='text'; fin.placeholder='Filter the deck\u2026';
+  fin.setAttribute('aria-label','Filter deck list');
+  sh.appendChild(fin);
+  var scroller = el('div','scroller');
+  sh.appendChild(scroller);
+
+  var foot = el('div');
+  sh.appendChild(foot);
+
+  function bump(d, delta){
+    var was = qOf(d);
+    d.q = Math.max(0, was + delta);
+    if(d.q === was) return;          // already at zero, nothing moved
+    noteChange(d.n, d.q - was);
+    persistDeck();
+    paint();
+  }
+
+  function paintPhys(){
+    physWrap.innerHTML = '';
+    if(!physChanges.length) return;
+    physWrap.appendChild(diffBox(physChanges,
+      'Put in from your collection', 'Take out of the deck box'));
+    var row = el('div','row'); row.style.marginTop='7px';
+    var cp = el('button','btn sm','Copy swap list');
+    cp.onclick = function(){ copyText(physList(), cp, 'Copy swap list'); };
+    var dn = el('button','btn sm ghost','Cards swapped');
+    dn.onclick = function(){ physChanges = []; persistDeck(); paint(); };
+    row.appendChild(cp); row.appendChild(dn);
+    physWrap.appendChild(row);
+    physWrap.appendChild(el('div','divider'));
+  }
+
+  function paintDiff(){
+    diffWrap.innerHTML = '';
+    if(!deckChanges.length) return;
+    diffWrap.appendChild(el('label',null,'Changes to make in Moxfield'));
+    var box = el('div','difflist');
+    deckChanges.forEach(function(c){
+      box.appendChild(el('div', c.q > 0 ? 'add' : 'rem',
+        (c.q > 0 ? '+' : '') + c.q + '  ' + c.n));
+    });
+    diffWrap.appendChild(box);
+    var row = el('div','row'); row.style.marginTop='7px';
+    var cp = el('button','btn sm','Copy changes');
+    cp.onclick = function(){ copyText(changeList(), cp, 'Copy changes'); };
+    var done = el('button','btn sm ghost','Moxfield now matches');
+    done.onclick = function(){ deckChanges = []; persistDeck(); paint(); };
+    row.appendChild(cp); row.appendChild(done);
+    diffWrap.appendChild(row);
+    diffWrap.appendChild(el('div','divider'));
+  }
+
+  function deckRow(d){
+    var r = el('div','deckrow');
+    r.appendChild(el('div','dn', d.n));
+    if(d.t) r.appendChild(el('div','dt', String(d.t).split('\u2014')[0].trim()));
+    var dn = el('button',null,'\u2212');
+    dn.setAttribute('aria-label','Remove one ' + d.n);
+    dn.onclick = function(){ bump(d,-1); };
+    var q = el('div','dq', String(qOf(d)));
+    if(!qOf(d)) q.style.color = 'var(--ink3)';
+    var up = el('button',null,'+');
+    up.setAttribute('aria-label','Add one ' + d.n);
+    up.onclick = function(){ bump(d,1); };
+    r.appendChild(dn); r.appendChild(q); r.appendChild(up);
+    return r;
+  }
+
+  function paintList(){
+    scroller.innerHTML = '';
+    var f = (fin.value || '').toLowerCase();
+    var main = [], side = [], shown = 0;
+    defs.forEach(function(d){
+      if(f && (d.n + ' ' + (d.t||'')).toLowerCase().indexOf(f) < 0) return;
+      (qOf(d) ? main : side).push(d);
+    });
+    [['In the deck', main],['Sideboard box', side]].forEach(function(grp){
+      if(!grp[1].length) return;
+      var h = el('div','pbsec');
+      h.appendChild(el('span',null,grp[0]));
+      h.appendChild(el('span','rule'));
+      h.appendChild(el('b',null,String(grp[1].length)));
+      scroller.appendChild(h);
+      grp[1].forEach(function(d){
+        if(shown++ > 140) return;
+        scroller.appendChild(deckRow(d));
+      });
+    });
+    if(!main.length && !side.length){
+      scroller.appendChild(el('p','note','No cards match that filter.'));
+    }
+  }
+
+  function paintFoot(){
+    foot.innerHTML = '';
+    foot.appendChild(el('div','divider'));
+    var g = el('div','grid');
+    var ng = el('button','btn primary','New game with this list');
+    ng.onclick = function(){
+      var keep = seats().filter(function(o){ return o.opp; });
+      state = buildGame(defs, importedCommander);
+      keep.forEach(function(o){ o.life=40; o.poison=0; o.cmdDmg={}; state.seats.push(o); });
+      for(var i=0;i<7 && state.z.lib.length;i++) move(state.z.lib[0],'hand');
+      commit('New game \u2014 ' + totalCards() + ' cards');
+      closeLayer();
+    };
+    var ex = el('button','btn','Export for Moxfield');
+    ex.onclick = function(){ closeLayer(); openExportSheet(); };
+    g.appendChild(ng); g.appendChild(ex);
+    foot.appendChild(g);
+    var n = el('p','note');
+    n.style.marginTop='9px';
+    n.textContent = 'Edits change the list, not the game in progress. Start a new game to shuffle them in.';
+    foot.appendChild(n);
+  }
+
+  function paint(){
+    paintPhys();
+    paintDiff();
+    paintList();
+    paintFoot();
+    var h = sh.querySelector('.sub');
+    if(h){
+      var sc = sideCount();
+      h.textContent = deckName + ' \u00b7 ' + totalCards() + ' cards'
+        + (sc ? ' \u00b7 ' + sc + ' in the box' : '');
+    }
+  }
+
+  fin.oninput = paintList;
+
+  abtn.onclick = async function(){
+    var name = (ain.value || '').trim();
+    if(!name){ astat.textContent = 'Type a card name first.'; return; }
+    var ex = findDef(name);
+    if(ex){
+      var was = qOf(ex);
+      bump(ex, 1);
+      astat.textContent = (was === 0)
+        ? 'Pulled ' + ex.n + ' out of the sideboard box.'
+        : 'Already in the deck \u2014 now ' + ex.q + '.';
+      ain.value = '';
+      return;
+    }
+    abtn.disabled = true;
+    astat.textContent = 'Looking up ' + name + '\u2026';
+    var d = { n:name, q:1, t:'', m:'', ci:[], pm:[], o:'' };
+    try{
+      var hit = await scryOne(name);
+      if(hit){ hit.q = 1; d = hit; }
+      else astat.textContent = 'Scryfall does not know that card. Added by name only.';
+    }catch(e){
+      astat.textContent = navigator.onLine
+        ? 'Card lookup failed. Added by name only.'
+        : 'No internet. Added by name only.';
+    }
+    var dupe = findDef(d.n);
+    if(dupe){ bump(dupe, 1); }
+    else { defs.push(d); noteChange(d.n, 1); persistDeck(); paint(); }
+    if(astat.textContent.indexOf('Looking up') === 0) astat.textContent = 'Added ' + d.n + '.';
+    ain.value = '';
+    abtn.disabled = false;
+  };
+
+  paint();
+}
+
+// What to do to the cards themselves, kept until you say it is done.
+function openSwapSheet(){
+  var sh = sheet('Swap these cards',
+                 'Your Moxfield list changed \u2014 bring the physical deck in line.');
+  if(!physChanges.length){
+    sh.appendChild(el('p','note','The physical deck already matches Moxfield.'));
+    return;
+  }
+  sh.appendChild(diffBox(physChanges,
+    'Put in from your collection', 'Take out of the deck box'));
+  sh.appendChild(el('div','divider'));
+  var cp = el('button','btn','Copy the swap list');
+  cp.style.cssText = 'width:100%;justify-content:center';
+  cp.onclick = function(){ copyText(physList(), cp, 'Copy the swap list'); };
+  sh.appendChild(cp);
+  var done = el('button','btn primary','Done \u2014 cards swapped');
+  done.style.cssText = 'width:100%;justify-content:center;margin-top:7px';
+  done.onclick = function(){ physChanges = []; persistDeck(); closeLayer(); };
+  sh.appendChild(done);
+  sh.appendChild(el('p','note','This stays here until you mark it done, so you can '
+    + 'import at home and sort the cards out later.'));
+}
+
+function openExportSheet(){
+  var sh = sheet('Export for Moxfield',
+                 'Paste into Moxfield \u2014 Import, or apply just the changes.');
+  if(deckChanges.length){
+    sh.appendChild(el('label',null,'Only these lines differ'));
+    var box = el('div','difflist');
+    deckChanges.forEach(function(c){
+      box.appendChild(el('div', c.q > 0 ? 'add' : 'rem',
+        (c.q > 0 ? '+' : '') + c.q + '  ' + c.n));
+    });
+    sh.appendChild(box);
+    var cr = el('button','btn sm');
+    cr.textContent = 'Copy changes';
+    cr.style.cssText = 'width:100%;justify-content:center;margin-top:7px';
+    cr.onclick = function(){ copyText(changeList(), cr, 'Copy changes'); };
+    sh.appendChild(cr);
+    sh.appendChild(el('div','divider'));
+  }
+  sh.appendChild(el('label',null,'Full list (' + totalCards() + ' cards)'));
+  var ta = el('textarea');
+  ta.id = 'exportText';
+  ta.value = moxfieldList();
+  ta.readOnly = true;
+  ta.style.minHeight = '180px';
+  ta.onclick = function(){ ta.select(); };
+  sh.appendChild(ta);
+  var cb = el('button','btn primary');
+  cb.textContent = 'Copy full list';
+  cb.style.cssText = 'width:100%;justify-content:center;margin-top:8px';
+  cb.onclick = function(){ ta.select(); copyText(moxfieldList(), cb, 'Copy full list'); };
+  sh.appendChild(cb);
+  var done = el('button','btn ghost','Moxfield now matches');
+  done.style.cssText = 'width:100%;justify-content:center;margin-top:7px';
+  done.onclick = function(){ deckChanges = []; persistDeck(); closeLayer(); };
+  sh.appendChild(done);
+  sh.appendChild(el('p','note','Tap the text to select it if the copy button is blocked.'));
+}
+
+function openTableSheet(){
+  var sh = sheet('Players at the table',
+                 'Opponents playing with real cards \u2014 life and commander damage only.');
+  seats().forEach(function(sx){
+    var row = seatRow(sx);
+    row.style.marginBottom = '7px';
+    sh.appendChild(row);
+  });
+  sh.appendChild(el('div','divider'));
+  var n = seats().filter(function(o){ return o.opp; }).length;
+  actionGrid(sh, [
+    ['Add opponent', function(){
+        if(seats().length >= 6) return;
+        var used = {}; seats().forEach(function(o){ used[o.id]=1; });
+        var k = 1; while(used['o'+k]) k++;
+        state.seats.push(newOpponent(k));
+        commit('Opponent ' + k + ' joined'); closeLayer(); openTableSheet();
+      }, true],
+    ['Reset all life', function(){
+        seats().forEach(function(o){ o.life = 40; o.poison = 0; o.cmdDmg = {}; });
+        commit('Life totals reset'); closeLayer();
+      }]
+  ]);
+  sh.appendChild(el('div','divider'));
+  sh.appendChild(el('p','note','Currently ' + (n+1) + ' players: you plus ' + n + ' opponent' + (n===1?'':'s') + '.'));
+}
+
+function zoneGrid(){
+  var g = el('div','zones');
+
+  var libBtn = el('button','zone');
+  libBtn.appendChild(el('span','zl','Library'));
+  libBtn.appendChild(el('span','zc', String(state.z.lib.length)));
+  libBtn.onclick = openLibrarySheet;
+  g.appendChild(libBtn);
+
+  var handBtn = el('button','zone');
+  handBtn.appendChild(el('span','zl','Hand'));
+  handBtn.appendChild(el('span','zc', String(state.z.hand.length)));
+  handBtn.onclick = function(){ openBrowse('hand'); };
+  g.appendChild(handBtn);
+
+  ['gy','ex'].forEach(function(z){
+    var b = el('button','zone');
+    b.appendChild(el('span','zl', ZONES[z]));
+    b.appendChild(el('span','zc', String(state.z[z].length)));
+    b.onclick = function(){ openBrowse(z); };
+    g.appendChild(b);
+  });
+
+  var cmdBtn = el('button','zone wide');
+  var cid = state.z.cmd[0];
+  var cd = cid ? defOf(state.cards[cid]) : null;
+  if(hasArt(cd)){
+    var im = new Image(); im.className='thumb'; im.src=artSrc(cd); im.alt=''; im.loading='lazy';
+    cmdBtn.appendChild(im);
+  }
+  var tx = el('div','ztext');
+  tx.appendChild(el('span','zl','Command'));
+  tx.appendChild(el('span','zc', cd ? cd.n : String(state.z.cmd.length)));
+  if(cd) tx.querySelector('.zc').style.cssText='font-family:var(--disp);font-size:13px;display:block;line-height:1.2';
+  cmdBtn.appendChild(tx);
+  cmdBtn.onclick = function(){ openBrowse('cmd'); };
+  g.appendChild(cmdBtn);
+
+  var tokBtn = el('button','zone wide');
+  tokBtn.style.cssText='justify-content:center;background:var(--bg3);border-color:var(--brass-dim)';
+  tokBtn.appendChild(el('span','zl','+ Create token'));
+  tokBtn.onclick = openTokenSheet;
+  g.appendChild(tokBtn);
+
+  return g;
+}
+
+function renderHandStrip(){
+  var s = el('div','handstrip');
+  var lbl = el('div');
+  lbl.style.cssText='display:flex;flex-direction:column;gap:3px;flex:0 0 auto';
+  var t = el('div',null,'Hand');
+  t.style.cssText='font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink3)';
+  var n = el('div',null,String(state.z.hand.length));
+  n.style.cssText='font-family:var(--mono);font-size:19px;font-weight:600;color:var(--ink)';
+  lbl.appendChild(t); lbl.appendChild(n);
+  s.appendChild(lbl);
+
+  var cards = el('div','hs-cards');
+  cards.setAttribute('data-scroll','handstrip');
+  if(!state.z.hand.length){
+    var e = el('div',null,'Empty hand');
+    e.style.cssText='color:var(--ink3);font-style:italic;font-size:12px;padding:12px 0';
+    cards.appendChild(e);
+  }
+  state.z.hand.forEach(function(iid){
+    cards.appendChild(cardNode(iid,{zone:'hand', hidden: !revealHand}));
+  });
+  s.appendChild(cards);
+
+  var rv = el('button','btn sm ghost', revealHand ? 'Hide' : 'Reveal');
+  rv.title = 'Your hand shows face-down so nobody across the table sees it';
+  rv.onclick=function(){ revealHand=!revealHand; lsSet('ktm.reveal',revealHand?'1':'0'); render(); };
+  s.appendChild(rv);
+
+  var dr = el('button','btn sm','Draw');
+  dr.onclick=function(){ draw(1); };
+  s.appendChild(dr);
+  return s;
+}
+
+/* ---------- hand view (phone) ---------- */
+function renderHandView(){
+  var v = el('div','handview');
+  var s = seat();
+
+  var meta = el('div','handmeta');
+  var lifeWrap = el('div');
+  lifeWrap.style.cssText='display:flex;align-items:center;gap:6px';
+  var mn = el('button','btn sm','\u2212'); mn.onclick=function(){ s.life--; commit(null); };
+  var lf = el('div','life', String(s.life));
+  var pl = el('button','btn sm','+'); pl.onclick=function(){ s.life++; commit(null); };
+  lifeWrap.appendChild(mn); lifeWrap.appendChild(lf); lifeWrap.appendChild(pl);
+  meta.appendChild(lifeWrap);
+
+  var mini = el('div','mini');
+  MANA.forEach(function(m){
+    if(!s.mana[m]) return;
+    var w = el('button'); w.className='msym';
+    w.style.background = manaColorVar(m);
+    if(m==='U'||m==='B') w.style.color='#eef3ff';
+    w.textContent = m;
+    w.appendChild(el('s',null,String(s.mana[m])));
+    w.onclick=function(){ addMana(m,-1); commit(null); };
+    mini.appendChild(w);
+  });
+  if(!mini.children.length){
+    var hint = el('div',null,'No mana floating');
+    hint.style.cssText='font-size:11px;color:var(--ink3);font-style:italic';
+    mini.appendChild(hint);
+  }
+  meta.appendChild(mini);
+  v.appendChild(meta);
+
+  // Your own battlefield has to be reachable from the phone: cards come back
+  // to hand, creatures block, counters go on things.
+  var bfAll = state.z.bf.length;
+  var tabs = el('div','ptabs');
+  [['hand','Hand',state.z.hand.length],['board','Board',bfAll]].forEach(function(t){
+    var b = el('button');
+    b.setAttribute('aria-pressed', phoneTab===t[0] ? 'true':'false');
+    b.appendChild(document.createTextNode(t[1]));
+    b.appendChild(el('b',null,String(t[2])));
+    b.onclick = function(){ phoneTab=t[0]; lsSet('ktm.ptab',phoneTab); render(); };
+    tabs.appendChild(b);
+  });
+  v.appendChild(tabs);
+
+  if(phoneTab === 'board'){
+    v.appendChild(phoneBoard());
+    v.appendChild(phoneZones());
+    v.appendChild(phoneActions());
+    return v;
+  }
+
+  // The focused card is per-device UI, not shared state.
+  if(state.z.hand.indexOf(focusIid) < 0) focusIid = state.z.hand[0] || null;
+
+  var cast = el('div','castrow');
+  var castBtn = el('button','btn primary','Cast to board \u25b8');
+  var moreBtn = el('button','btn ghost','More\u2026');
+  cast.appendChild(castBtn); cast.appendChild(moreBtn);
+  v.appendChild(cast);
+
+  var fw = el('div','focuswrap');
+  v.appendChild(fw);
+
+  var strip = el('div','handbar');
+  strip.setAttribute('data-scroll','handbar');
+  v.appendChild(strip);
+
+  function paintFocus(){
+    fw.innerHTML = '';
+    for(var k=0;k<strip.children.length;k++){
+      strip.children[k].classList.toggle('focus', strip.children[k].dataset.iid === focusIid);
+    }
+    if(!focusIid){
+      fw.appendChild(el('div','emptyhand','Your hand is empty. Tap Draw below.'));
+      castBtn.disabled = true; moreBtn.disabled = true;
+      castBtn.textContent = 'Nothing to play';
+      return;
+    }
+    castBtn.disabled = false; moreBtn.disabled = false;
+    var d = defOf(state.cards[focusIid]);
+    castBtn.textContent = (d && isLand(d)) ? 'Play land \u25b8' : 'Cast to board \u25b8';
+    fw.appendChild(cardNode(focusIid, {
+      zone:'hand',
+      onTap:  function(){ if(d) openZoom(d); },
+      onHold: function(){ openCardSheet(focusIid, 'hand'); }
+    }));
+  }
+
+  castBtn.onclick = function(){ if(focusIid) playCard(focusIid); };
+  moreBtn.onclick = function(){ if(focusIid) openCardSheet(focusIid, 'hand'); };
+
+  state.z.hand.forEach(function(iid){
+    strip.appendChild(cardNode(iid, {
+      zone:'hand',
+      onTap:  function(){ focusIid = iid; paintFocus(); },
+      onHold: function(){ var d = defOf(state.cards[iid]); if(d) openZoom(d); }
+    }));
+  });
+
+  // Scrolling the strip sideways magnifies whichever card lands in the middle.
+  var scrollT = null;
+  strip.addEventListener('scroll', function(){
+    clearTimeout(scrollT);
+    scrollT = setTimeout(function(){
+      var mid = strip.scrollLeft + strip.clientWidth / 2, best = null, bd = 1e9;
+      for(var k=0;k<strip.children.length;k++){
+        var c = strip.children[k];
+        var dd = Math.abs((c.offsetLeft + c.offsetWidth / 2) - mid);
+        if(dd < bd){ bd = dd; best = c; }
+      }
+      if(best && best.dataset.iid !== focusIid){ focusIid = best.dataset.iid; paintFocus(); }
+    }, 90);
+  });
+
+  v.appendChild(phoneZones());
+  v.appendChild(phoneActions());
+
+  paintFocus();
+  return v;
+}
+
+// Your own battlefield, small enough to thumb through. Tap taps (and pays mana
+// from a land); press and hold opens the sheet, which is where Move to > Hand
+// lives for a bounced permanent.
+function phoneBoard(){
+  var wrap = el('div','pboard');
+  wrap.setAttribute('data-scroll','pboard');
+  var lands = [], others = [];
+  state.z.bf.forEach(function(iid){
+    (isLand(defOf(state.cards[iid])) ? lands : others).push(iid);
+  });
+  if(!state.z.bf.length){
+    wrap.appendChild(el('div','emptyhand','Nothing on your battlefield yet.'));
+    return wrap;
+  }
+  wrap.appendChild(el('div','pbhint','Tap to tap or untap. Press and hold for counters, bounce and the rest.'));
+  [['Permanents', others],['Lands', lands]].forEach(function(grp){
+    if(!grp[1].length) return;
+    var h = el('div','pbsec');
+    h.appendChild(el('span',null,grp[0]));
+    h.appendChild(el('span','rule'));
+    h.appendChild(el('b',null,String(grp[1].length)));
+    wrap.appendChild(h);
+    var g = el('div','pbgrid');
+    grp[1].forEach(function(iid){ g.appendChild(cardNode(iid,{zone:'bf'})); });
+    wrap.appendChild(g);
+  });
+  return wrap;
+}
+
+function phoneZones(){
+  var zs = el('div','handzones');
+  [['lib','Library'],['gy','Grave'],['ex','Exile'],['cmd','Cmd']].forEach(function(p){
+    var b = el('button');
+    b.appendChild(el('span','zl',p[1]));
+    b.appendChild(el('span','zc', String(state.z[p[0]].length)));
+    b.onclick = function(){ p[0]==='lib' ? openLibrarySheet() : openBrowse(p[0]); };
+    zs.appendChild(b);
+  });
+  var db2 = el('button');
+  db2.appendChild(el('span','zl','Deck'));
+  db2.appendChild(el('span','zc', String(totalCards())));
+  db2.querySelector('.zc').style.fontSize='13px';
+  db2.onclick = openDeckSheet;
+  zs.appendChild(db2);
+  var pb = el('button');
+  pb.appendChild(el('span','zl','Players'));
+  pb.appendChild(el('span','zc', String(seats().length)));
+  pb.onclick = openTableSheet;
+  zs.appendChild(pb);
+  var tb = el('button','tokbtn');
+  tb.appendChild(el('span','zl','Make'));
+  tb.appendChild(el('span','zc','Token'));
+  tb.querySelector('.zc').style.fontSize='12px';
+  tb.onclick = openTokenSheet;
+  zs.appendChild(tb);
+  return zs;
+}
+
+function phoneActions(){
+  var bar = el('div','actionbar');
+  [['Draw',function(){ draw(1); }],
+   ['Untap',untapAll],
+   ['Mulligan',doMulligan],
+   ['Turn \u25b8',function(){ nextTurn(); }]].forEach(function(p){
+    var b = el('button','btn'+(p[0].indexOf('Turn')===0?' primary':''),p[0]);
+    b.onclick = p[1];
+    bar.appendChild(b);
+  });
+  return bar;
+}
+
+/* ---------------- sheets ---------------- */
+function closeLayer(){ document.getElementById('layer').innerHTML=''; }
+function sheet(title, subtitle){
+  var layer = document.getElementById('layer');
+  layer.innerHTML='';
+  var scrim = el('div','scrim');
+  scrim.addEventListener('click', function(e){ if(e.target===scrim) closeLayer(); });
+  var s = el('div','sheet');
+  s.addEventListener('click', function(e){ e.stopPropagation(); });
+  var head = el('div');
+  head.style.cssText='display:flex;justify-content:space-between;align-items:flex-start;gap:10px';
+  var ht = el('div');
+  ht.appendChild(el('h2',null,title));
+  if(subtitle) ht.appendChild(el('p','sub',subtitle));
+  head.appendChild(ht);
+  var x = el('button','btn sm ghost','Close'); x.onclick=closeLayer;
+  head.appendChild(x);
+  s.appendChild(head);
+  scrim.appendChild(s);
+  layer.appendChild(scrim);
+  document.addEventListener('keydown', function esckey(e){
+    if(e.key==='Escape'){ closeLayer(); document.removeEventListener('keydown',esckey); }
+  });
+  return s;
+}
+function actionGrid(s, actions){
+  var g = el('div','grid');
+  actions.forEach(function(a){
+    if(!a) return;
+    var b = el('button','btn'+(a[2]?' primary':''), a[0]);
+    b.onclick = function(){ a[1](); };
+    g.appendChild(b);
+  });
+  s.appendChild(g);
+  return g;
+}
+
+function openCardSheet(iid, zone){
+  var c = state.cards[iid]; if(!c) return;
+  var d = defOf(c);
+  var z = zoneOf(iid) || zone;
+  var s = sheet(d ? d.n : 'Card', (d ? d.t : '') + ' \u00b7 in ' + (ZONES[z]||z));
+
+  if(d && d.o){
+    var o = el('p','note', d.o);
+    o.style.cssText='margin:0 0 12px;max-height:120px;overflow:auto;white-space:pre-wrap';
+    s.appendChild(o);
+  }
+
+  var acts = [];
+  if(z === 'hand'){
+    acts.push(['Play', function(){ playCard(iid); closeLayer(); }, true]);
+    acts.push(['Play tapped', function(){ playCard(iid,{tapped:true}); closeLayer(); }]);
+  }
+  if(z === 'bf'){
+    acts.push([c.tp?'Untap':'Tap', function(){ tapCard(iid); closeLayer(); }, true]);
+    acts.push(['+1/+1', function(){ bump(iid,'p1p1',1); closeLayer(); openCardSheet(iid); }]);
+    acts.push(['\u22121/\u22121', function(){ bump(iid,'p1p1',-1); closeLayer(); openCardSheet(iid); }]);
+    acts.push(['Copy as token', function(){ copyAsToken(iid); closeLayer(); }]);
+    acts.push([c.fd?'Turn face up':'Turn face down', function(){ c.fd=c.fd?0:1; commit(null); closeLayer(); }]);
+  }
+  if(z === 'cmd'){
+    acts.push(['Cast commander', function(){ playCard(iid); seat().cmdTax=(seat().cmdTax||0)+1; commit(null); closeLayer(); }, true]);
+  }
+  if(z === 'lib'){
+    acts.push(['Draw to hand', function(){ move(iid,'hand'); commit('Took '+(d?d.n:'a card')+' from library'); closeLayer(); }, true]);
+  }
+  s.appendChild(el('div','divider'));
+  actionGrid(s, acts);
+
+  s.appendChild(el('div','divider'));
+  var mv = el('p','sub','Move to'); mv.style.marginBottom='7px'; s.appendChild(mv);
+  var moves = [];
+  ['hand','bf','gy','ex','cmd'].forEach(function(t){
+    if(t === z) return;
+    moves.push([ZONES[t], function(){ move(iid,t); commit('Moved '+(d?d.n:'card')+' to '+ZONES[t]); closeLayer(); }]);
+  });
+  if(z !== 'lib'){
+    moves.push(['Library top', function(){ move(iid,'lib',true); commit('Put '+(d?d.n:'card')+' on top'); closeLayer(); }]);
+    moves.push(['Library bottom', function(){ move(iid,'lib'); commit('Put '+(d?d.n:'card')+' on bottom'); closeLayer(); }]);
+  }
+  actionGrid(s, moves);
+
+  if(d){
+    s.appendChild(el('div','divider'));
+    var zb = el('button','btn ghost','Zoom card');
+    zb.style.width='100%'; zb.style.justifyContent='center';
+    zb.onclick = function(){ openZoom(d); };
+    s.appendChild(zb);
+  }
+}
+
+function openZoom(d){
+  var layer = document.getElementById('layer');
+  var w = el('div','zoomwrap');
+  w.onclick = closeLayer;
+  if(hasArt(d)){
+    var im = new Image(); im.src=artSrc(d); im.alt=d.n;
+    im.onerror=function(){ w.innerHTML=''; w.appendChild(cardFace(d,true)); };
+    w.appendChild(im);
+  } else {
+    w.appendChild(cardFace(d,true));
+  }
+  layer.appendChild(w);
+}
+
+function openManaChoice(d, iid){
+  var s = sheet('Tap '+d.n+' for\u2026', 'This land produces more than one colour.');
+  var g = el('div','grid');
+  d.pm.forEach(function(m){
+    var b = el('button','btn');
+    b.style.justifyContent='center';
+    var sym = el('span','sym '+m, m);
+    sym.style.cssText='width:20px;height:20px;border-radius:50%;display:inline-grid;place-items:center;font-family:var(--disp);font-weight:800;font-size:11px;background:'+manaColorVar(m)+';color:'+((m==='U'||m==='B')?'#eef3ff':'#10160f');
+    b.appendChild(sym);
+    b.appendChild(document.createTextNode(' '+MANA_NAME[m]));
+    b.onclick=function(){ addMana(m,1); commit('Tapped '+d.n+' for '+m); closeLayer(); };
+    g.appendChild(b);
+  });
+  s.appendChild(g);
+  var skip = el('button','btn ghost','Tap without adding mana');
+  skip.style.cssText='width:100%;justify-content:center;margin-top:9px';
+  skip.onclick=function(){ commit('Tapped '+d.n); closeLayer(); };
+  s.appendChild(skip);
+}
+
+function openLibrarySheet(){
+  var s = sheet('Library', state.z.lib.length + ' cards remaining');
+  actionGrid(s, [
+    ['Draw 1', function(){ draw(1); closeLayer(); }, true],
+    ['Draw 2', function(){ draw(2); closeLayer(); }],
+    ['Draw 7', function(){ draw(7); closeLayer(); }],
+    ['Shuffle', function(){ doShuffle(); closeLayer(); }],
+    ['Mill 1', function(){ mill(1); closeLayer(); }],
+    ['Mill 3', function(){ mill(3); closeLayer(); }],
+    ['Look at top 5', function(){ closeLayer(); openTopSheet(5); }],
+    ['Search library', function(){ closeLayer(); openBrowse('lib'); }]
+  ]);
+}
+
+function openTopSheet(n){
+  var ids = state.z.lib.slice(0,n);
+  var s = sheet('Top '+ids.length+' of library', 'Tap a card to act on it. Others stay in order.');
+  var list = el('div','cardlist');
+  ids.forEach(function(iid){ list.appendChild(cardNode(iid,{zone:'lib'})); });
+  s.appendChild(list);
+  s.appendChild(el('div','divider'));
+  actionGrid(s, [
+    ['Shuffle library', function(){ doShuffle(); closeLayer(); }],
+    ['Bottom them all', function(){ ids.forEach(function(iid){ move(iid,'lib'); }); commit('Put '+ids.length+' on the bottom'); closeLayer(); }]
+  ]);
+}
+
+function openBrowse(z){
+  var ids = state.z[z].slice();
+  var title = ZONES[z] || z;
+  var s = sheet(title, ids.length + ' card' + (ids.length===1?'':'s') + (z==='lib' ? ' \u2014 searching reveals your library' : ''));
+  if(!ids.length){
+    s.appendChild(el('p','note','This zone is empty.'));
+    return;
+  }
+  if(z === 'lib'){
+    var q = el('input'); q.type='text'; q.placeholder='Filter by name or type\u2026';
+    q.oninput = function(){ paint(q.value.toLowerCase()); };
+    s.appendChild(q);
+    s.appendChild(el('div','divider'));
+  }
+  var list = el('div','cardlist');
+  s.appendChild(list);
+  function paint(filter){
+    list.innerHTML='';
+    var shown = 0;
+    ids.forEach(function(iid){
+      var d = defOf(state.cards[iid]);
+      if(filter && d && (d.n+' '+d.t).toLowerCase().indexOf(filter) < 0) return;
+      if(shown++ > 120) return;
+      list.appendChild(cardNode(iid,{zone:z}));
+    });
+    if(!shown) list.appendChild(el('p','note','No matches.'));
+  }
+  paint('');
+  if(z === 'lib'){
+    s.appendChild(el('div','divider'));
+    var warn = el('p','note','Remember to shuffle after searching.');
+    s.appendChild(warn);
+    var sh = el('button','btn','Shuffle library');
+    sh.style.cssText='width:100%;justify-content:center;margin-top:7px';
+    sh.onclick=function(){ doShuffle(); closeLayer(); };
+    s.appendChild(sh);
+  }
+}
+
+var TOKEN_PRESETS = [
+  {n:'Treasure', t:'Token Artifact \u2014 Treasure', o:'{T}, Sacrifice: Add one mana of any colour.', ci:[]},
+  {n:'Clue', t:'Token Artifact \u2014 Clue', o:'{2}, Sacrifice: Draw a card.', ci:[]},
+  {n:'Food', t:'Token Artifact \u2014 Food', o:'{2}, {T}, Sacrifice: Gain 3 life.', ci:[]},
+  {n:'Soldier', t:'Token Creature \u2014 Soldier', p:'1', tg:'1', ci:['W']},
+  {n:'Angel', t:'Token Creature \u2014 Angel', p:'4', tg:'4', o:'Flying', ci:['W']},
+  {n:'Zombie', t:'Token Creature \u2014 Zombie', p:'2', tg:'2', ci:['B']},
+  {n:'Beast', t:'Token Creature \u2014 Beast', p:'3', tg:'3', ci:['G']},
+  {n:'Plant', t:'Token Creature \u2014 Plant', p:'0', tg:'1', o:'Defender', ci:['G']},
+  {n:'Saproling', t:'Token Creature \u2014 Saproling', p:'1', tg:'1', ci:['G']},
+  {n:'Thopter', t:'Token Artifact Creature \u2014 Thopter', p:'1', tg:'1', o:'Flying', ci:[]},
+  {n:'Spirit', t:'Token Creature \u2014 Spirit', p:'1', tg:'1', o:'Flying', ci:['W']},
+  {n:'Goblin', t:'Token Creature \u2014 Goblin', p:'1', tg:'1', ci:['R']}
+];
+
+function openTokenSheet(){
+  var s = sheet('Create token', 'Presets, or roll your own below.');
+  var g = el('div','grid');
+  TOKEN_PRESETS.forEach(function(p){
+    var lbl = p.n + (p.p!=null ? ' '+p.p+'/'+p.tg : '');
+    var b = el('button','btn',lbl);
+    b.onclick=function(){ makeToken(JSON.parse(JSON.stringify(p)),1); closeLayer(); };
+    g.appendChild(b);
+  });
+  s.appendChild(g);
+  s.appendChild(el('div','divider'));
+
+  var form = el('div');
+  var r1 = el('div','row');
+  var nWrap = el('div'); nWrap.style.flex='2 1 150px';
+  nWrap.appendChild(el('label',null,'Name'));
+  var nameIn = el('input'); nameIn.type='text'; nameIn.value='Token'; nWrap.appendChild(nameIn);
+  var pWrap = el('div'); pWrap.style.flex='1 1 62px';
+  pWrap.appendChild(el('label',null,'Power'));
+  var pIn = el('input'); pIn.type='text'; pIn.value='1'; pWrap.appendChild(pIn);
+  var tWrap = el('div'); tWrap.style.flex='1 1 62px';
+  tWrap.appendChild(el('label',null,'Tough'));
+  var tIn = el('input'); tIn.type='text'; tIn.value='1'; tWrap.appendChild(tIn);
+  var qWrap = el('div'); qWrap.style.flex='1 1 62px';
+  qWrap.appendChild(el('label',null,'Count'));
+  var qIn = el('input'); qIn.type='number'; qIn.value='1'; qIn.min='1'; qIn.max='40'; qWrap.appendChild(qIn);
+  r1.appendChild(nWrap); r1.appendChild(pWrap); r1.appendChild(tWrap); r1.appendChild(qWrap);
+  form.appendChild(r1);
+
+  var colWrap = el('div');
+  colWrap.appendChild(el('label',null,'Colour'));
+  var chips = el('div','chips');
+  var chosen = {};
+  ['W','U','B','R','G'].forEach(function(m){
+    var c = el('button','chip', MANA_NAME[m]);
+    c.setAttribute('aria-pressed','false');
+    c.onclick=function(){
+      chosen[m] = !chosen[m];
+      c.setAttribute('aria-pressed', chosen[m]?'true':'false');
+    };
+    chips.appendChild(c);
+  });
+  colWrap.appendChild(chips);
+  form.appendChild(colWrap);
+  s.appendChild(form);
+
+  var mk = el('button','btn primary','Create token');
+  mk.style.cssText='width:100%;justify-content:center;margin-top:12px';
+  mk.onclick=function(){
+    var ci = Object.keys(chosen).filter(function(k){ return chosen[k]; });
+    var td = { n:nameIn.value.trim()||'Token', t:'Token Creature', p:pIn.value.trim(), tg:tIn.value.trim(), ci:ci, o:'' };
+    makeToken(td, Math.max(1, Math.min(40, parseInt(qIn.value,10)||1)));
+    closeLayer();
+  };
+  s.appendChild(mk);
+}
+
+// prompt()/confirm() can be blocked inside the viewer frame, so ask in-page.
+function confirmSheet(title, msg, yesLabel, onYes){
+  var sh = sheet(title, null);
+  sh.appendChild(el('p','note', msg));
+  sh.appendChild(el('div','divider'));
+  actionGrid(sh, [
+    [yesLabel, function(){ onYes(); }, true],
+    ['Cancel', function(){ closeLayer(); }]
+  ]);
+}
+
+function switchTable(code, fresh){
+  closeLayer();
+  confirmSheet(fresh ? 'Start table ' + code + '?' : 'Join table ' + code + '?',
+    fresh ? 'A new, empty table. This device leaves the current one \u2014 the old table keeps its game.'
+          : 'This device leaves table ' + (tableId === 'main' ? 'MAIN' : tableId)
+            + ' and loads whatever game that code holds.',
+    fresh ? 'Start it' : 'Join it',
+    function(){
+      lsSet('ktm.table', code);
+      try{ localStorage.removeItem('ktm.state'); }catch(e){}
+      if(!fresh){ try{ localStorage.removeItem('ktm.defs'); }catch(e){} }
+      location.reload();
+    });
+}
+
+function doMulligan(){
+  var s = sheet('Mulligan', 'London mulligan: draw seven, then put cards on the bottom.');
+  var n = state.z.hand.length;
+  s.appendChild(el('p','note','You currently hold '+n+' card'+(n===1?'':'s')+'.'));
+  s.appendChild(el('div','divider'));
+  actionGrid(s, [
+    ['Shuffle back & draw 7', function(){
+        state.z.hand.slice().forEach(function(iid){ move(iid,'lib'); });
+        state.z.lib = shuffle(state.z.lib);
+        for(var i=0;i<7 && state.z.lib.length;i++) move(state.z.lib[0],'hand');
+        commit('Mulliganed to a new seven');
+        closeLayer();
+      }, true],
+    ['Opening hand (7)', function(){
+        state.z.hand.slice().concat(state.z.bf.slice(), state.z.gy.slice(), state.z.ex.slice())
+          .forEach(function(iid){ if(state.cards[iid] && state.cards[iid].tok) delete state.cards[iid]; else move(iid,'lib'); });
+        state.z.bf=[]; state.z.gy=[]; state.z.ex=[];
+        state.z.lib = shuffle(state.z.lib);
+        for(var i=0;i<7 && state.z.lib.length;i++) move(state.z.lib[0],'hand');
+        state.turn=1; state.phase=3; seat().landDrop=0; clearPool();
+        commit('Reset to an opening hand');
+        closeLayer();
+      }]
+  ]);
+}
+
+/* ---------------- menu / import ---------------- */
+function openMenu(){
+  var s = sheet('Table', deckName + ' \u00b7 ' + (defsAreBuiltin ? 'sample deck with art' : 'imported deck'));
+
+  var dev = el('div');
+  dev.appendChild(el('label',null,'This device'));
+  var chips = el('div','chips');
+  [['board','Board (iPad)'],['hand','Hand (iPhone)']].forEach(function(p){
+    var c = el('button','chip',p[1]);
+    c.setAttribute('aria-pressed', mode===p[0] ? 'true':'false');
+    c.onclick=function(){ mode=p[0]; lsSet('ktm.mode',mode); closeLayer(); render(); };
+    chips.appendChild(c);
+  });
+  dev.appendChild(chips);
+  s.appendChild(dev);
+
+  s.appendChild(el('div','divider'));
+  var assists = el('div');
+  assists.appendChild(el('label',null,'Assists'));
+  var ac = el('div','chips');
+  [['Untap on turn', function(){ return autoUntap; }, function(v){ autoUntap=v; lsSet('ktm.autountap',v?'1':'0'); }],
+   ['Draw on turn', function(){ return autoDraw; }, function(v){ autoDraw=v; lsSet('ktm.autodraw',v?'1':'0'); }],
+   ['Empty pool on phase', function(){ return emptyPool; }, function(v){ emptyPool=v; lsSet('ktm.emptypool',v?'1':'0'); }]
+  ].forEach(function(p){
+    var c = el('button','chip',p[0]);
+    c.setAttribute('aria-pressed', p[1]()?'true':'false');
+    c.onclick=function(){ var v=!p[1](); p[2](v); c.setAttribute('aria-pressed', v?'true':'false'); };
+    ac.appendChild(c);
+  });
+  assists.appendChild(ac);
+  s.appendChild(assists);
+
+  s.appendChild(el('div','divider'));
+  actionGrid(s, [
+    ['Deck & sideboard', function(){ closeLayer(); openDeckSheet(); }, true],
+    ['Import a deck', function(){ closeLayer(); openImport(); }],
+    ['New game', function(){ closeLayer(); confirmSheet('Start a new game?',
+        'The current board, hand and graveyard are discarded. Life totals reset.',
+        'Start new game', function(){
+          var keep = seats().filter(function(o){ return o.opp; });
+          state = buildGame(defs, defsAreBuiltin ? (window.MTG_DECK && window.MTG_DECK.commander) : importedCommander);
+          keep.forEach(function(o){ o.life = 40; o.poison = 0; o.cmdDmg = {}; state.seats.push(o); });
+          commit('New game \u2014 '+deckName);
+          closeLayer();
+        }); }],
+    [(window.MTG_DECK && window.MTG_DECK.name) ? 'Reload ' + window.MTG_DECK.name : 'Reload built-in deck', function(){
+        defs = BUILTIN; defsAreBuiltin = true;
+        deckChanges = [];
+        importedCommander = window.MTG_DECK && window.MTG_DECK.commander;
+        deckName = (window.MTG_DECK && window.MTG_DECK.name) || 'Sample deck';
+        state = buildGame(defs, window.MTG_DECK && window.MTG_DECK.commander);
+        try{ localStorage.removeItem('ktm.defs'); }catch(e){}
+        if(deckRef) deckRef.delete().catch(function(){});
+        commit('Reloaded ' + deckName);
+        closeLayer();
+      }]
+  ]);
+
+  s.appendChild(el('div','divider'));
+  var tw = el('div');
+  tw.appendChild(el('label',null,'Table code'));
+  var trow = el('div','row');
+  var code = el('div','tablecode', tableId === 'main' ? 'MAIN' : tableId);
+  trow.appendChild(code);
+  trow.appendChild(el('div','spacer'));
+  var nb = el('button','btn sm','New table');
+  nb.onclick = function(){ switchTable(newTableCode(), true); };
+  trow.appendChild(nb);
+  tw.appendChild(trow);
+  var jin = el('input'); jin.type='text'; jin.placeholder='Join a table code from your other device';
+  jin.setAttribute('aria-label','Table code to join');
+  jin.style.marginTop='6px';
+  var jb = el('button','btn sm ghost','Join that table');
+  jb.style.cssText='width:100%;justify-content:center;margin-top:6px';
+  jb.onclick = function(){
+    var v = (jin.value||'').trim().toUpperCase().replace(/[^A-Z0-9]/g,'');
+    if(v.length < 4) return;
+    switchTable(v, false);
+  };
+  tw.appendChild(jin); tw.appendChild(jb);
+  s.appendChild(tw);
+  var tnote = el('p','note');
+  tnote.style.marginTop='8px';
+  tnote.innerHTML = 'Your iPad and iPhone share a table code. A second person playing on their '
+    + 'own devices needs <b>their own code</b>, or you would share one library and one hand.';
+  s.appendChild(tnote);
+
+  s.appendChild(el('div','divider'));
+  var sy = el('p','note');
+  sy.innerHTML = syncMode === 'live'
+    ? '<b>Synced.</b> Open this same link on your other device and pick the matching role above \u2014 the board and your hand stay in step.'
+    : '<b>Local only.</b> This view could not reach shared storage, so the game lives in this browser alone.';
+  s.appendChild(sy);
+}
+
+var importedCommander = null;
+
+// ---- Scryfall ------------------------------------------------------------
+// The card database, live. Names in, real printed data and art out.
+var SCRY = 'https://api.scryfall.com';
+function scryCard(c){
+  var face = (!c.mana_cost && c.card_faces) ? c.card_faces[0] : c;
+  var img = (c.image_uris && c.image_uris.normal)
+    || (c.card_faces && c.card_faces[0].image_uris && c.card_faces[0].image_uris.normal)
+    || null;
+  var o = (c.oracle_text || face.oracle_text || '').slice(0,400);
+  var d = {
+    n: c.name,
+    t: c.type_line || face.type_line || '',
+    m: (c.mana_cost != null ? c.mana_cost : (face.mana_cost || '')),
+    cmc: c.cmc || 0,
+    ci: c.color_identity || [],
+    pm: c.produced_mana || [],
+    o: o,
+    u: img
+  };
+  var pw = c.power != null ? c.power : face.power;
+  var tg = c.toughness != null ? c.toughness : face.toughness;
+  if(pw != null) d.p = String(pw);
+  if(tg != null) d.tg = String(tg);
+  if(o.indexOf('enters the battlefield tapped') >= 0 || o.indexOf('enters tapped') >= 0) d.ebt = 1;
+  return d;
+}
+// Up to 75 names per request, which is Scryfall's limit.
+async function scryLookup(names, onProgress){
+  var found = {}, missing = [];
+  for(var i=0;i<names.length;i+=70){
+    var chunk = names.slice(i,i+70);
+    if(onProgress) onProgress(Math.min(i+70,names.length), names.length);
+    var res = await fetch(SCRY + '/cards/collection', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ identifiers: chunk.map(function(n){ return { name:n }; }) })
+    });
+    if(!res.ok) throw new Error('scryfall ' + res.status);
+    var j = await res.json();
+    (j.not_found || []).forEach(function(nf){ if(nf && nf.name) missing.push(nf.name); });
+    (j.data || []).forEach(function(c){ found[c.name.toLowerCase()] = scryCard(c); });
+    if(i + 70 < names.length) await new Promise(function(r){ setTimeout(r,120); });
+  }
+  return { found: found, missing: missing };
+}
+async function scryOne(name){
+  var res = await fetch(SCRY + '/cards/named?fuzzy=' + encodeURIComponent(name));
+  if(!res.ok) return null;
+  return scryCard(await res.json());
+}
+var deckChanges = [];   // edits made here, not yet in Moxfield
+var physChanges = [];   // taken from Moxfield, not yet done to the real cards
+
+// Signed diff: positive means the new list wants more copies than the old one.
+function diffLists(oldList, newList){
+  var map = {}, out = [], k;
+  (oldList||[]).forEach(function(d){
+    k = String(d.n).toLowerCase();
+    map[k] = { n:d.n, q: -qOf(d) };
+  });
+  (newList||[]).forEach(function(d){
+    k = String(d.n).toLowerCase();
+    if(map[k]) map[k].q += qOf(d);
+    else map[k] = { n:d.n, q:qOf(d) };
+  });
+  for(k in map){ if(map[k].q) out.push(map[k]); }
+  out.sort(function(a,b){ return (a.q>0) - (b.q>0) || String(a.n).localeCompare(String(b.n)); });
+  return out;
+}
+function physList(){
+  return physChanges.map(function(c){
+    return (c.q > 0 ? '+' : '') + c.q + ' ' + c.n;
+  }).join('\n');
+}
+// Renders a signed diff with wording chosen by the caller.
+function diffBox(list, addLabel, remLabel){
+  var wrap = el('div');
+  var rem = list.filter(function(c){ return c.q < 0; });
+  var add = list.filter(function(c){ return c.q > 0; });
+  if(rem.length){
+    wrap.appendChild(el('label',null,remLabel));
+    var b1 = el('div','difflist');
+    rem.forEach(function(c){ b1.appendChild(el('div','rem', c.q + '  ' + c.n)); });
+    wrap.appendChild(b1);
+  }
+  if(add.length){
+    var l2 = el('label',null,addLabel);
+    if(rem.length) l2.style.marginTop = '10px';
+    wrap.appendChild(l2);
+    var b2 = el('div','difflist');
+    add.forEach(function(c){ b2.appendChild(el('div','add', '+' + c.q + '  ' + c.n)); });
+    wrap.appendChild(b2);
+  }
+  return wrap;
+}
+
+// A sideboard card sits at zero copies, so `q || 1` would silently deal it in.
+function qOf(d){ return (d && d.q != null) ? d.q : 1; }
+function totalCards(){
+  var n = 0;
+  for(var i=0;i<defs.length;i++) n += qOf(defs[i]);
+  return n;
+}
+function sideCount(){
+  var n = 0;
+  for(var i=0;i<defs.length;i++) if(qOf(defs[i]) === 0) n++;
+  return n;
+}
+function findDef(name){
+  var k = String(name||'').toLowerCase();
+  for(var i=0;i<defs.length;i++){ if(String(defs[i].n).toLowerCase() === k) return defs[i]; }
+  return null;
+}
+// One entry per card, signed. A swap back to where you started cancels out.
+function noteChange(name, delta){
+  for(var i=0;i<deckChanges.length;i++){
+    if(deckChanges[i].n === name){
+      deckChanges[i].q += delta;
+      if(!deckChanges[i].q) deckChanges.splice(i,1);
+      return;
+    }
+  }
+  if(delta) deckChanges.push({ n:name, q:delta });
+}
+function persistDeck(){
+  defsAreBuiltin = false;
+  lastDeckStamp = 'k' + Date.now();
+  var blob = { cards:defs, name:deckName, commander:importedCommander || null,
+               changes:deckChanges, phys:physChanges, stamp:lastDeckStamp };
+  try{ lsSet('ktm.defs', JSON.stringify(blob)); }catch(e){}
+  if(deckRef) deckRef.set(blob).catch(function(){});
+}
+function moxfieldList(){
+  var out = [], cmd = importedCommander;
+  if(cmd) out.push('Commander', '1 ' + cmd, '');
+  out.push('Deck');
+  var side = [];
+  for(var i=0;i<defs.length;i++){
+    var d = defs[i], q = qOf(d);
+    if(cmd && d.n === cmd) q -= 1;
+    if(q > 0) out.push(q + ' ' + d.n);
+    else if(!cmd || d.n !== cmd) side.push('1 ' + d.n);
+  }
+  if(side.length){ out.push('', 'Sideboard'); out = out.concat(side); }
+  return out.join('\n');
+}
+function changeList(){
+  var out = [];
+  deckChanges.forEach(function(c){
+    out.push((c.q > 0 ? '+' : '') + c.q + ' ' + c.n);
+  });
+  return out.join('\n');
+}
+function copyText(txt, btn, okLabel){
+  var reset = function(){ setTimeout(function(){ btn.textContent = okLabel || 'Copy'; }, 1600); };
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(txt).then(
+        function(){ btn.textContent = 'Copied'; reset(); },
+        function(){ btn.textContent = 'Select it above instead'; reset(); });
+      return;
+    }
+  }catch(e){}
+  btn.textContent = 'Select it above instead'; reset();
+}
+
+function openImport(){
+  var s = sheet('Import a deck', 'From Moxfield: open your deck \u2192 More \u2192 Export \u2192 Copy, then paste it here.');
+  var note = el('p','note');
+  note.innerHTML = 'Re-importing an updated list also tells you which physical cards to swap. '
+    + 'Moxfield blocks scripts from reading decks, so pasting the export is the way in. '
+    + '<b>Every card comes back with its real art and rules text from Scryfall.</b>';
+  s.appendChild(note);
+  s.appendChild(el('div','divider'));
+
+  var ta = el('textarea');
+  ta.id = 'importText';
+  ta.placeholder = "1 Sol Ring (LTC) 254\n1 Arcane Signet\n10 Forest\n\u2026";
+  s.appendChild(ta);
+
+  var status = el('p','note'); status.style.marginTop='8px'; s.appendChild(status);
+  var errBox = el('p','err'); errBox.className='err'; s.appendChild(errBox);
+
+  var row = el('div');
+  row.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:11px';
+  var b1 = el('button','btn primary','Import with art & card data');
+  var b2 = el('button','btn','Import names only');
+  row.appendChild(b1); row.appendChild(b2);
+  s.appendChild(row);
+
+  function parsed(){
+    var lines = ta.value.split(/\r?\n/), out = [], seenCmd = null;
+    var inCmd = false, inSide = false;
+    lines.forEach(function(ln){
+      var t = ln.trim();
+      if(!t) return;
+      if(/^(commander|deck|sideboard|maybeboard|companion|tokens?)\b/i.test(t) && !/^\d/.test(t)){
+        inCmd = /^commander/i.test(t);
+        // Sideboard cards belong in the box, not shuffled into the library.
+        inSide = /^(sideboard|maybeboard)/i.test(t);
+        return;
+      }
+      if(/^\/\//.test(t)) return;
+      var m = t.match(/^(\d+)[xX]?\s+(.+?)\s*$/);
+      if(!m) { m = [null,'1',t]; }
+      var name = m[2]
+        .replace(/\s*\([A-Za-z0-9]{2,6}\)\s*[\w\-\u2013]*\s*$/,'')
+        .replace(/\s*\*[^*]*\*\s*$/,'')
+        .replace(/\s*#.*$/,'')
+        .trim();
+      if(!name) return;
+      var qty = Math.max(1, Math.min(99, parseInt(m[1],10)||1));
+      if(inCmd && !seenCmd) seenCmd = name;
+      out.push({ n:name, q: inSide ? 0 : qty, side: inSide ? 1 : 0 });
+    });
+    return { cards: out, commander: seenCmd };
+  }
+
+  function finish(list, commander, name){
+    // What changed between the list we were holding and the one Moxfield just gave us.
+    // Skip it against the built-in sample: that diff is 200 lines of noise.
+    if(!defsAreBuiltin && defs && defs.length){
+      var d = diffLists(defs, list);
+      if(d.length) physChanges = d;
+    }
+    defs = list; defsAreBuiltin = false;
+    deckName = name || 'Imported deck';
+    importedCommander = commander;
+    lastDeckStamp = 'k'+Date.now();
+    // Keep a local copy too: without it a reload with no sync would leave the
+    // card indices pointing into the built-in deck.
+    deckChanges = [];   // Moxfield is the source of truth again
+    try{ lsSet('ktm.defs', JSON.stringify({ cards:list, name:deckName,
+         commander:commander||null, changes:[], phys:physChanges })); }catch(e){}
+    if(deckRef){
+      deckRef.set({ cards:list, name:deckName, commander:commander||null,
+                    changes:[], phys:physChanges, stamp:lastDeckStamp })
+        .catch(function(e){ errBox.textContent = 'Could not share the deck with your other device ('+(e&&e.code||'error')+'). It still works here.'; });
+    }
+    state = buildGame(defs, commander);
+    commit('Imported '+deckName+' ('+list.reduce(function(a,c){return a+qOf(c);},0)+' cards)');
+    closeLayer();
+    if(physChanges.length) openSwapSheet();
+  }
+
+  b2.onclick = function(){
+    var p = parsed();
+    if(!p.cards.length){ errBox.textContent='Nothing to import \u2014 paste a decklist first.'; return; }
+    finish(p.cards.map(function(c){
+      return { n:c.n, q:c.q, side:c.side, t:'', m:'', ci:[], pm:[], o:'' };
+    }), p.commander, 'Imported deck');
+  };
+
+  b1.onclick = async function(){
+    var p = parsed();
+    if(!p.cards.length){ errBox.textContent='Nothing to import \u2014 paste a decklist first.'; return; }
+    errBox.textContent=''; b1.disabled=true; b2.disabled=true;
+    status.textContent = 'Looking up cards on Scryfall\u2026';
+
+    var names = [], seen = {};
+    p.cards.forEach(function(c){
+      var k = c.n.toLowerCase();
+      if(!seen[k]){ seen[k] = 1; names.push(c.n); }
+    });
+    var res;
+    try{
+      res = await scryLookup(names, function(done, all){
+        status.textContent = 'Looking up cards on Scryfall\u2026 ' + done + ' / ' + all;
+      });
+    }catch(e){
+      status.textContent = '';
+      b1.disabled = false; b2.disabled = false;
+      errBox.textContent = navigator.onLine
+        ? 'Scryfall did not answer (' + e.message + '). Use "Import names only" to continue.'
+        : 'No internet, so card data cannot be fetched. Use "Import names only" to continue.';
+      return;
+    }
+    if(res.missing.length){
+      errBox.textContent = 'Scryfall did not know: ' + res.missing.slice(0,6).join(', ')
+        + (res.missing.length > 6 ? ' and ' + (res.missing.length-6) + ' more' : '')
+        + '. Those came in by name only.';
+    }
+    var list = p.cards.map(function(c){
+      var d = res.found[c.n.toLowerCase()];
+      if(!d) return { n:c.n, q:c.q, side:c.side, t:'', m:'', ci:[], pm:[], o:'' };
+      var out = JSON.parse(JSON.stringify(d));
+      out.q = c.q; out.side = c.side;
+      return out;
+    });
+    finish(list, p.commander, 'Imported deck');
+  };
+}
+
+/* ---------------- boot ---------------- */
+function boot(){
+  var restored = null;
+  try{
+    var raw = lsGet('ktm.state','');
+    if(raw){ var j = JSON.parse(raw); if(j && j.z && j.cards) restored = normalise(j); }
+  }catch(e){}
+
+  if(restored){
+    state = restored;
+    if(state.deck && !state.deck.builtin){
+      defsAreBuiltin = false;
+      try{
+        var ld = JSON.parse(lsGet('ktm.defs','null'));
+        if(ld && ld.cards && ld.cards.length){
+          defs = ld.cards; importedCommander = ld.commander;
+          deckChanges = ld.changes || []; physChanges = ld.phys || [];
+        }
+      }catch(e){}
+    }
+    if(state.deck && state.deck.name) deckName = state.deck.name;
+  } else {
+    state = buildGame(defs, window.MTG_DECK && window.MTG_DECK.commander);
+    for(var i=0;i<7 && state.z.lib.length;i++) move(state.z.lib[0],'hand');
+    logg('Opening hand drawn \u2014 '+deckName);
+  }
+  if(defsAreBuiltin && window.MTG_DECK) importedCommander = window.MTG_DECK.commander;
+
+  // Games made before opponents existed carry a single seat.
+  if(!state.seats || !state.seats.length) state.seats = [ newSeat() ];
+  if(!state.seats[0].cmdDmg) state.seats[0].cmdDmg = {};
+  if(state.seats.length === 1){
+    state.seats.push(newOpponent(1), newOpponent(2), newOpponent(3));
+  }
+  state.seats.forEach(function(sx){ if(!sx.cmdDmg) sx.cmdDmg = {}; });
+
+  // Keep nextId ahead of any restored token ids.
+  nextId = Math.max(nextId, Object.keys(state.cards).length + 50);
+
+  try{ lsSet('ktm.state', JSON.stringify(state)); }catch(e){}
+  setDot('connecting');
+  render();
+  initSync();
+
+  // Cache the app and every card picture seen, so a shop with no wifi still
+  // deals a game. Sync still needs a connection.
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  }
+}
+
+if(!BUILTIN.length){
+  document.getElementById('main').innerHTML =
+    '<div style="padding:40px 20px;text-align:center;color:#9db0a5">Deck data failed to load.</div>';
+} else {
+  boot();
+}
+
+})();
+</script>

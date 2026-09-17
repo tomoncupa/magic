@@ -1,0 +1,99 @@
+Commander
+1 Vorinclex, Monstrous Raider
+
+Deck
+1 Garruk, Primal Hunter
+1 Garruk, Unleashed
+1 Nissa, Vital Force
+1 Nissa, Who Shakes the World
+1 Vivien Reid
+1 Wrenn and Realmbreaker
+1 Arwen, Weaver of Hope
+1 Birds of Paradise
+1 Bristly Bill, Spine Sower
+1 Champion of Lambholt
+1 Defiler of Vigor
+1 Devoted Druid
+1 Evolution Sage
+1 Fanatic of Rhonas
+1 Forgotten Ancient
+1 Goldvein Hydra
+1 Gyre Sage
+1 Herd Baloth
+1 Incubation Druid
+1 Kalonian Hydra
+1 Kami of Whispered Hopes
+1 Kodama of the West Tree
+1 Llanowar Elves
+1 Managorger Hydra
+1 Mossborn Hydra
+1 Ornery Tumblewagg
+1 Ouroboroid
+1 Peregrin Took
+1 Primordial Hydra
+1 Renata, Called to the Hunt
+1 Rishkar, Peema Renegade
+1 Scurry Oak
+1 Selvala, Heart of the Wilds
+1 Voracious Hydra
+1 Warden of the Grove
+1 Cultivate
+1 Harmonize
+1 Increasing Savagery
+1 Kodama's Reach
+1 Nissa's Pilgrimage
+1 Three Visits
+1 Unnatural Restoration
+1 Heroic Intervention
+1 Inspiring Call
+1 Return to Nature
+1 Snakeskin Veil
+1 Worldly Tutor
+1 Agatha's Soul Cauldron
+1 Emerald Medallion
+1 Necklace of Girion
+1 Ozolith, the Shattered Spire
+1 Rings of Brighthearth
+1 Sol Ring
+1 The Earth Crystal
+1 The Great Henge
+1 The Ozolith
+1 Awakening Zone
+1 Branching Evolution
+1 Court of Garenbrig
+1 Doubling Season
+1 Hardened Scales
+1 Innkeeper's Talent
+1 Terrasymbiosis
+1 Tribute to the World Tree
+1 Zendikar's Roil
+1 Boseiju, Who Endures
+1 Castle Garenbrig
+1 Dryad Arbor
+26 Forest
+1 Gaea's Cradle
+1 Karn's Bastion
+1 Nykthos, Shrine to Nyx
+1 Oran-Rief, the Vastwood
+1 Shifting Woodland
+
+Sideboard
+1 Benevolent Hydra
+1 Biogenic Upgrade
+1 Cankerbloom
+1 Contagion Engine
+1 Esika's Chariot
+1 Garruk, Curse Breaker
+1 Ivy Lane Denizen
+1 Natural Order
+1 Nature's Lore
+1 Parallel Lives
+1 Primal Vigor
+1 Ram Through
+1 Reliquary Tower
+1 Scavenging Ooze
+1 Staff of Domination
+1 Triumph of the Hordes
+1 Ugin, the Spirit Dragon
+1 World War Hulk
+1 Zendikar Resurgent
