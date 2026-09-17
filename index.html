@@ -335,6 +335,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
   font-family:var(--mono);font-size:13px;font-weight:600;line-height:1;
   padding:4px 6px;border-radius:99px;background:var(--brass);color:#20180a;
   border:1px solid #0b100d;pointer-events:none}
+.bdg.buffed{background:rgba(74,157,92,.92);color:#06180b;border-color:rgba(255,255,255,.3)}
 .bdg.tok{background:rgba(212,169,75,.9);color:#20180a;font-size:9px;letter-spacing:.06em}
 
 /* ---------- hand strip (board) ---------- */
@@ -1088,6 +1089,8 @@ function castCard(iid){
   move(iid,'bf');
   c.tp = d.ebt ? 1 : 0;
   startingLoyalty(c, d);
+  var ent = applyEnterCounters(iid);
+  if(ent) logg(d.n + ' entered with ' + ent.n + ' +1/+1 (' + ent.why.join(', ') + ')');
   blip('act');
   commit(plan.taps.length
     ? ('Tapped ' + plan.taps.length + ' for ' + d.n + ' and played it')
@@ -1149,6 +1152,91 @@ var COUNTER_RULES = [
   { n:'Anointed Procession',          tokens:2 },
   { n:'Mondrak, Glory Dominus',       tokens:2 }
 ];
+
+var cardEffects = lsGet('ktm.effects','1') === '1';
+
+// Static bonuses. Nothing is placed on the creature; it is bigger while the
+// source is on the battlefield, and shrinks the moment the source leaves.
+var ANTHEMS = [
+  { n:'Goblin King',           p:1, t:1, type:'Goblin', others:true },
+  { n:'Goblin Chieftain',      p:1, t:1, type:'Goblin', others:true },
+  { n:'Hobgoblin Bandit Lord', p:1, t:1, type:'Goblin', others:true }
+];
+
+function anthemsFor(iid){
+  var blank = { p:0, t:0, why:[] };
+  if(!cardEffects) return blank;
+  var c = state.cards[iid], d = defOf(c);
+  if(!d || !/Creature/.test(d.t || '')) return blank;
+  var p = 0, t = 0, why = [];
+  state.z.bf.forEach(function(sid){
+    var sc = state.cards[sid];
+    if(!sc || sc.fd) return;
+    var sd = defOf(sc);
+    if(!sd) return;
+    for(var i=0;i<ANTHEMS.length;i++){
+      var a = ANTHEMS[i];
+      if(a.n !== sd.n) continue;
+      if(a.others && sid === iid) continue;
+      if(a.type && (d.t || '').indexOf(a.type) < 0) continue;
+      p += a.p; t += a.t; why.push(sd.n);
+    }
+  });
+  return { p:p, t:t, why:why };
+}
+
+// Printed numbers, plus counters, plus anthems. A power printed as a symbol
+// stays a symbol.
+function effectivePT(iid){
+  var c = state.cards[iid], d = defOf(c);
+  if(!d || (d.p == null && d.tg == null)) return null;
+  var bp = parseInt(d.p, 10), bt = parseInt(d.tg, 10);
+  var add = (c && c.ctr && c.ctr.p1p1) || 0;
+  var an = anthemsFor(iid);
+  return {
+    p: isNaN(bp) ? (d.p || '*') : (bp + add + an.p),
+    t: isNaN(bt) ? (d.tg || '*') : (bt + add + an.t),
+    why: an.why
+  };
+}
+
+// Replacement effects that change how a creature arrives.
+var ENTERS_WITH = [
+  { n:'Arwen, Weaver of Hope',
+    amount: function(sid){
+      // Her own toughness, which counters and anthems can raise.
+      var pt = effectivePT(sid);
+      var t = pt ? parseInt(pt.t, 10) : 0;
+      return isNaN(t) ? 0 : t;
+    } },
+  { n:'Renata, Called to the Hunt', amount: function(){ return 1; } },
+  { n:'Master Biomancer',           amount: function(){ return 1; } }
+];
+
+// Called the moment a creature arrives under your control, tokens included.
+function applyEnterCounters(iid){
+  if(!cardEffects) return null;
+  var c = state.cards[iid], d = defOf(c);
+  if(!c || !d || !/Creature/.test(d.t || '')) return null;
+  var extra = 0, why = [];
+  state.z.bf.forEach(function(sid){
+    if(sid === iid) return;
+    var sc = state.cards[sid];
+    if(!sc || sc.fd) return;
+    var sd = defOf(sc);
+    if(!sd) return;
+    ENTERS_WITH.forEach(function(e){
+      if(e.n !== sd.n) return;
+      var amt = e.amount(sid);
+      if(amt > 0){ extra += amt; why.push(sd.n + ' adds ' + amt); }
+    });
+  });
+  if(!extra) return null;
+  var m = counterMath('p1p1', extra);
+  c.ctr = c.ctr || {};
+  c.ctr.p1p1 = (c.ctr.p1p1 || 0) + m.n;
+  return { n:m.n, why: why.concat(m.why) };
+}
 
 function rulesInPlay(){
   var out = [];
@@ -1333,8 +1421,10 @@ function playCard(iid, opts){
   c.tp = tapped ? 1 : 0;
   startingLoyalty(c, d);
   if(d && isLand(d)){ seat().landDrop = (seat().landDrop||0) + 1; }
+  var ent = applyEnterCounters(iid);
   blip('act');
-  commit('Played '+(d?d.n:'a card') + (tapped?' (tapped)':''));
+  commit('Played '+(d?d.n:'a card') + (tapped?' (tapped)':'')
+    + (ent ? ', entered with ' + ent.n + ' +1/+1 (' + ent.why.join(', ') + ')' : ''));
 }
 
 function makeToken(td, count){
@@ -1346,6 +1436,8 @@ function makeToken(td, count){
     var iid = 'k'+(nextId++)+Math.random().toString(36).slice(2,5);
     state.cards[iid] = { i:iid, d:-1, tp:0, ctr:{}, fd:0, tok:1, td:td };
     state.z.bf.push(iid);
+    var e = applyEnterCounters(iid);
+    if(e && !tokenNote) tokenNote = ' (each entered with ' + e.n + ' +1/+1)';
   }
   commit('Created '+count+'\u00d7 '+td.n+tokenNote);
 }
@@ -1525,11 +1617,11 @@ function cardNode(iid, opts){
     });
     if(c && c.tok) left.appendChild(el('span','bdg tok','TOKEN'));
     bar.appendChild(left);
-    if(d.p != null || d.tg != null){
-      var pw = parseInt(d.p,10), tg = parseInt(d.tg,10);
-      var add = ctr.p1p1 || 0;
-      var ptTxt = (isNaN(pw)? (d.p||'*') : pw+add) + '/' + (isNaN(tg)? (d.tg||'*') : tg+add);
-      bar.appendChild(el('span','bdg', ptTxt));
+    var pt = effectivePT(iid);
+    if(pt){
+      var b = el('span','bdg' + (pt.why.length ? ' buffed' : ''), pt.p + '/' + pt.t);
+      if(pt.why.length) b.title = 'Includes ' + pt.why.join(', ');
+      bar.appendChild(b);
     }
     if(bar.firstChild && (left.children.length || bar.children.length>1)) btn.appendChild(bar);
   }
@@ -2663,6 +2755,16 @@ function openCardSheet(iid, zone){
   var z = zoneOf(iid) || zone;
   var s = sheet(d ? d.n : 'Card', (d ? d.t : '') + ' \u00b7 in ' + (ZONES[z]||z));
 
+  if(z === 'bf'){
+    var pt2 = effectivePT(iid);
+    if(pt2 && pt2.why.length){
+      var bn = el('p','note');
+      bn.innerHTML = '<b>' + pt2.p + '/' + pt2.t + ' right now.</b> '
+        + pt2.why.join(' and ') + ' on the battlefield.';
+      bn.style.cssText = 'margin:0 0 var(--s3);color:var(--good)';
+      s.appendChild(bn);
+    }
+  }
   if(d && d.o){
     var o = el('p','note', d.o);
     o.style.cssText='margin:0 0 12px;max-height:120px;overflow:auto;white-space:pre-wrap';
@@ -3188,7 +3290,8 @@ function openMenu(){
   var assists = el('div');
   assists.appendChild(el('label',null,'Assists'));
   var ac = el('div','chips');
-  [['Auto tap for mana', function(){ return autoTap; }, function(v){ autoTap=v; lsSet('ktm.autotap',v?'1':'0'); }],
+  [['Card effects', function(){ return cardEffects; }, function(v){ cardEffects=v; lsSet('ktm.effects',v?'1':'0'); render(); }],
+   ['Auto tap for mana', function(){ return autoTap; }, function(v){ autoTap=v; lsSet('ktm.autotap',v?'1':'0'); }],
    ['Sound', function(){ return soundOn; }, function(v){ soundOn=v; lsSet('ktm.sound',v?'1':'0'); if(v) blip('act'); }],
    ['Board tab on phone', function(){ return showPhoneBoard; }, function(v){ showPhoneBoard=v; lsSet('ktm.pboard',v?'1':'0'); render(); }],
    ['Life counters', function(){ return showLife; }, function(v){ showLife=v; lsSet('ktm.life',v?'1':'0'); render(); }],
