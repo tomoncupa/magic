@@ -2,7 +2,7 @@
 // as they are seen. A shop with no wifi can still deal a game, though the two
 // devices will not sync until there is a connection again.
 const SHELL = 'ktm-shell-v1';
-const CARDS = 'ktm-cards-v1';
+const CARDS = 'ktm-cards-v2';
 const SHELL_FILES = ['./', './index.html', './deck.js', './config.js'];
 
 self.addEventListener('install', e => {
@@ -25,15 +25,19 @@ self.addEventListener('fetch', e => {
   if (url.hostname.endsWith('firebasedatabase.app')) return;
 
   // Card pictures never change once published, so cache them for good.
+  // An image from another domain comes back "opaque" with status 0, so res.ok
+  // is false even on success. Store it anyway or nothing is ever cached and
+  // offline has no art.
   if (url.hostname === 'cards.scryfall.io') {
     e.respondWith(
       caches.open(CARDS).then(c =>
-        c.match(e.request).then(hit =>
-          hit || fetch(e.request).then(res => {
-            if (res.ok) c.put(e.request, res.clone());
+        c.match(e.request).then(hit => {
+          if (hit) return hit;
+          return fetch(e.request).then(res => {
+            try { c.put(e.request, res.clone()); } catch (err) { /* over quota */ }
             return res;
-          })
-        )
+          });
+        })
       )
     );
     return;
