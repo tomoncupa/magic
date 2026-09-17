@@ -1934,6 +1934,7 @@ function fitBands(){
     var box = (band.parentNode && band.parentNode.classList.contains('landsrow'))
       ? band.parentNode : band;
     rows.push({ tray:tray, box:box, W:W, n:n,
+                lands: band.classList.contains('lands'),
                 head: ((band.querySelector('.bandhead') || {}).offsetHeight) || 0,
                 padY: parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) });
   }
@@ -1948,24 +1949,49 @@ function fitBands(){
 
   // Measure, size, share out the height, measure again. Three passes settle it,
   // and every pass fills the field exactly rather than pushing a row off it.
+  // Lands are a resource you count, not a board you read, so they run smaller
+  // and the battlefield takes the room they give back. They get at most a third
+  // of the height and at most two thirds of the size.
+  var LAND_SHARE = 0.66, LAND_HEIGHT = 0.34;
+  var main = null, land = null;
+  rows.forEach(function(r){ if(r.lands) land = r; else if(!main) main = r; });
+
   for(var pass = 0; pass < 3; pass++){
-    var w = 300;
-    rows.forEach(function(r){
-      if(!r.n) return;
-      var H = r.tray.clientHeight - r.padY;
-      var best = 26;
-      for(var x = 300; x >= 26; x -= 2){
-        if(tall(r, x) <= H){ best = x; break; }
+    var avail = field.clientHeight;
+    var seatbar = field.querySelector('.seatbar');
+    if(seatbar) avail -= seatbar.offsetHeight;
+    rows.forEach(function(r){ avail -= r.head + r.padY + 2; });
+    if(avail < 80) return false;
+
+    function biggest(r, budget, cap){
+      if(!r || !r.n) return 0;
+      for(var x = Math.min(320, cap || 320); x >= 26; x -= 2){
+        if(tall(r, x) <= budget) return x;
       }
-      if(best < w) w = best;
-    });
-    w = Math.max(26, Math.min(320, Math.round(w * cardScale)));
+      return 26;
+    }
+
+    var lw = land && land.n ? biggest(land, avail * LAND_HEIGHT) : 0;
+    var mw = main && main.n
+      ? biggest(main, avail - (lw ? tall(land, lw) : 0))
+      : 0;
+    // Never bigger than the board they support.
+    if(lw && mw && lw > mw * LAND_SHARE){
+      lw = biggest(land, avail * LAND_HEIGHT, Math.max(26, Math.round(mw * LAND_SHARE)));
+      mw = biggest(main, avail - tall(land, lw));
+    }
+    if(!mw && lw) lw = biggest(land, avail);
+
     rows.forEach(function(r){
+      var w = r.lands ? lw : mw;
+      if(!r.n || !w){
+        // An empty row still holds its heading and the zone strip.
+        r.box.style.flex = Math.max(1, Math.round(r.head + r.padY + (r.lands ? 150 : 40))) + ' 1 0';
+        return;
+      }
+      w = Math.max(26, Math.min(320, Math.round(w * cardScale)));
       r.tray.style.setProperty('--cw', w + 'px');
-      // An empty row still holds its heading and the zone strip, so it keeps a
-      // floor rather than collapsing to nothing.
-      var need = r.n ? (tall(r, w) + r.head + r.padY) : (r.head + r.padY + 150);
-      r.box.style.flex = Math.max(1, Math.round(need)) + ' 1 0';
+      r.box.style.flex = Math.max(1, Math.round(tall(r, w) + r.head + r.padY)) + ' 1 0';
     });
   }
   return true;
