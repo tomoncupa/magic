@@ -1150,7 +1150,7 @@ var TRIG_WHEN = [
   // Wide enough for "Whenever one or more Goblins you control attack" and for
   // "When this creature enters", which are the two ways it is usually written.
   { k:'attack',  phase:4, re:/^When(ever)? [^,]{0,46}attacks?\b/i, label:'When it attacks' },
-  { k:'enters',  phase:-1, re:/^When(ever)? [^,]{0,42}enters\b/i,  label:'When it arrives' }
+  { k:'enters',  phase:-1, re:/^When(ever)? [^,]{0,60}enters\b/i,  label:'When it arrives' }
 ];
 function turnTriggers(only){
   var out = [];
@@ -1160,7 +1160,7 @@ function turnTriggers(only){
     var d = defOf(c);
     if(!d || !d.o) return;
     String(d.o).split('\n').forEach(function(line){
-      var l = line.trim();
+      var l = stripMechanic(line);
       for(var i = 0; i < TRIG_WHEN.length; i++){
         if(!TRIG_WHEN[i].re.test(l)) continue;
         if(only && TRIG_WHEN[i].k !== only) continue;
@@ -1182,6 +1182,7 @@ function turnTriggers(only){
 // Moving to a phase puts up only the things that happen in that phase, which is
 // the difference between a list you read and a list you act on.
 function phaseTriggers(){
+  if(state.phase === 2) advanceSagas();      // after the draw step
   if(!turnList) return;
   var kinds = [];
   TRIG_WHEN.forEach(function(w){ if(w.phase === state.phase) kinds.push(w.k); });
@@ -1202,7 +1203,7 @@ var WATCH = [
   { k:'dies',     label:'Something left the battlefield',
     re:/^When(ever)? .{0,54}?(dies|is put into a graveyard from the battlefield|leaves the battlefield)/i },
   { k:'enters',   label:'Something arrived',
-    re:/^When(ever)? .{0,58}?enters\b/i },
+    re:/^When(ever)? .{0,70}?enters\b/i },
   { k:'counter',  label:'Counters went on',
     re:/^When(ever)? (one or more|you put one or more)\b/i },
   { k:'hit',      label:'A player took damage',
@@ -1212,6 +1213,14 @@ var WATCH = [
   { k:'activate', label:'You used an ability',
     re:/^When(ever)? (you activate an ability|an ability of)\b/i }
 ];
+
+// "Landfall", "Pack tactics", "Imprint" and the rest are a label on the front
+// of an ordinary trigger, so the label comes off before anything is read.
+function stripMechanic(line){
+  var l = String(line || '').trim();
+  var m = /^[A-Z][A-Za-z' ]{2,22}\s*\u2014\s*(.+)$/.exec(l);
+  return m ? m[1] : l;
+}
 
 // Does this trigger line talk about the card it is printed on?
 function namesItself(line, d){
@@ -1233,7 +1242,7 @@ function watchersFor(kind, notIid){
     var d = defOf(c);
     if(!d || !d.o) return;
     String(d.o).split('\n').forEach(function(line){
-      var l = line.trim();
+      var l = stripMechanic(line);
       if(!w.re.test(l)) return;
       // When the thing happened TO this card, only a trigger that names itself
       // counts. "Whenever another Goblin dies" is not about itself, but
@@ -1649,8 +1658,9 @@ function castCard(iid){
   });
   payFromPool(cost);
   move(iid,'bf');
-  c.tp = d.ebt ? 1 : 0;
+  c.tp = entersTapped(d) ? 1 : 0;
   startingLoyalty(c, d);
+  startingLore(c, d);
   var ent = applyEnterCounters(iid);
   if(ent) logg(d.n + ' entered with ' + ent.n + ' +1/+1 (' + ent.why.join(', ') + ')');
   blip('act');
@@ -1662,8 +1672,57 @@ function castCard(iid){
     : ('Played ' + d.n + ' from floating mana' + cutNote));
 }
 
+// "This land enters tapped unless you control a Mountain" is a condition about
+// your own board, so it is checked rather than assumed. Scryfall's flag only
+// says the words "enters tapped" appear, which is why these four were arriving
+// tapped every time.
+function entersTapped(d){
+  if(!d) return false;
+  var o = String(d.o || '');
+  var m = /enters tapped unless you control (?:a |an |another )?([A-Za-z][A-Za-z' -]*?)[.]/i.exec(o);
+  if(m) return countOnBoard(oneWord(m[1])) === 0;
+  return !!d.ebt;
+}
+
+// Sagas count their own chapters. The counter goes on as it arrives and again
+// after every draw step, which is a moment the app already knows about.
+function isSaga(d){ return /Saga/.test((d && d.t) || ''); }
+var ROMAN = ['I','II','III','IV','V'];
+function sagaChapter(d, n){
+  var want = ROMAN[n - 1];
+  if(!want) return null;
+  var hit = null;
+  String((d && d.o) || '').split('\n').forEach(function(line){
+    var m = /^([IVX]+)(?:\s*,\s*([IVX]+))?\s*\u2014\s*(.+)$/.exec(line.trim());
+    if(!m) return;
+    if(m[1] === want || m[2] === want) hit = m[3];
+  });
+  return hit;
+}
+function advanceSagas(){
+  var moved = [];
+  state.z.bf.forEach(function(iid){
+    var c = state.cards[iid], d = defOf(c);
+    if(!c || !d || !isSaga(d)) return;
+    c.ctr = c.ctr || {};
+    c.ctr.lore = (c.ctr.lore || 0) + counterMath('lore', 1).n;
+    var text = sagaChapter(d, c.ctr.lore);
+    moved.push({ iid:iid, d:d, when:{ label:'Chapter ' + ROMAN[c.ctr.lore - 1] || 'Chapter' },
+                 line: text || 'No chapter that high. Sacrifice it if it is finished.' });
+  });
+  if(!moved.length) return;
+  commit('Sagas moved on a chapter');
+  setTimeout(function(){ openTurnList(moved, 'Sagas moved on'); }, 60);
+}
+
 // A planeswalker arrives with its printed loyalty, and doublers apply to it
 // the same as any other counter.
+function startingLore(c, d){
+  if(!c || !isSaga(d)) return;
+  c.ctr = c.ctr || {};
+  c.ctr.lore = counterMath('lore', 1).n;
+}
+
 function startingLoyalty(c, d){
   if(!c || !d || !/Planeswalker/.test(d.t || '')) return;
   var base = parseInt(d.loy, 10);
@@ -1695,6 +1754,7 @@ var COUNTERS = [
   { k:'shield',  label:'Shield' }
 ];
 function counterLabel(k){
+  if(k === 'lore') return 'Lore';
   for(var i=0;i<COUNTERS.length;i++) if(COUNTERS[i].k === k) return COUNTERS[i].label;
   return k;
 }
@@ -2299,8 +2359,8 @@ function enterNote(iid){
   if(!d || !d.o) return;
   var hit = null;
   String(d.o).split('\n').forEach(function(line){
-    var l = line.trim();
-    if(!hit && /^When(ever)? [^,]{0,42}enters\b/i.test(l)) hit = l;
+    var l = stripMechanic(line);
+    if(!hit && /^When(ever)? [^,]{0,60}enters\b/i.test(l)) hit = l;
   });
   if(!hit) return;
   setTimeout(function(){
@@ -2312,9 +2372,10 @@ function playCard(iid, opts){
   opts = opts||{};
   var c = state.cards[iid], d = defOf(c); if(!c) return;
   move(iid,'bf');
-  var tapped = !!opts.tapped || (d && d.ebt);
+  var tapped = !!opts.tapped || entersTapped(d);
   c.tp = tapped ? 1 : 0;
   startingLoyalty(c, d);
+  startingLore(c, d);
   if(d && isLand(d)){ seat().landDrop = (seat().landDrop||0) + 1; }
   else if(d) fireWatch('cast', iid);
   var ent = applyEnterCounters(iid);
