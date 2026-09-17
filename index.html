@@ -43,6 +43,7 @@ img{max-width:100%}
 [hidden]{display:none!important}
 /* A press answers in the same frame, the way a real button does. */
 button{touch-action:manipulation}
+.field{touch-action:pan-y}
 button:active{transform:scale(.97)}
 @media (hover:none){ button:hover{background:inherit} }
 body{
@@ -540,6 +541,21 @@ button.val:hover{color:var(--brass)}
 @media(min-width:760px){.sheet{border-radius:14px;padding-bottom:16px}}
 /* A deck is worth the width: the cards are the point of looking at it. */
 .sheet.wide{max-width:900px}
+/* Holding a card gives you the card, as big as the screen allows, with
+   everything you can do to it beside rather than below. On an iPad that means
+   nothing worth doing is behind a scroll. */
+.sheet.cardsheet{max-width:min(96vw,980px)}
+.csrow{display:flex;gap:var(--s5);align-items:flex-start}
+.cspic{flex:0 0 clamp(190px,26vw,330px);min-width:0}
+.cspic img,.cspic .face{width:100%;height:auto;aspect-ratio:63/88;display:block;
+  border-radius:14px;box-shadow:0 16px 40px rgba(0,0,0,.6);object-fit:cover;background:var(--bg3)}
+.cspic .face{--cw:330px}
+.csacts{flex:1 1 auto;min-width:0}
+.bdg.eq{background:rgba(150,160,190,.9);color:#10160f;border-color:rgba(255,255,255,.3)}
+@media(max-width:760px){
+  .csrow{flex-direction:column;align-items:stretch}
+  .cspic{flex:0 0 auto;width:58%;align-self:center}
+}
 .sheet h2{margin:0 0 2px;font-family:var(--disp);font-size:21px;font-weight:700;color:var(--ink);text-wrap:balance}
 .sheet .sub{margin:0 0 12px;font-size:11.5px;color:var(--ink3);letter-spacing:.02em}
 .sheet .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:7px}
@@ -783,6 +799,13 @@ function zoneOf(iid){
 }
 function move(iid, to, toTop){
   var from = zoneOf(iid);
+  // What was attached to it falls off, and if it was itself attached to
+  // something, it stops being.
+  if(to !== 'bf'){
+    attachedTo(iid).forEach(function(sid){ var sc = state.cards[sid]; if(sc) delete sc.eq; });
+    var self = state.cards[iid];
+    if(self) delete self.eq;
+  }
   if(from){ var a = state.z[from]; a.splice(a.indexOf(iid),1); }
   var c = state.cards[iid];
   if(to === 'lib' || to === 'hand'){ if(c){ c.tp=0; c.ctr={}; c.fd=0; delete c.gave; } }
@@ -1516,6 +1539,34 @@ function anthemsFor(iid){
   return { p:p, t:t, why:why };
 }
 
+// Equipment and auras. What they give is written the same regular way every
+// time, so it is read rather than listed: "Equipped creature gets +2/+2."
+function isAttachable(d){ return /Equipment|Aura/.test((d && d.t) || ''); }
+function attachBonus(d){
+  var m = /(?:Equipped|Enchanted) creature gets ([+-][0-9]+)\/([+-][0-9]+)/.exec((d && d.o) || '');
+  return m ? { p: parseInt(m[1], 10), t: parseInt(m[2], 10) } : null;
+}
+// Everything currently hanging off this creature.
+function attachedTo(iid){
+  var out = [];
+  state.z.bf.forEach(function(sid){
+    var sc = state.cards[sid];
+    if(sc && sc.eq === iid) out.push(sid);
+  });
+  return out;
+}
+function gearBonus(iid){
+  var p = 0, t = 0, why = [];
+  attachedTo(iid).forEach(function(sid){
+    var sd = defOf(state.cards[sid]);
+    if(!sd) return;
+    var b = attachBonus(sd);
+    if(b){ p += b.p; t += b.t; }
+    why.push(sd.n);
+  });
+  return { p:p, t:t, why:why };
+}
+
 // Printed numbers, plus counters, plus anthems. A power printed as a symbol
 // stays a symbol.
 function effectivePT(iid){
@@ -1524,10 +1575,11 @@ function effectivePT(iid){
   var bp = parseInt(d.p, 10), bt = parseInt(d.tg, 10);
   var add = (c && c.ctr && c.ctr.p1p1) || 0;
   var an = anthemsFor(iid);
+  var gr = gearBonus(iid);
   return {
-    p: isNaN(bp) ? (d.p || '*') : (bp + add + an.p),
-    t: isNaN(bt) ? (d.tg || '*') : (bt + add + an.t),
-    why: an.why
+    p: isNaN(bp) ? (d.p || '*') : (bp + add + an.p + gr.p),
+    t: isNaN(bt) ? (d.tg || '*') : (bt + add + an.t + gr.t),
+    why: an.why.concat(gr.why)
   };
 }
 
@@ -1855,6 +1907,70 @@ function fitTray(tray, n){
   }
   tray.style.setProperty('--cw', best + 'px');
 }
+// Pinch makes the cards bigger or smaller than the fit chose. It is yours and
+// stays on this device.
+var cardScale = parseFloat(lsGet('ktm.cardscale','1')) || 1;
+
+// The battlefield and the lands share one height, so picking a size for each on
+// its own gives one row huge cards and the other a strip of stamps. Instead
+// find the one size that fits everything, and give each row the height it needs
+// at that size. Both rows end up as big as the table allows.
+function fitBands(){
+  var field = document.querySelector('.field');
+  if(!field) return false;
+  var trays = field.querySelectorAll('.tray');
+  if(trays.length < 2) return false;
+  var rows = [], any = false, i;
+  for(i = 0; i < trays.length; i++){
+    var tray = trays[i];
+    var cs = getComputedStyle(tray);
+    var W = tray.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    var n = tray.querySelectorAll('.cw').length;
+    if(!(W > 0)) return false;
+    if(n) any = true;
+    // The lands sit in a row beside the zones, so the height belongs to that
+    // row. Setting it on the band itself would set its WIDTH.
+    var band = tray.parentNode;
+    var box = (band.parentNode && band.parentNode.classList.contains('landsrow'))
+      ? band.parentNode : band;
+    rows.push({ tray:tray, box:box, W:W, n:n,
+                head: ((band.querySelector('.bandhead') || {}).offsetHeight) || 0,
+                padY: parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) });
+  }
+  if(!any) return false;
+
+  var gx = 8, gy = 12;
+  function rowsAt(r, w){
+    var perRow = Math.max(1, Math.floor((r.W + gx) / (w + gx)));
+    return Math.ceil(r.n / perRow);
+  }
+  function tall(r, w){ return rowsAt(r, w) * (w * 88 / 63 + gy) - gy; }
+
+  // Measure, size, share out the height, measure again. Three passes settle it,
+  // and every pass fills the field exactly rather than pushing a row off it.
+  for(var pass = 0; pass < 3; pass++){
+    var w = 300;
+    rows.forEach(function(r){
+      if(!r.n) return;
+      var H = r.tray.clientHeight - r.padY;
+      var best = 26;
+      for(var x = 300; x >= 26; x -= 2){
+        if(tall(r, x) <= H){ best = x; break; }
+      }
+      if(best < w) w = best;
+    });
+    w = Math.max(26, Math.min(320, Math.round(w * cardScale)));
+    rows.forEach(function(r){
+      r.tray.style.setProperty('--cw', w + 'px');
+      // An empty row still holds its heading and the zone strip, so it keeps a
+      // floor rather than collapsing to nothing.
+      var need = r.n ? (tall(r, w) + r.head + r.padY) : (r.head + r.padY + 150);
+      r.box.style.flex = Math.max(1, Math.round(need)) + ' 1 0';
+    });
+  }
+  return true;
+}
+
 // One frame after a render the flex boxes can still measure zero, so watch the
 // trays and refit whenever their box actually settles.
 var fitRO = null;
@@ -1863,6 +1979,7 @@ function fitAllTrays(){
   if(window.ResizeObserver){
     if(!fitRO){
       fitRO = new ResizeObserver(function(entries){
+        if(fitBands()) return;
         for(var k=0;k<entries.length;k++){
           var t = entries[k].target;
           fitTray(t, t.querySelectorAll('.cw').length);
@@ -1871,8 +1988,9 @@ function fitAllTrays(){
     }
     fitRO.disconnect();
   }
+  var whole = fitBands();
   for(var i=0;i<trays.length;i++){
-    fitTray(trays[i], trays[i].querySelectorAll('.cw').length);
+    if(!whole || !trays[i].closest('.band')) fitTray(trays[i], trays[i].querySelectorAll('.cw').length);
     if(fitRO) fitRO.observe(trays[i]);
   }
 }
@@ -1994,7 +2112,73 @@ function cardDrag(btn, wrap, iid, opts, cancelTap){
   return function(){ return live; };
 }
 
-// Everything in the pile swings, or none of it does.
+function attackWith(ids, seatId){
+  var d = defOf(state.cards[ids[0]]);
+  ids.forEach(function(i){ var c = state.cards[i]; if(c) c.atk = seatId; });
+  var who = seatById(seatId);
+  blip('tick');
+  commit((ids.length > 1 ? ids.length + ' ' : '') + (d ? d.n : 'Creature')
+    + ' attacking ' + (who ? who.name : 'them'));
+}
+function pullBack(ids){
+  var d = defOf(state.cards[ids[0]]);
+  ids.forEach(function(i){ var c = state.cards[i]; if(c) delete c.atk; });
+  blip('tick');
+  commit((ids.length > 1 ? ids.length + ' ' : '') + (d ? d.n : 'Creature') + ' pulled back');
+}
+
+// One button per player. Reaching for a card and then hunting for a target is
+// two thoughts; this is one. A pile asks how many of it are going first.
+function attackSection(parent, ids, d){
+  if(!d || !/Creature/.test(d.t || '')) return;
+  var opps = seats().filter(function(o){ return o.opp; });
+  if(!opps.length) return;
+  var pile = ids.length > 1;
+  var already = null;
+  ids.forEach(function(i){ var c = state.cards[i]; if(c && c.atk) already = c.atk; });
+
+  parent.appendChild(el('div','divider'));
+  var h = el('p','sub', already ? 'Attacking' : (pile ? 'Attack with these ' + ids.length : 'Attack'));
+  h.style.margin = '0 0 7px';
+  parent.appendChild(h);
+
+  var n = ids.length;
+  if(pile && !already){
+    var row = el('div','cdgrid');
+    row.appendChild(el('div','lbl','How many'));
+    var minus = el('button', null, '\u2212');
+    var num = el('button','val', String(n));
+    var plus = el('button', null, '+');
+    function setN(v){ n = Math.max(1, Math.min(ids.length, v)); num.textContent = String(n); }
+    minus.onclick = function(){ setN(n - 1); };
+    plus.onclick  = function(){ setN(n + 1); };
+    num.onclick = function(){ askNumber('How many attack', 'Out of ' + ids.length + '.', n, setN); };
+    row.appendChild(minus); row.appendChild(num); row.appendChild(plus);
+    parent.appendChild(row);
+  }
+
+  var g = el('div','grid');
+  opps.forEach(function(o){
+    var here = already === o.id;
+    var b = el('button','btn' + (here ? ' primary' : ''),
+      (here ? 'Attacking ' : 'Attack ') + o.name);
+    b.onclick = function(){
+      if(here) pullBack(ids);
+      else attackWith(ids.slice(0, already ? ids.length : n), o.id);
+      closeLayer();
+    };
+    g.appendChild(b);
+  });
+  parent.appendChild(g);
+  if(already){
+    var pb = el('button','btn ghost','Pull them back');
+    pb.style.cssText = 'width:100%;justify-content:center;margin-top:var(--s3)';
+    pb.onclick = function(){ pullBack(ids); closeLayer(); };
+    parent.appendChild(pb);
+  }
+}
+
+// Everything in the pile swings, or none of it does. Used by the drag.
 function setAttack(ids, seatId){
   var on = false;
   ids.forEach(function(i){ var c = state.cards[i]; if(c && c.atk !== seatId) on = true; });
@@ -2009,6 +2193,27 @@ function setAttack(ids, seatId){
     ? (ids.length > 1 ? ids.length + ' ' : '') + (d ? d.n : 'Creature')
       + ' attacking ' + (who ? who.name : 'them')
     : (d ? d.n : 'Creature') + ' pulled back');
+}
+
+// The card as big as the screen allows, with what you can do beside it.
+function cardSheetFrame(s, d){
+  s.classList.add('cardsheet');
+  var row = el('div','csrow');
+  var pic = el('div','cspic');
+  if(d){
+    if(hasArt(d)){
+      var im = new Image(); im.src = artSrc(d); im.alt = d.n;
+      im.onerror = function(){ pic.innerHTML = ''; pic.appendChild(cardFace(d, true)); };
+      pic.appendChild(im);
+    } else {
+      pic.appendChild(cardFace(d, true));
+    }
+  }
+  var acts = el('div','csacts');
+  row.appendChild(pic);
+  row.appendChild(acts);
+  s.appendChild(row);
+  return acts;
 }
 
 // Where a card sits is yours to decide. Dropped past the middle of a card it
@@ -2070,6 +2275,12 @@ function cardNode(iid, opts){
       var b = el('span','bdg ctr' + (v<0?' neg':'') + (k==='loyalty'?' loy':''), txt);
       left.appendChild(b);
     });
+    if(c && c.eq){
+      var on = defOf(state.cards[c.eq]);
+      var eb = el('span','bdg eq', 'ON');
+      eb.title = 'Attached to ' + (on ? on.n : 'a creature');
+      left.appendChild(eb);
+    }
     if(c && c.tok) left.appendChild(el('span','bdg tok','TOKEN'));
     if(c && c.must){
       var mb2 = el('span','bdg must','MUST ATTACK');
@@ -2142,6 +2353,8 @@ function render(){
   if(mode === 'hand') main.appendChild(renderHandView());
   else main.appendChild(renderBoard());
   restoreScrolls();
+  var fieldNow = document.querySelector('.field');
+  if(fieldNow) armPinch(fieldNow);
   if(window.requestAnimationFrame){
     requestAnimationFrame(function(){ restoreScrolls(); fitAllTrays(); redrawArrows(); fitTopBar(); });
     setTimeout(function(){ fitAllTrays(); redrawArrows(); fitTopBar(); }, 140);
@@ -2202,6 +2415,35 @@ function fitTopBar(){
   }
 }
 window.addEventListener('resize', function(){ fitAllTrays(); redrawArrows(); fitTopBar(); });
+
+// Pinch the board to make every card bigger or smaller. Two fingers only, so a
+// single finger still scrolls a row.
+function armPinch(field){
+  var base = 0, start = 1;
+  function dist(t){
+    var dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY;
+    return Math.sqrt(dx*dx + dy*dy);
+  }
+  field.addEventListener('touchstart', function(e){
+    if(e.touches.length !== 2) return;
+    base = dist(e.touches); start = cardScale;
+  }, { passive:true });
+  field.addEventListener('touchmove', function(e){
+    if(e.touches.length !== 2 || !base) return;
+    e.preventDefault();
+    var f = dist(e.touches) / base;
+    var next = Math.max(0.45, Math.min(2.6, start * f));
+    if(Math.abs(next - cardScale) < 0.02) return;
+    cardScale = next;
+    fitBands();
+  }, { passive:false });
+  field.addEventListener('touchend', function(e){
+    if(!base || e.touches.length) return;
+    base = 0;
+    lsSet('ktm.cardscale', String(Math.round(cardScale * 100) / 100));
+    redrawArrows();
+  });
+}
 window.addEventListener('orientationchange', function(){ setTimeout(fitAllTrays, 250); });
 
 function renderTop(){
@@ -2286,8 +2528,8 @@ function renderBoard(){
   var mb = band('Battlefield', others, 'Nothing on the battlefield yet, play a card from your hand.');
   var lb = band('Lands', lands, 'No lands in play.');
   lb.className = 'band lands';
-  // Each band takes room in proportion to what it holds, so a turn with one
-  // land does not give half the table to one card.
+  // A starting guess only. fitBands measures the real thing a frame later and
+  // gives each row the height that makes every card the same, biggest, size.
   var wMain = Math.max(1, Math.round(Math.sqrt(others.length || 0.4) * 10));
   var wLand = Math.max(1, Math.round(Math.sqrt(lands.length  || 0.4) * 10));
   mb.style.flex = others.length ? (wMain + ' 1 0') : '0 1 auto';
@@ -2342,8 +2584,11 @@ function groupIds(ids){
 function openGroupSheet(ids){
   var d = defOf(state.cards[ids[0]]);
   var n = ids.length;
-  var sh = sheet(n + ' ' + (d ? d.n : 'tokens'),
+  var sh0 = sheet(n + ' ' + (d ? d.n : 'tokens'),
                  d && d.p != null ? (d.p + '/' + d.tg + ' each') : 'Identical tokens');
+  var sh = cardSheetFrame(sh0, d);
+  attackSection(sh, ids, d);
+  sh.appendChild(el('div','divider'));
   var acts = [
     ['Tap them all', function(){
         ids.forEach(function(i){ var c = state.cards[i]; if(c) c.tp = 1; });
@@ -3769,7 +4014,6 @@ function phoneActions(){
   var bar = el('div','actionbar');
   [['Draw',function(){ draw(1); }],
    ['Untap',untapAll],
-   ['Mulligan',doMulligan],
    ['Turn \u25b8',function(){ nextTurn(); }]].forEach(function(p){
     var b = el('button','btn'+(p[0].indexOf('Turn')===0?' primary':''),p[0]);
     b.onclick = p[1];
@@ -3815,11 +4059,44 @@ function actionGrid(s, actions){
   return g;
 }
 
+// Which creature is carrying it. Only your own board, as ever.
+function openAttachPicker(iid){
+  var d = defOf(state.cards[iid]);
+  var b = attachBonus(d);
+  var sh = sheet('Attach ' + (d ? d.n : 'it'),
+    b ? ('Whoever carries it gets ' + (b.p >= 0 ? '+' : '') + b.p + '/' + (b.t >= 0 ? '+' : '') + b.t + '.')
+      : 'Pick the creature carrying it.');
+  var men = state.z.bf.filter(function(i){
+    var cc = state.cards[i], dd = defOf(cc);
+    return i !== iid && dd && /Creature/.test(dd.t || '');
+  });
+  if(!men.length){
+    sh.appendChild(el('p','note','No creatures on your battlefield to carry it.'));
+    return;
+  }
+  var list = el('div','cardlist');
+  groupIds(men).forEach(function(g){
+    var node = cardNode(g[0], { zone:'bf', ids:g,
+      onTap: function(){
+        var cc = state.cards[iid];
+        cc.eq = g[0];
+        var to = defOf(state.cards[g[0]]);
+        commit((d ? d.n : 'It') + ' goes on ' + (to ? to.n : 'it'));
+        closeLayer();
+      },
+      onHold: function(){} });
+    if(g.length > 1) node.appendChild(el('span','pilecount', '\u00d7' + g.length));
+    list.appendChild(node);
+  });
+  sh.appendChild(list);
+}
+
 function openCardSheet(iid, zone){
   var c = state.cards[iid]; if(!c) return;
   var d = defOf(c);
   var z = zoneOf(iid) || zone;
-  var s = sheet(d ? d.n : 'Card', (d ? d.t : '') + ' \u00b7 in ' + (ZONES[z]||z));
+  var sh0 = sheet(d ? d.n : 'Card', (d ? d.t : '') + ' \u00b7 in ' + (ZONES[z]||z));
+  var s = cardSheetFrame(sh0, d);
 
   if(z === 'bf'){
     var pt2 = effectivePT(iid);
@@ -3833,8 +4110,18 @@ function openCardSheet(iid, zone){
   }
   if(d && d.o){
     var o = el('p','note', d.o);
-    o.style.cssText='margin:0 0 12px;max-height:120px;overflow:auto;white-space:pre-wrap';
+    o.style.cssText='margin:0 0 12px;white-space:pre-wrap';
     s.appendChild(o);
+  }
+  if(z === 'bf'){
+    var gear = attachedTo(iid);
+    if(gear.length){
+      var gh = el('p','note');
+      gh.innerHTML = '<b>Carrying ' + gear.map(function(g){
+        var gd = defOf(state.cards[g]); return gd ? gd.n : 'something'; }).join(', ') + '.</b>';
+      gh.style.cssText = 'margin:0 0 var(--s3)';
+      s.appendChild(gh);
+    }
   }
 
   if(d && d.tk && d.tk.length){
@@ -3859,6 +4146,8 @@ function openCardSheet(iid, zone){
     s.appendChild(el('div','divider'));
   }
 
+  if(z === 'bf') attackSection(s, [iid], d);
+
   var acts = [];
   if(z === 'hand'){
     acts.push(['Play', function(){ castCard(iid); closeLayer(); }, true]);
@@ -3870,6 +4159,12 @@ function openCardSheet(iid, zone){
     acts.push(['Counters', function(){ closeLayer(); openCounters(iid); }]);
     acts.push(['+1/+1', function(){ addCounter(iid,'p1p1',1); closeLayer(); }]);
     acts.push(['\u22121/\u22121', function(){ addCounter(iid,'p1p1',-1,true); closeLayer(); }]);
+    if(isAttachable(d)){
+      acts.push([c.eq ? 'Move it to another creature' : 'Attach to a creature',
+        function(){ closeLayer(); openAttachPicker(iid); }, !c.eq]);
+      if(c.eq) acts.push(['Take it off', function(){
+        delete c.eq; commit((d?d.n:'It') + ' comes off'); closeLayer(); }]);
+    }
     acts.push(['Copy as token', function(){ copyAsToken(iid); closeLayer(); }]);
     acts.push([c.fd?'Turn face up':'Turn face down', function(){ c.fd=c.fd?0:1; commit(null); closeLayer(); }]);
   }
@@ -4085,8 +4380,7 @@ function openLibrarySheet(){
     ['Mill 1', function(){ mill(1); closeLayer(); }],
     ['Mill 3', function(){ mill(3); closeLayer(); }],
     ['Look at top 5', function(){ closeLayer(); openTopSheet(5); }],
-    ['Search library', function(){ closeLayer(); openBrowse('lib'); }],
-    ['Mulligan', function(){ closeLayer(); doMulligan(); }]
+    ['Search library', function(){ closeLayer(); openBrowse('lib'); }]
   ]);
 }
 
