@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -223,6 +223,23 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .difflist .add{color:var(--good)}
 .difflist .rem{color:var(--danger)}
 .scroller{max-height:290px;overflow-y:auto;margin-top:4px}
+.rulings{max-height:300px;overflow-y:auto}
+.ruling{padding:var(--s3) 0;border-bottom:1px solid rgba(47,65,57,.55);
+  font-size:var(--t2);line-height:1.5;color:var(--ink2)}
+.ruling b{display:block;font-family:var(--mono);font-size:var(--t1);
+  color:var(--ink3);font-weight:500;margin-bottom:2px}
+.printopt{display:block;width:100%;padding:0;background:none;border:0}
+.printopt img{width:100%;aspect-ratio:63/88;object-fit:cover;
+  border-radius:var(--r-sm);border:1px solid var(--line2);display:block}
+.printopt span{display:block;font-family:var(--mono);font-size:var(--t1);
+  color:var(--ink3);margin-top:3px;text-align:center}
+.printopt.on img{border-color:var(--brass);box-shadow:0 0 0 2px var(--brass)}
+.printopt.on span{color:var(--brass)}
+.logsheet{max-height:360px;overflow-y:auto}
+.logrow{display:flex;gap:var(--s3);padding:var(--s2) 0;
+  border-bottom:1px solid rgba(47,65,57,.55);font-size:var(--t2);color:var(--ink2)}
+.logrow b{font-family:var(--mono);font-size:var(--t1);color:var(--ink3);
+  flex:0 0 32px;font-weight:500}
 .tablecode{font-family:var(--mono);font-size:17px;font-weight:600;color:var(--brass);letter-spacing:.14em}
 .zones{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .zone{
@@ -400,6 +417,12 @@ input[type=text],input[type=number],textarea,select{
 }
 textarea{min-height:130px;resize:vertical;font-family:var(--mono);font-size:11.5px;line-height:1.5}
 input:focus,textarea:focus,select:focus{border-color:var(--brass-dim);outline:none}
+.mullopt{display:block;width:100%;text-align:left;padding:var(--s4);
+  border-radius:var(--r-md);background:var(--bg2);border:1px solid var(--line);
+  margin-bottom:var(--s2);min-height:var(--tap)}
+.mullopt:hover{border-color:var(--line2);background:var(--bg3)}
+.mo-t{font-family:var(--disp);font-size:var(--t3);font-weight:700;color:var(--ink)}
+.mo-d{font-size:var(--t2);color:var(--ink3);line-height:1.45;margin-top:2px}
 .cardlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:8px;margin-top:4px}
 .cardlist .cw{--cw:100%;width:100%}
 .zoomwrap{position:fixed;inset:0;z-index:70;background:rgba(6,10,8,.85);display:grid;place-items:center;padding:20px}
@@ -467,6 +490,9 @@ var phoneTab = lsGet('ktm.ptab','hand');   // 'hand' | 'board'
 // Life counters are hidden for now, not removed. Flip this back to true and
 // the life box and the opponents panel return exactly as they were.
 var showLife = lsGet('ktm.life','0') === '1';
+// The phone is for the hand. The board tab and the life row are hidden, not
+// removed: flip either one back on from the menu and it returns as it was.
+var showPhoneBoard = lsGet('ktm.pboard','0') === '1';
 
 // Two app users at one physical table must not share a game, so every game
 // lives under its own table code.
@@ -487,6 +513,14 @@ var BUILTIN = (window.MTG_DECK && window.MTG_DECK.cards) ? window.MTG_DECK.cards
 // Art comes from Scryfall's own image host. Anything without a picture draws
 // a typographic face instead.
 function hasArt(d){ return !!(d && d.u); }
+// Scryfall names its image files after the card id, so a deck built before we
+// stored the id still has one to look up.
+function cardId(d){
+  if(!d) return null;
+  if(d.id) return d.id;
+  var m = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/.exec(d.u || '');
+  return m ? m[1] : null;
+}
 function artSrc(d){ return d.u; }
 function slugify(n){
   return String(n||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/-+/g,'-')
@@ -502,7 +536,8 @@ var nextId = 1;
 
 function newSeat(){
   return { id:'s0', name:'You', life:40, poison:0, cmdTax:0, cmdDmg:{},
-           mana:{W:0,U:0,B:0,R:0,G:0,C:0}, landDrop:0, landMax:1 };
+           mana:{W:0,U:0,B:0,R:0,G:0,C:0}, landDrop:0,
+           landMax: parseInt(lsGet('ktm.landmax','1'), 10) };
 }
 // Opponents hold real cards: they get a life total and a commander-damage
 // tally, and nothing else.
@@ -616,7 +651,38 @@ function flush(){
   });
 }
 
-function commit(msg){ touch(); if(msg) logg(msg); save(); }
+// Undo keeps whole snapshots rather than reversing each action, because every
+// action here is small and a snapshot cannot drift out of step with the state.
+var undoStack = [], lastSnap = null;
+var UNDO_MAX = 30;
+function snapNow(){ try{ return JSON.stringify(state); }catch(e){ return null; } }
+function markClean(){ lastSnap = snapNow(); }
+function canUndo(){ return undoStack.length > 0; }
+
+function commit(msg){
+  if(lastSnap){
+    undoStack.push({ s:lastSnap, why: msg || 'that' });
+    if(undoStack.length > UNDO_MAX) undoStack.shift();
+  }
+  touch(); if(msg) logg(msg); save();
+  markClean();
+}
+
+function undo(){
+  var step = undoStack.pop();
+  if(!step) return;
+  var back;
+  try{ back = JSON.parse(step.s); }catch(e){ return; }
+  // The step forward has to beat the copy the other device is holding, so it
+  // takes the next revision number rather than the one it originally had.
+  back.rev = (state.rev || 0) + 1;
+  back.by = DEVICE;
+  state = normalise(back);
+  logg('Undid: ' + step.why);
+  blip('act');
+  save();
+  markClean();
+}
 
 // ---- sync ----------------------------------------------------------------
 // Firebase's Realtime Database over plain HTTP: PUT to write, EventSource to
@@ -735,6 +801,7 @@ async function initSync(){
     if(data.by === DEVICE && (data.rev||0) <= (state.rev||0)) return;  // own echo
     if((data.rev||0) < (state.rev||0)) return;                          // stale
     state = normalise(data);
+    markClean();          // the other device moved; undo starts again from here
     render();
   }, function(err){
     setDot('local'); stateRef = null;
@@ -780,6 +847,7 @@ function nextTurn(silent){
   state.turn++;
   state.phase = 0;
   var s = seat();
+  var carried = (s.landMax == null) ? 1 : s.landMax;
   s.landDrop = 0;
   clearPool();
   if(autoUntap){ state.z.bf.forEach(function(iid){ var c=state.cards[iid]; if(c) c.tp=0; }); }
@@ -788,6 +856,26 @@ function nextTurn(silent){
   state.phase = 3;
   blip('turn');
   touch(); save();
+  // Extra land drops usually come from a permanent that can leave, so a turn
+  // that carried an allowance checks whether it still applies.
+  if(carried !== 1 && !silent) setTimeout(function(){ askLandAllowance(carried); }, 60);
+}
+
+function askLandAllowance(carried){
+  var sh = sheet('Still playing extra lands?',
+    'Last turn you could play ' + (carried ? carried : 'any number of') + ' lands.');
+  var g = el('div','grid');
+  var keep = el('button','btn primary', carried ? ('Yes, ' + carried + ' again') : 'Yes, any number');
+  keep.onclick = function(){ closeLayer(); };
+  var back = el('button','btn','No, back to one');
+  back.onclick = function(){
+    seat().landMax = 1; lsSet('ktm.landmax','1');
+    commit('Back to one land a turn'); closeLayer();
+  };
+  var more = el('button','btn ghost','Change it');
+  more.onclick = function(){ closeLayer(); openLandAllowance(); };
+  g.appendChild(keep); g.appendChild(back); g.appendChild(more);
+  sh.appendChild(g);
 }
 
 function tapCard(iid){
@@ -1098,6 +1186,17 @@ function renderTop(){
     var nt = el('button','btn primary','Next turn \u25b8'); nt.onclick = function(){ nextTurn(); }; t.appendChild(nt);
   }
 
+  var ub = el('button','btn ghost','Undo');
+  ub.setAttribute('aria-label','Undo the last action');
+  ub.disabled = !canUndo();
+  ub.onclick = function(){ undo(); };
+  t.appendChild(ub);
+
+  var lb2 = el('button','btn ghost','Log');
+  lb2.setAttribute('aria-label','Action log');
+  lb2.onclick = openLogSheet;
+  t.appendChild(lb2);
+
   var mb = el('button','btn ghost','\u2630');
   mb.setAttribute('aria-label','Menu');
   mb.onclick = openMenu;
@@ -1122,14 +1221,7 @@ function renderBoard(){
   var lb = band('Lands', lands, 'No lands in play.');
   lb.className = 'band lands';
   var s = seat();
-  var used = s.landDrop || 0, max = s.landMax || 1;
-  var mark = el('div','dropmark ' + (used > max ? 'over' : used >= max ? 'used' : 'open'));
-  mark.appendChild(el('span','dropdot'));
-  mark.appendChild(el('b', null, used > max ? 'Land over by ' + (used - max)
-                               : used >= max ? 'Land played'
-                               : 'Land to play'));
-  mark.title = used + ' of ' + max + ' played this turn';
-  lb.querySelector('.bandhead').appendChild(mark);
+  lb.querySelector('.bandhead').appendChild(landMark());
   field.appendChild(lb);
 
   board.appendChild(field);
@@ -1260,6 +1352,51 @@ function manaRow(){
     row.appendChild(b);
   });
   return row;
+}
+
+// Counts what has actually been played this turn. The allowance is whatever
+// the board says it is, so it is set by hand rather than assumed to be one.
+function landMark(){
+  var s = seat();
+  var used = s.landDrop || 0;
+  var max = (s.landMax == null) ? 1 : s.landMax;
+  var free = max === 0;                       // 0 means no limit tonight
+  var state2 = free ? 'open' : used > max ? 'over' : used >= max ? 'used' : 'open';
+  var mark = el('button','dropmark ' + state2);
+  mark.appendChild(el('span','dropdot'));
+  mark.appendChild(el('b', null, free
+    ? ('Lands played ' + used)
+    : ('Lands played ' + used + ' of ' + max)));
+  mark.setAttribute('aria-label','Lands played this turn. Tap to change the allowance.');
+  mark.onclick = openLandAllowance;
+  return mark;
+}
+
+function openLandAllowance(){
+  var s = seat();
+  var sh = sheet('Lands this turn',
+    'Played ' + (s.landDrop || 0) + ' so far. Set what the board allows.');
+  var g = el('div','grid');
+  [['1 land', 1], ['2 lands', 2], ['3 lands', 3], ['Any number', 0]].forEach(function(o){
+    var b = el('button','btn' + (((s.landMax == null ? 1 : s.landMax) === o[1]) ? ' primary' : ''), o[0]);
+    b.onclick = function(){
+      s.landMax = o[1];
+      lsSet('ktm.landmax', String(o[1]));
+      commit('Lands allowed this turn: ' + (o[1] ? o[1] : 'any'));
+      closeLayer();
+    };
+    g.appendChild(b);
+  });
+  sh.appendChild(g);
+  sh.appendChild(el('div','divider'));
+  var r = el('div','grid');
+  var minus = el('button','btn ghost','Played one fewer');
+  minus.onclick = function(){ s.landDrop = Math.max(0, (s.landDrop||0) - 1); commit(null); closeLayer(); };
+  var plus = el('button','btn ghost','Played one more');
+  plus.onclick = function(){ s.landDrop = (s.landDrop||0) + 1; commit(null); closeLayer(); };
+  r.appendChild(minus); r.appendChild(plus);
+  sh.appendChild(r);
+  sh.appendChild(el('p','note','Nothing is blocked either way. This only keeps count.'));
 }
 
 function seatRow(sx){
@@ -1477,9 +1614,11 @@ function openDeckSheet(){
       var keep = seats().filter(function(o){ return o.opp; });
       state = buildGame(defs, importedCommander);
       keep.forEach(function(o){ o.life=40; o.poison=0; o.cmdDmg={}; state.seats.push(o); });
-      for(var i=0;i<7 && state.z.lib.length;i++) move(state.z.lib[0],'hand');
+      dealOpeningHand();
+      undoStack = [];
       commit('New game, ' + totalCards() + ' cards');
       closeLayer();
+      doMulligan();
     };
     var ex = el('button','btn','Export for Moxfield');
     ex.onclick = function(){ closeLayer(); openExportSheet(); };
@@ -1603,6 +1742,30 @@ function openExportSheet(){
   sh.appendChild(el('p','note','Tap the text to select it if the copy button is blocked.'));
 }
 
+// The whole run of the game, newest first, with a way back one step.
+function openLogSheet(){
+  var log = state.log || [];
+  var sh = sheet('Action log', log.length + ' action' + (log.length===1?'':'s') + ' this game');
+  var ur = el('button','btn primary', canUndo() ? 'Undo the last action' : 'Nothing to undo');
+  ur.disabled = !canUndo();
+  ur.style.cssText = 'width:100%;justify-content:center';
+  ur.onclick = function(){ undo(); closeLayer(); };
+  sh.appendChild(ur);
+  sh.appendChild(el('div','divider'));
+  if(!log.length){
+    sh.appendChild(el('p','note','Nothing has happened yet.'));
+    return;
+  }
+  var box = el('div','logsheet');
+  log.forEach(function(e){
+    var row = el('div','logrow');
+    row.appendChild(el('b',null,e.t));
+    row.appendChild(el('span',null,e.s));
+    box.appendChild(row);
+  });
+  sh.appendChild(box);
+}
+
 function openTableSheet(){
   var sh = sheet('Players at the table',
                  'Opponents playing with real cards, life and commander damage only.');
@@ -1717,12 +1880,14 @@ function renderHandView(){
   var s = seat();
 
   var meta = el('div','handmeta');
+  meta.hidden = !showLife && !hasFloatingMana();
   var lifeWrap = el('div');
   lifeWrap.style.cssText='display:flex;align-items:center;gap:6px';
   var mn = el('button','btn sm','\u2212'); mn.onclick=function(){ s.life--; commit(null); };
   var lf = el('div','life', String(s.life));
   var pl = el('button','btn sm','+'); pl.onclick=function(){ s.life++; commit(null); };
   lifeWrap.appendChild(mn); lifeWrap.appendChild(lf); lifeWrap.appendChild(pl);
+  lifeWrap.hidden = !showLife;
   meta.appendChild(lifeWrap);
 
   var mini = el('div','mini');
@@ -1736,9 +1901,9 @@ function renderHandView(){
     w.onclick=function(){ addMana(m,-1); commit(null); };
     mini.appendChild(w);
   });
-  if(!mini.children.length){
+  if(!mini.children.length && showLife){
     var hint = el('div',null,'No mana floating');
-    hint.style.cssText='font-size:11px;color:var(--ink3);font-style:italic';
+    hint.style.cssText='font-size:var(--t1);color:var(--ink3);font-style:italic';
     mini.appendChild(hint);
   }
   meta.appendChild(mini);
@@ -1748,6 +1913,8 @@ function renderHandView(){
   // to hand, creatures block, counters go on things.
   var bfAll = state.z.bf.length;
   var tabs = el('div','ptabs');
+  tabs.hidden = !showPhoneBoard;
+  if(!showPhoneBoard) phoneTab = 'hand';
   [['hand','Hand',state.z.hand.length],['board','Board',bfAll]].forEach(function(t){
     var b = el('button');
     b.setAttribute('aria-pressed', phoneTab===t[0] ? 'true':'false');
@@ -1793,7 +1960,7 @@ function renderHandView(){
   state.z.hand.forEach(function(iid){
     deck.appendChild(cardNode(iid, {
       zone:'hand',
-      onTap:  function(){ var dd = defOf(state.cards[iid]); if(dd) openZoom(dd); },
+      onTap:  function(){ var dd = defOf(state.cards[iid]); if(dd) openCardInfo(dd); },
       onHold: function(){ openCardSheet(iid, 'hand'); }
     }));
   });
@@ -1856,6 +2023,12 @@ function phoneBoard(){
     wrap.appendChild(g);
   });
   return wrap;
+}
+
+function hasFloatingMana(){
+  var m = seat().mana || {};
+  for(var k in m){ if(m[k]) return true; }
+  return false;
 }
 
 function phoneZones(){
@@ -1985,11 +2158,140 @@ function openCardSheet(iid, zone){
 
   if(d){
     s.appendChild(el('div','divider'));
-    var zb = el('button','btn ghost','Zoom card');
+    var zb = el('button','btn ghost','Rulings and printings');
     zb.style.width='100%'; zb.style.justifyContent='center';
-    zb.onclick = function(){ openZoom(d); };
+    zb.onclick = function(){ openCardInfo(d); };
     s.appendChild(zb);
   }
+}
+
+// Tapping a card asks what it does, not for a smaller copy of the picture.
+// Rulings, legality and the other printings, straight from Scryfall.
+var rulingCache = {}, printCache = {};
+
+function openCardInfo(d){
+  if(!d) return;
+  var id = cardId(d);
+  var sh = sheet(d.n, [d.t, d.p != null ? (d.p + '/' + d.tg) : null]
+    .filter(Boolean).join('  \u00b7  '));
+
+  if(d.m){
+    var cost = el('div','fm');
+    cost.style.marginBottom = 'var(--s3)';
+    parseCost(d.m).slice(0,10).forEach(function(sym){
+      var i2 = el('i', null, sym.replace(/[/]/g,''));
+      i2.style.cssText = 'width:22px;height:22px;border-radius:50%;font-style:normal;'
+        + 'font-size:12px;display:grid;place-items:center;font-family:var(--disp);'
+        + 'font-weight:800;color:#10160f;background:'
+        + (MANA.indexOf(sym) >= 0 ? manaColorVar(sym) : '#b9c2be');
+      if(sym==='U'||sym==='B') i2.style.color = '#eef3ff';
+      cost.appendChild(i2);
+    });
+    sh.appendChild(cost);
+  }
+
+  if(d.o){
+    var o = el('p','note', d.o);
+    o.style.cssText = 'white-space:pre-wrap;line-height:1.5;color:var(--ink2);margin:0 0 var(--s4)';
+    sh.appendChild(o);
+  }
+
+  sh.appendChild(el('div','divider'));
+  var tabs = el('div','chips');
+  var body = el('div');
+  body.style.marginTop = 'var(--s3)';
+  ['Rulings','Printings'].forEach(function(name){
+    var c = el('button','chip', name);
+    c.setAttribute('aria-pressed', name==='Rulings' ? 'true':'false');
+    c.onclick = function(){
+      [].forEach.call(tabs.children, function(x){ x.setAttribute('aria-pressed','false'); });
+      c.setAttribute('aria-pressed','true');
+      name === 'Rulings' ? showRulings() : showPrintings();
+    };
+    tabs.appendChild(c);
+  });
+  sh.appendChild(tabs);
+  sh.appendChild(body);
+
+  function msg(t){ body.innerHTML=''; body.appendChild(el('p','note', t)); }
+
+  function showRulings(){
+    if(!id) return msg('This card came in by name only, so there is nothing to look up.');
+    if(rulingCache[id]) return paintRulings(rulingCache[id]);
+    msg('Looking up rulings' + '\u2026');
+    fetch(SCRY + '/cards/' + id + '/rulings')
+      .then(function(r){ return r.json(); })
+      .then(function(j){ rulingCache[id] = j.data || []; paintRulings(rulingCache[id]); })
+      .catch(function(){
+        msg(navigator.onLine ? 'Scryfall did not answer.' : 'No internet, so rulings cannot load.');
+      });
+  }
+  function paintRulings(list){
+    body.innerHTML = '';
+    if(!list.length){
+      body.appendChild(el('p','note','No rulings have been published for this card.'));
+    } else {
+      var box = el('div','rulings');
+      list.forEach(function(r){
+        var row = el('div','ruling');
+        row.appendChild(el('b', null, r.published_at));
+        row.appendChild(el('span', null, r.comment));
+        box.appendChild(row);
+      });
+      body.appendChild(box);
+    }
+    var link = el('a', 'btn ghost', 'Open on Scryfall');
+    link.href = 'https://scryfall.com/card/' + (id || '');
+    link.target = '_blank'; link.rel = 'noopener';
+    link.style.cssText = 'width:100%;justify-content:center;margin-top:var(--s3);text-decoration:none';
+    if(id) body.appendChild(link);
+  }
+
+  function showPrintings(){
+    if(!id) return msg('This card came in by name only, so there is nothing to look up.');
+    var key = d.n.toLowerCase();
+    if(printCache[key]) return paintPrints(printCache[key]);
+    msg('Looking up printings' + '\u2026');
+    fetch(SCRY + '/cards/search?order=released&unique=prints&q='
+          + encodeURIComponent('!"' + d.n + '"'))
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        printCache[key] = (j.data || []).filter(function(c){
+          return c.image_uris && c.image_uris.normal;
+        });
+        paintPrints(printCache[key]);
+      })
+      .catch(function(){
+        msg(navigator.onLine ? 'Scryfall did not answer.' : 'No internet, so printings cannot load.');
+      });
+  }
+  function paintPrints(list){
+    body.innerHTML = '';
+    if(!list.length) return body.appendChild(el('p','note','No other printings found.'));
+    body.appendChild(el('p','note','Tap the printing you actually own. It changes every copy in the deck.'));
+    var grid = el('div','cardlist');
+    grid.style.marginTop = 'var(--s3)';
+    list.slice(0,60).forEach(function(c){
+      var w = el('button','printopt');
+      var im = new Image();
+      im.src = c.image_uris.normal; im.alt = c.set_name; im.loading = 'lazy';
+      w.appendChild(im);
+      w.appendChild(el('span', null, (c.set || '').toUpperCase() + '  ' + (c.released_at || '').slice(0,4)));
+      if(cardId(d) === c.id) w.classList.add('on');
+      w.onclick = function(){
+        d.u = c.image_uris.normal;
+        d.id = c.id;
+        persistDeck();
+        blip('act');
+        closeLayer();
+        render();
+      };
+      grid.appendChild(w);
+    });
+    body.appendChild(grid);
+  }
+
+  showRulings();
 }
 
 function openZoom(d){
@@ -2040,7 +2342,8 @@ function openLibrarySheet(){
     ['Mill 1', function(){ mill(1); closeLayer(); }],
     ['Mill 3', function(){ mill(3); closeLayer(); }],
     ['Look at top 5', function(){ closeLayer(); openTopSheet(5); }],
-    ['Search library', function(){ closeLayer(); openBrowse('lib'); }]
+    ['Search library', function(){ closeLayer(); openBrowse('lib'); }],
+    ['Mulligan', function(){ closeLayer(); doMulligan(); }]
   ]);
 }
 
@@ -2194,30 +2497,126 @@ function switchTable(code, fresh){
     });
 }
 
+// Everything goes back, the library is shuffled, and a fresh hand comes off
+// the top. Tokens cease to exist rather than returning to a deck they were
+// never in.
+function dealOpeningHand(n){
+  n = n || 7;
+  state.z.hand.slice()
+    .concat(state.z.bf.slice(), state.z.gy.slice(), state.z.ex.slice())
+    .forEach(function(iid){
+      if(state.cards[iid] && state.cards[iid].tok) delete state.cards[iid];
+      else move(iid,'lib');
+    });
+  state.z.bf = []; state.z.gy = []; state.z.ex = [];
+  state.z.lib = shuffle(state.z.lib);
+  for(var i=0;i<n && state.z.lib.length;i++) move(state.z.lib[0],'hand');
+  state.turn = 1; state.phase = 3;
+  seat().landDrop = 0;
+  clearPool();
+  state.mull = state.mull || 0;
+}
+
+// Pick exactly `need` cards to put on the bottom. Used by every mulligan that
+// costs cards, so London and the beginner one behave the same way.
+function openBottomPicker(need, title, note, done){
+  var chosen = {};
+  var sh = sheet(title, note);
+  var count = el('p','note');
+  count.style.marginBottom = 'var(--s3)';
+  sh.appendChild(count);
+
+  var list = el('div','cardlist');
+  sh.appendChild(list);
+
+  var go = el('button','btn primary');
+  go.style.cssText = 'width:100%;justify-content:center;margin-top:var(--s4)';
+  sh.appendChild(go);
+
+  function paint(){
+    var picked = Object.keys(chosen).filter(function(k){ return chosen[k]; });
+    count.textContent = need
+      ? 'Choose ' + need + ' to put on the bottom. ' + picked.length + ' of ' + need + ' chosen.'
+      : 'Nothing goes to the bottom. Keep this hand.';
+    go.textContent = need ? ('Bottom ' + picked.length + ' and keep ' + (state.z.hand.length - picked.length))
+                          : ('Keep all ' + state.z.hand.length);
+    go.disabled = picked.length !== need;
+    list.innerHTML = '';
+    state.z.hand.forEach(function(iid){
+      var w = cardNode(iid, { zone:'hand',
+        onTap: function(){ chosen[iid] = !chosen[iid]; paint(); },
+        onHold: function(){ var d = defOf(state.cards[iid]); if(d) openCardInfo(d); } });
+      if(chosen[iid]) w.classList.add('sel');
+      list.appendChild(w);
+    });
+  }
+  go.onclick = function(){
+    Object.keys(chosen).forEach(function(iid){ if(chosen[iid]) move(iid,'lib'); });
+    done();
+  };
+  paint();
+}
+
 function doMulligan(){
-  var s = sheet('Mulligan', 'London mulligan: draw seven, then put cards on the bottom.');
-  var n = state.z.hand.length;
-  s.appendChild(el('p','note','You currently hold '+n+' card'+(n===1?'':'s')+'.'));
-  s.appendChild(el('div','divider'));
-  actionGrid(s, [
-    ['Shuffle back & draw 7', function(){
-        state.z.hand.slice().forEach(function(iid){ move(iid,'lib'); });
-        state.z.lib = shuffle(state.z.lib);
-        for(var i=0;i<7 && state.z.lib.length;i++) move(state.z.lib[0],'hand');
-        commit('Mulliganed to a new seven');
+  state.mull = state.mull || 0;
+  var free = lsGet('ktm.freemull','1') === '1';
+  var taken = state.mull;
+  var sh = sheet('Mulligan',
+    taken ? ('You have taken ' + taken + ' mulligan' + (taken===1?'':'s') + ' this game.')
+          : 'Holding ' + state.z.hand.length + ' cards.');
+
+  var rows = [
+    ['London mulligan', 'Shuffle back, draw seven, then put one card on the bottom for each mulligan you have taken.',
+      function(){
+        state.mull = (state.mull||0) + 1;
+        var toBottom = free ? Math.max(0, state.mull - 1) : state.mull;
+        dealOpeningHand(7);
         closeLayer();
-      }, true],
-    ['Opening hand (7)', function(){
-        state.z.hand.slice().concat(state.z.bf.slice(), state.z.gy.slice(), state.z.ex.slice())
-          .forEach(function(iid){ if(state.cards[iid] && state.cards[iid].tok) delete state.cards[iid]; else move(iid,'lib'); });
-        state.z.bf=[]; state.z.gy=[]; state.z.ex=[];
-        state.z.lib = shuffle(state.z.lib);
-        for(var i=0;i<7 && state.z.lib.length;i++) move(state.z.lib[0],'hand');
-        state.turn=1; state.phase=3; seat().landDrop=0; clearPool();
-        commit('Reset to an opening hand');
+        if(!toBottom){
+          commit('Mulliganed to seven' + (free ? ', the free one' : ''));
+          return;
+        }
+        openBottomPicker(toBottom, 'Put ' + toBottom + ' on the bottom',
+          'Mulligan number ' + state.mull + '.',
+          function(){ commit('Mulliganed, ' + toBottom + ' to the bottom'); closeLayer(); });
+      }],
+    ['Draw ten, keep seven', 'The beginner mulligan. Draw ten cards, choose the seven you want and bottom the other three.',
+      function(){
+        dealOpeningHand(10);
+        closeLayer();
+        openBottomPicker(3, 'Choose three to bottom',
+          'Keep the seven you want.',
+          function(){ state.mull = 0; commit('Drew ten and kept seven'); closeLayer(); });
+      }],
+    ['Fresh seven', 'Start the hand again with no penalty. Use it when you are goldfishing.',
+      function(){
+        dealOpeningHand(7);
+        state.mull = 0;
+        commit('Dealt a fresh seven');
         closeLayer();
       }]
-  ]);
+  ];
+
+  rows.forEach(function(r){
+    var b = el('button','mullopt');
+    b.appendChild(el('div','mo-t', r[0]));
+    b.appendChild(el('div','mo-d', r[1]));
+    b.onclick = r[2];
+    sh.appendChild(b);
+  });
+
+  sh.appendChild(el('div','divider'));
+  var fm = el('button','chip','Commander free first mulligan');
+  fm.setAttribute('aria-pressed', free ? 'true':'false');
+  fm.onclick = function(){
+    var v = !(lsGet('ktm.freemull','1') === '1');
+    lsSet('ktm.freemull', v ? '1':'0');
+    fm.setAttribute('aria-pressed', v ? 'true':'false');
+  };
+  sh.appendChild(fm);
+  var fn = el('p','note','With this on, your first mulligan keeps all seven.');
+  fn.style.marginTop = 'var(--s2)';
+  sh.appendChild(fn);
 }
 
 /* ---------------- menu / import ---------------- */
@@ -2241,6 +2640,7 @@ function openMenu(){
   assists.appendChild(el('label',null,'Assists'));
   var ac = el('div','chips');
   [['Sound', function(){ return soundOn; }, function(v){ soundOn=v; lsSet('ktm.sound',v?'1':'0'); if(v) blip('act'); }],
+   ['Board tab on phone', function(){ return showPhoneBoard; }, function(v){ showPhoneBoard=v; lsSet('ktm.pboard',v?'1':'0'); render(); }],
    ['Life counters', function(){ return showLife; }, function(v){ showLife=v; lsSet('ktm.life',v?'1':'0'); render(); }],
    ['Untap on turn', function(){ return autoUntap; }, function(v){ autoUntap=v; lsSet('ktm.autountap',v?'1':'0'); }],
    ['Draw on turn', function(){ return autoDraw; }, function(v){ autoDraw=v; lsSet('ktm.autodraw',v?'1':'0'); }],
@@ -2264,8 +2664,11 @@ function openMenu(){
           var keep = seats().filter(function(o){ return o.opp; });
           state = buildGame(defs, defsAreBuiltin ? (window.MTG_DECK && window.MTG_DECK.commander) : importedCommander);
           keep.forEach(function(o){ o.life = 40; o.poison = 0; o.cmdDmg = {}; state.seats.push(o); });
+          dealOpeningHand();
+          undoStack = [];
           commit('New game, '+deckName);
           closeLayer();
+          doMulligan();
         }); }],
     [(window.MTG_DECK && window.MTG_DECK.name) ? 'Reload ' + window.MTG_DECK.name : 'Reload built-in deck', function(){
         defs = BUILTIN; defsAreBuiltin = true;
@@ -2329,6 +2732,7 @@ function scryCard(c){
     || null;
   var o = (c.oracle_text || face.oracle_text || '').slice(0,400);
   var d = {
+    id: c.id,
     n: c.name,
     t: c.type_line || face.type_line || '',
     m: (c.mana_cost != null ? c.mana_cost : (face.mana_cost || '')),
@@ -2488,9 +2892,10 @@ function copyText(txt, btn, okLabel){
 function openImport(){
   var s = sheet('Import a deck', 'From Moxfield: open your deck \u2192 More \u2192 Export \u2192 Copy, then paste it here.');
   var note = el('p','note');
-  note.innerHTML = 'Re-importing an updated list also tells you which physical cards to swap. '
-    + 'Moxfield blocks scripts from reading decks, so pasting the export is the way in. '
-    + '<b>Every card comes back with its real art and rules text from Scryfall.</b>';
+  note.innerHTML = 'Paste an export from Moxfield, Archidekt, Arena, MTGO, TappedOut, '
+    + 'Goldfish, or just a list of card names. Set codes, categories and commander markers '
+    + 'are all understood. <b>Every card comes back with its real art and rules text from '
+    + 'Scryfall.</b> Re-importing an updated list also tells you which cards to swap in the box.';
   s.appendChild(note);
   s.appendChild(el('div','divider'));
 
@@ -2509,30 +2914,50 @@ function openImport(){
   row.appendChild(b1); row.appendChild(b2);
   s.appendChild(row);
 
+  // Every deck site exports its own way. This reads all of them: Moxfield,
+  // Archidekt, Arena, MTGO, TappedOut, Goldfish, or a plain list of names.
   function parsed(){
     var lines = ta.value.split(/\r?\n/), out = [], seenCmd = null;
     var inCmd = false, inSide = false;
     lines.forEach(function(ln){
       var t = ln.trim();
       if(!t) return;
-      if(/^(commander|deck|sideboard|maybeboard|companion|tokens?)\b/i.test(t) && !/^\d/.test(t)){
-        inCmd = /^commander/i.test(t);
-        // Sideboard cards belong in the box, not shuffled into the library.
-        inSide = /^(sideboard|maybeboard)/i.test(t);
+      if(/^(\/\/|#)/.test(t)) return;                       // comments
+      // A section header on its own line.
+      if(/^(commander|companion|deck|main ?deck|sideboard|maybeboard|considering|tokens?)\b[:\s]*$/i.test(t)){
+        inCmd  = /^(commander|companion)/i.test(t);
+        inSide = /^(sideboard|maybeboard|considering)/i.test(t);
         return;
       }
-      if(/^\/\//.test(t)) return;
-      var m = t.match(/^(\d+)[xX]?\s+(.+?)\s*$/);
-      if(!m) { m = [null,'1',t]; }
-      var name = m[2]
-        .replace(/\s*\([A-Za-z0-9]{2,6}\)\s*[\w\-\u2013]*\s*$/,'')
-        .replace(/\s*\*[^*]*\*\s*$/,'')
-        .replace(/\s*#.*$/,'')
+      var line = t, forceSide = false, forceCmd = false;
+      // MTGO marks sideboard cards inline.
+      if(/^SB:\s*/i.test(line)){ forceSide = true; line = line.replace(/^SB:\s*/i,''); }
+      // TappedOut and Archidekt mark the commander inline.
+      if(/[*]CMDR[*]/i.test(line)){ forceCmd = true; line = line.replace(/[*]CMDR[*]/ig,''); }
+      if(/[*]Commander[*]/i.test(line)){ forceCmd = true; line = line.replace(/[*]Commander[*]/ig,''); }
+
+      var m = line.match(/^(\d+)\s*[xX]?\s+(.+)$/) || line.match(/^[xX]?(\d+)\s+(.+)$/);
+      var qty, name;
+      if(m){ qty = parseInt(m[1],10); name = m[2]; }
+      else  { qty = 1; name = line; }
+
+      name = name
+        .replace(/[[][^\]]*[\]]/g, '')                       // Archidekt [Category]
+        .replace(/[(][A-Za-z0-9]{2,6}[)]\s*[\w\-\u2013]*/g, '')  // (SET) 123
+        .replace(/[<][^>]*[>]/g, '')                          // <foil> markers
+        .replace(/[*][^*]*[*]/g, '')                          // leftover *tags*
+        .replace(/\s*[|].*$/, '')                             // trailing pipes
+        .replace(/\s{2,}/g, ' ')
         .trim();
+      // A double-faced card is listed by its front face here.
+      if(name.indexOf('//') > 0) name = name.split('//')[0].trim();
       if(!name) return;
-      var qty = Math.max(1, Math.min(99, parseInt(m[1],10)||1));
-      if(inCmd && !seenCmd) seenCmd = name;
-      out.push({ n:name, q: inSide ? 0 : qty, side: inSide ? 1 : 0 });
+      if(/^(deck|sideboard|commander|maybeboard)$/i.test(name)) return;
+
+      qty = Math.max(1, Math.min(99, qty || 1));
+      var side = inSide || forceSide;
+      if((inCmd || forceCmd) && !seenCmd) seenCmd = name;
+      out.push({ n:name, q: side ? 0 : qty, side: side ? 1 : 0 });
     });
     return { cards: out, commander: seenCmd };
   }
@@ -2652,6 +3077,7 @@ function boot(){
   nextId = Math.max(nextId, Object.keys(state.cards).length + 50);
 
   try{ lsSet('ktm.state', JSON.stringify(state)); }catch(e){}
+  markClean();
   setDot('connecting');
   render();
   initSync();
