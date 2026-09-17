@@ -638,7 +638,7 @@ function buildGame(defList, commanderName){
   nextId = id;
   return {
     v:1, rev:1, by:DEVICE, turn:1, phase:3, started:false,
-    deck:{ name: deckName, builtin: defsAreBuiltin },
+    deck:{ id: defsAreBuiltin ? builtinId : null, name: deckName, builtin: defsAreBuiltin },
     seats:[ newSeat(), newOpponent(1), newOpponent(2), newOpponent(3) ],
     cards: cards,
     z: { lib:shuffle(lib), hand:[], bf:[], gy:[], ex:[], cmd:cmd },
@@ -811,6 +811,33 @@ function toArr(v){
   }
   return [];
 }
+// Cards are stored as an index into the current deck's list, so both devices
+// have to be holding the SAME list or index 69 is a Forest on one and a
+// Command Beacon on the other. The game says which deck it is; the device
+// follows it.
+function syncDeckTo(st){
+  if(!st || !st.deck || !st.deck.builtin) return;
+  if(st.deck.id && st.deck.id === builtinId && defsAreBuiltin) return;
+  var target = null;
+  for(var i=0;i<DECKS.length;i++){
+    if(st.deck.id && DECKS[i].id === st.deck.id) target = DECKS[i];
+  }
+  // Games saved before the id existed only carry the commander's name.
+  if(!target && st.deck.name){
+    for(var j=0;j<DECKS.length;j++){
+      if(DECKS[j].name === st.deck.name) target = DECKS[j];
+    }
+  }
+  if(!target || (target.id === builtinId && defsAreBuiltin)) return;
+  builtinId = target.id;
+  lsSet('ktm.builtin', target.id);
+  BUILTIN = target.cards;
+  defs = BUILTIN;
+  defsAreBuiltin = true;
+  importedCommander = target.commander;
+  deckName = target.name;
+}
+
 function normalise(d){
   if(!d || typeof d !== 'object') return d;
   d.z = d.z || {};
@@ -864,6 +891,7 @@ async function initSync(){
     if(!data || !data.z) return;
     if(data.by === DEVICE && (data.rev||0) <= (state.rev||0)) return;  // own echo
     if((data.rev||0) < (state.rev||0)) return;                          // stale
+    syncDeckTo(data);     // follow the game's deck before reading its card indices
     state = normalise(data);
     markClean();          // the other device moved; undo starts again from here
     render();
@@ -3941,6 +3969,7 @@ function boot(){
   }catch(e){}
 
   if(restored){
+    syncDeckTo(restored);
     state = restored;
     if(state.deck && !state.deck.builtin){
       defsAreBuiltin = false;
