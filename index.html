@@ -137,6 +137,14 @@ input,textarea{-webkit-user-select:text;user-select:text}
    left to hold, so it goes and the table gets the width. */
 .board.norail{grid-template-columns:1fr}
 .cw.incmd .card{box-shadow:0 0 0 2px var(--brass-dim),var(--shadow)}
+/* The stack: only there while something is on it. */
+.stackbar{flex:0 0 auto;display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap;
+  padding:var(--s2) var(--s3);border-bottom:1px solid var(--brass-dim);background:#211d12}
+.stackbar .sb-t{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--brass);font-weight:600}
+.sb-item{display:flex;align-items:center;gap:var(--s2);padding:3px 4px 3px 9px;border-radius:999px;
+  background:var(--bg2);border:1px solid var(--line2)}
+.sb-item.top{border-color:var(--brass)}
+.sb-n{font-family:var(--disp);font-weight:700;font-size:12.5px;color:var(--ink);background:none;border:0;padding:0 4px 0 0}
 .speedchip{cursor:pointer}
 .speedchip.max{border-color:var(--brass);background:#2a2415}
 .speedchip.max b{color:var(--brass)}
@@ -649,7 +657,7 @@ input:focus,textarea:focus,select:focus{border-color:var(--brass-dim);outline:no
 var MANA = ['W','U','B','R','G','C'];
 var MANA_NAME = {W:'White',U:'Blue',B:'Black',R:'Red',G:'Green',C:'Colorless'};
 var PHASES = ['Untap','Upkeep','Draw','Main 1','Combat','Main 2','End'];
-var ZONES = {lib:'Library', hand:'Hand', bf:'Battlefield', gy:'Graveyard', ex:'Exile', cmd:'Command'};
+var ZONES = {lib:'Library', hand:'Hand', bf:'Battlefield', gy:'Graveyard', ex:'Exile', cmd:'Command', stack:'Stack'};
 
 /* ---------------- device identity + local prefs ---------------- */
 function lsGet(k,d){ try{ var v=localStorage.getItem(k); return v==null?d:v; }catch(e){ return d; } }
@@ -820,7 +828,7 @@ function buildGame(defList, commanderName){
            stamp: defsAreBuiltin ? null : lastDeckStamp },
     seats:[ newSeat(), newOpponent(1), newOpponent(2), newOpponent(3) ],
     cards: cards,
-    z: { lib:shuffle(lib), hand:[], bf:[], gy:[], ex:[], cmd:cmd },
+    z: { lib:shuffle(lib), hand:[], bf:[], gy:[], ex:[], cmd:cmd, stack:[] },
     log: []
   };
 }
@@ -843,6 +851,15 @@ function zoneOf(iid){
 }
 function move(iid, to, toTop){
   var from = zoneOf(iid);
+  // The commander rule: when he would go to the graveyard, exile, your hand or
+  // your library, you may send him to the command zone instead. Asked, because
+  // sometimes you want him in the graveyard.
+  if(from && from !== to && /^(gy|ex|hand|lib)$/.test(to) && from !== 'cmd'){
+    var md = defOf(state.cards[iid]);
+    if(md && commanderName() && md.n === commanderName()){
+      setTimeout(function(){ askCommanderHome(iid, to); }, 30);
+    }
+  }
   // The two moments the rest of the board is watching for.
   if(to === 'bf' && from !== 'bf') setTimeout(function(){ fireWatch('enters', iid); }, 0);
   if(from === 'bf' && to !== 'bf') setTimeout(function(){ fireWatch('dies', iid); }, 0);
@@ -860,6 +877,8 @@ function move(iid, to, toTop){
     if(c && c.tok){ delete state.cards[iid]; return; }   // tokens cease to exist
     if(c){ c.tp=0; c.ctr={}; c.fd=0; }
   }
+  // A game saved before a zone existed does not have it yet.
+  state.z[to] = state.z[to] || [];
   if(toTop) state.z[to].unshift(iid); else state.z[to].push(iid);
 }
 function logg(txt){
@@ -1030,7 +1049,7 @@ function syncDeckTo(st){
 function normalise(d){
   if(!d || typeof d !== 'object') return d;
   d.z = d.z || {};
-  ['lib','hand','bf','gy','ex','cmd'].forEach(function(k){ d.z[k] = toArr(d.z[k]); });
+  ['lib','hand','bf','gy','ex','cmd','stack'].forEach(function(k){ d.z[k] = toArr(d.z[k]); });
   d.cards = d.cards || {};
   for(var id in d.cards){
     var c = d.cards[id];
@@ -1158,6 +1177,7 @@ function nextTurn(silent){
   s.landDrop = 0;
   clearPool();
   clearAttacks();
+  state.castThisTurn = 0;
   // "Attacks this combat if able" was about that combat, not every one after.
   state.z.bf.forEach(function(iid){ var c = state.cards[iid]; if(c) delete c.must; });
   if(autoUntap){ state.z.bf.forEach(function(iid){ var c=state.cards[iid]; if(c) c.tp=0; }); }
@@ -1200,7 +1220,7 @@ function turnTriggers(only){
         if(!TRIG_WHEN[i].re.test(l)) continue;
         if(only && TRIG_WHEN[i].k !== only) continue;
         // The ones the app already works out for itself are not waiting on him.
-        var handled = false;
+        var handled = writtenPumps(d).length > 0;
         ATTACK_PUMP.forEach(function(r){ if(r.n === d.n) handled = true; });
         if(handled) return;
         out.push({ iid:iid, d:d, when:TRIG_WHEN[i], line:l });
@@ -1302,6 +1322,9 @@ function watchersFor(kind, notIid){
 // Several things can happen in one go, so they are collected and asked once.
 var watchQueue = {}, watchTimer = null;
 function fireWatch(kind, notIid){
+  // Casting is counted whether or not anything is watching, because surge
+  // needs to know.
+  if(kind === 'cast') state.castThisTurn = (state.castThisTurn || 0) + 1;
   if(!turnList) return;
   if(!watchersFor(kind, notIid).length) return;
   if(!watchQueue[kind]) watchQueue[kind] = { n:0, notIid:notIid };
@@ -1309,12 +1332,19 @@ function fireWatch(kind, notIid){
   clearTimeout(watchTimer);
   watchTimer = setTimeout(flushWatch, 110);
 }
+var watchTries = 0;
 function flushWatch(){
+  // Not over the top of something he already has open: wait for it to close
+  // instead of dropping the prompt on the floor.
+  var layer = document.getElementById('layer');
+  if(layer && layer.firstChild && watchTries < 40){
+    watchTries++;
+    watchTimer = setTimeout(flushWatch, 450);
+    return;
+  }
+  watchTries = 0;
   var q = watchQueue;
   watchQueue = {};
-  // Not over the top of something he already has open.
-  var layer = document.getElementById('layer');
-  if(layer && layer.firstChild) return;
   var rows = [], labels = [];
   Object.keys(q).forEach(function(k){
     var list = watchersFor(k, q[k].notIid);
@@ -1598,18 +1628,58 @@ function spellMana(d){
   return out.length ? out : null;
 }
 
-// Cast and gone: the pool gets whatever it made, and the card goes to the
-// graveyard, where a spell goes.
-function resolveSpell(iid, d){
-  var made = spellMana(d);
+// A cast spell waits on the stack, because the three people across the table
+// get to answer it first. It only leaves when you say: resolved, and it does
+// its thing, or countered. `after` is where it goes next, which is the
+// graveyard unless something like flashback says exile.
+function resolveSpell(iid, d, after){
+  var c = state.cards[iid];
+  move(iid, 'stack');
+  if(c) c.after = after || 'gy';
+  return ' (on the stack)';
+}
+function finishSpell(iid, countered){
+  var c = state.cards[iid], d = defOf(c);
+  if(!c || !d) return;
   var note = '';
-  if(made){
-    made.forEach(function(m){ addMana(m.col, m.n); });
-    note = ', added ' + made.map(function(m){ return m.n + ' ' + m.col; }).join(' and ')
-      + ' (' + made[0].why + ')';
+  if(!countered){
+    var made = spellMana(d);
+    if(made){
+      made.forEach(function(m){ addMana(m.col, m.n); });
+      note = ', added ' + made.map(function(m){ return m.n + ' ' + m.col; }).join(' and ')
+        + ' (' + made[0].why + ')';
+    }
   }
-  move(iid, 'gy');
-  return note;
+  var to = c.after || 'gy';
+  delete c.after;
+  move(iid, to);
+  blip('act');
+  commit(d.n + (countered ? ' was countered' : ' resolved') + note
+    + (to === 'ex' ? ', exiled' : ''));
+}
+
+// What is waiting on the stack, newest on top, with the two ways it can go.
+function stackStrip(){
+  var ids = state.z.stack || [];
+  if(!ids.length) return null;
+  var bar = el('div','stackbar');
+  bar.appendChild(el('span','sb-t','On the stack'));
+  ids.slice().reverse().forEach(function(iid, i){
+    var d = defOf(state.cards[iid]);
+    if(!d) return;
+    var item = el('div','sb-item' + (i === 0 ? ' top' : ''));
+    var nm = el('button','sb-n', d.n);
+    nm.onclick = function(){ openCardInfo(d); };
+    item.appendChild(nm);
+    var ok = el('button','btn sm primary','Resolves');
+    ok.onclick = function(){ finishSpell(iid, false); };
+    var no = el('button','btn sm ghost','Countered');
+    no.onclick = function(){ finishSpell(iid, true); };
+    item.appendChild(ok);
+    item.appendChild(no);
+    bar.appendChild(item);
+  });
+  return bar;
 }
 
 // What one permanent makes when it taps. Scryfall says which colours; the
@@ -1854,7 +1924,7 @@ function counterLabel(k){
 // quietly give you the wrong number.
 var COUNTER_RULES = [
   { n:'Doubling Season',              mult:2, tokens:2 },
-  { n:'Primal Vigor',                 mult:2, tokens:2 },
+  { n:'Primal Vigor',                 mult:2, tokens:2, only:'p1p1', scope:'creature' },
   { n:'Vorinclex, Monstrous Raider',  mult:2 },
   { n:"Innkeeper's Talent",           mult:2 },
   { n:'Branching Evolution',          mult:2, only:'p1p1', scope:'creature' },
@@ -1912,9 +1982,11 @@ function clearAttacks(){
 // Static bonuses. Nothing is placed on the creature; it is bigger while the
 // source is on the battlefield, and shrinks the moment the source leaves.
 var ANTHEMS = [
-  { n:'Goblin King',           p:1, t:1, type:'Goblin', others:true },
-  { n:'Goblin Chieftain',      p:1, t:1, type:'Goblin', others:true },
-  { n:'Hobgoblin Bandit Lord', p:1, t:1, type:'Goblin', others:true }
+  // Read off the card now: Goblin Chieftain, Hobgoblin Bandit Lord, Dropkick
+  // Bomber and anything else written "Other Goblins you control get +1/+1".
+  // Goblin King is older and says "Other Goblins get +1/+1", with no "you
+  // control", so the reader rightly leaves it alone and it lives here.
+  { n:'Goblin King', p:1, t:1, type:'Goblin', others:true }
 ];
 
 // Anthems written the ordinary way are read off the card, so a deck does not
@@ -2052,8 +2124,10 @@ function grantedKeywords(iid){
     var sd = defOf(sc);
     if(!sd || !sd.o) return;
     String(sd.o).split('\n').forEach(function(line){
-      // "Other Goblins you control have haste."
-      var m = /^(Other )?([A-Za-z][A-Za-z' -]*?) you control (?:have|gain) (.+?)[.]?$/.exec(line.trim());
+      // "Other Goblins you control have haste." and the lord's version,
+      // "Other Goblin creatures you control get +1/+1 and have haste."
+      var m = /^(Other )?([A-Za-z][A-Za-z' -]*?) you control (?:have|gain) (.+?)[.]?$/.exec(line.trim())
+           || /^(Other )?([A-Za-z][A-Za-z' -]*?) you control get [+-][0-9]+\/[+-][0-9]+ and (?:have|gain) (.+?)[.]?$/.exec(line.trim());
       if(m && line.indexOf(':') < 0 && !/^(When|Whenever|At |As long as|If )/i.test(line)
          && !/until end of turn/i.test(line)){
         if(m[1] && sid === iid) return;
@@ -2102,15 +2176,8 @@ function gearBonus(iid){
 // board, which is the whole rule, and all three are the numbers hardest to hold
 // in your head. Matched by printed name, with the working shown.
 var ATTACK_PUMP = [
-  { n:'Goblin Piledriver', self:true,
-    count:function(iid){ return otherAttackers(iid, 'Goblin'); },
-    per:{ p:2, t:0 }, why:'other attacking Goblins' },
-  { n:'Muxus, Goblin Grandee', self:true,
-    count:function(iid){ return countOnBoard('Goblin') - 1; },
-    per:{ p:1, t:1 }, why:'other Goblins you control' },
-  { n:'Shared Animosity', self:false,
-    count:function(iid){ return otherAttackers(iid, null); },
-    per:{ p:1, t:0 }, why:'other attackers sharing a type' }
+  // Empty on purpose: Goblin Piledriver, Muxus and Shared Animosity are read
+  // off the card by writtenPumps. A pump that cannot be read goes here.
 ];
 // Attacking creatures other than this one, optionally of a type.
 function otherAttackers(iid, type){
@@ -2140,6 +2207,37 @@ function sharesType(a, b){
   for(var i = 0; i < x.length; i++){ if(y.indexOf(x[i]) >= 0) return true; }
   return false;
 }
+// The same three pumps, read from the sentence instead of listed by name, so
+// the next card written this way needs nothing:
+//   "Whenever this creature attacks, it gets +2/+0 until end of turn for each
+//    other attacking Goblin."
+//   "Whenever a creature you control attacks, it gets +1/+0 until end of turn
+//    for each other attacking creature that shares a creature type with it."
+var pumpCache = {};
+function writtenPumps(d){
+  if(!d || !d.o) return [];
+  if(pumpCache[d.n]) return pumpCache[d.n];
+  var out = [];
+  String(d.o).split('\n').forEach(function(line){
+    var l = stripMechanic(line);
+    var m = /^Whenever (this creature|a creature you control|[A-Z][^,]*?) attacks, it gets ([+-][0-9]+)\/([+-][0-9]+) until end of turn for each other (attacking )?(.+?)[.]?$/i.exec(l);
+    if(!m) return;
+    var who = m[1].toLowerCase(), rest = m[5];
+    var self = who !== 'a creature you control';
+    var attacking = !!m[4];
+    var shares = /shares a creature type/i.test(rest);
+    var type = shares ? null : oneWord(rest.replace(/ you control$/i, '').replace(/^creature$/i, 'Creature'));
+    out.push({ n:d.n, self:self, per:{ p:parseInt(m[2],10), t:parseInt(m[3],10) },
+      why: 'other ' + (attacking ? 'attacking ' : '') + (shares ? 'creatures sharing a type' : rest.replace(/ you control$/i,'')),
+      count: function(iid){
+        if(attacking) return otherAttackers(iid, shares ? null : type);
+        return Math.max(0, countOnBoard(type) - 1);
+      } });
+  });
+  pumpCache[d.n] = out;
+  return out;
+}
+
 function combatBonus(iid){
   var blank = { p:0, t:0, why:[] };
   if(!cardEffects) return blank;
@@ -2151,8 +2249,8 @@ function combatBonus(iid){
     if(!sc || sc.fd) return;
     var sd = defOf(sc);
     if(!sd) return;
-    ATTACK_PUMP.forEach(function(r){
-      if(r.n !== sd.n) return;
+    var listed = ATTACK_PUMP.filter(function(r){ return r.n === sd.n; });
+    (listed.length ? listed : writtenPumps(sd)).forEach(function(r){
       if(r.self && sid !== iid) return;           // it pumps only itself
       var n = Math.max(0, r.count(iid));
       if(!n) return;
@@ -2220,16 +2318,34 @@ function effectivePT(iid){
 
 // Replacement effects that change how a creature arrives.
 var ENTERS_WITH = [
-  { n:'Arwen, Weaver of Hope',
-    amount: function(sid){
-      // Her own toughness, which counters and anthems can raise.
-      var pt = effectivePT(sid);
-      var t = pt ? parseInt(pt.t, 10) : 0;
-      return isNaN(t) ? 0 : t;
-    } },
-  { n:'Renata, Called to the Hunt', amount: function(){ return 1; } },
-  { n:'Master Biomancer',           amount: function(){ return 1; } }
+  // Empty on purpose. "Each other creature you control enters with an
+  // additional +1/+1 counter" is read off the card, Arwen's toughness and
+  // Master Biomancer's power included. A card that cannot be read goes here.
 ];
+
+// "Each other creature you control enters with an additional +1/+1 counter
+// on it", or "a number of additional ... equal to Arwen's toughness".
+var enterCache = {};
+function writtenEnters(d){
+  if(!d || !d.o) return [];
+  if(enterCache[d.n]) return enterCache[d.n];
+  var out = [];
+  String(d.o).split('\n').forEach(function(line){
+    var l = line.trim();
+    var m = /^Each other creature you control enters with (an|one|two|three|a number of) additional \+1\/\+1 counters? on it(?: equal to [^']+'s (power|toughness))?/i.exec(l);
+    if(!m) return;
+    var fixed = { an:1, one:1, two:2, three:3 }[m[1].toLowerCase()];
+    var stat = m[2] ? m[2].toLowerCase() : null;
+    out.push({ n:d.n, amount: function(sid){
+      if(fixed) return fixed;
+      var pt = effectivePT(sid);
+      var v = pt ? parseInt(stat === 'power' ? pt.p : pt.t, 10) : 0;
+      return isNaN(v) ? 0 : v;
+    } });
+  });
+  enterCache[d.n] = out;
+  return out;
+}
 
 // Called the moment a creature arrives under your control, tokens included.
 function applyEnterCounters(iid){
@@ -2243,8 +2359,8 @@ function applyEnterCounters(iid){
     if(!sc || sc.fd) return;
     var sd = defOf(sc);
     if(!sd) return;
-    ENTERS_WITH.forEach(function(e){
-      if(e.n !== sd.n) return;
+    var listed = ENTERS_WITH.filter(function(e){ return e.n === sd.n; });
+    (listed.length ? listed : writtenEnters(sd)).forEach(function(e){
       var amt = e.amount(sid);
       if(amt > 0){ extra += amt; why.push(sd.n + ' adds ' + amt); }
     });
@@ -2532,7 +2648,7 @@ function playCard(iid, opts){
   enterNote(iid);
 }
 
-function makeToken(td, count, must){
+function makeToken(td, count, must, attacking){
   count = count||1;
   var tm = tokenMath(count);
   var tokenNote = tm.why.length ? ' (' + tm.why.join(', ') + ')' : '';
@@ -2541,6 +2657,7 @@ function makeToken(td, count, must){
     var iid = 'k'+(nextId++)+Math.random().toString(36).slice(2,5);
     state.cards[iid] = { i:iid, d:-1, tp:0, ctr:{}, fd:0, tok:1, td:td };
     if(must) state.cards[iid].must = must;
+    if(attacking){ state.cards[iid].tp = 1; state.cards[iid].atk = attacking; }
     state.z.bf.push(iid);
     var e = applyEnterCounters(iid);
     if(e && !tokenNote) tokenNote = ' (each entered with ' + e.n + ' +1/+1)';
@@ -3069,7 +3186,13 @@ function altCosts(d, z){
   function find(re){ return new RegExp(re.replace('COST', COST), 'im').exec(o); }
   if(z === 'hand'){
     if((m = find('^Dash\\s+COST')))        out.push({ k:'dash',     label:'Dash',     cost:m[1], spell:true });
-    if((m = find('^Surge\\s+COST')))       out.push({ k:'surge',    label:'Surge',    cost:m[1], spell:true });
+    if((m = find('^Surge\\s+COST'))){
+      // "if you or a teammate has cast another spell this turn." The app sees
+      // every spell you cast, so it can say.
+      var castSoFar = state.castThisTurn || 0;
+      out.push({ k:'surge', label:'Surge', cost:m[1], spell:true,
+                 locked: castSoFar ? null : 'Cast another spell this turn first' });
+    }
     if((m = find('^Multikicker\\s+COST'))) out.push({ k:'multi',    label:'Cast with multikicker', cost:m[1], spell:true });
     if((m = find('^Cycling\\s+COST')))     out.push({ k:'cycle',    label:'Cycle',    cost:m[1] });
     if((m = find('^Channel\\s*\u2014\\s*COST'))) out.push({ k:'channel', label:'Channel', cost:m[1] });
@@ -3131,8 +3254,7 @@ function useAlt(iid, d, a, times){
       move(iid, 'gy');
       commit('Channelled ' + who);
     } else if(a.k === 'flashback'){
-      var note = resolveSpell(iid, d);
-      move(iid, 'ex');                        // flashback exiles it after
+      var note = resolveSpell(iid, d, 'ex');  // flashback exiles it after
       commit('Flashed back ' + who + note);
     } else if(a.k === 'eternalize'){
       move(iid, 'ex');
@@ -3142,7 +3264,7 @@ function useAlt(iid, d, a, times){
       makeToken(td, 1);
       commit('Eternalized ' + who + ', a 4/4 black Zombie copy');
     } else if(a.k === 'gycast' || a.k === 'escape'){
-      if(isSpell(d)){ var n2 = resolveSpell(iid, d); move(iid, 'ex'); commit('Cast ' + who + ' from the graveyard' + n2); }
+      if(isSpell(d)){ var n2 = resolveSpell(iid, d, a.k === 'escape' ? 'ex' : 'gy'); commit('Cast ' + who + ' from the graveyard' + n2); }
       else { move(iid, 'bf'); c.tp = entersTapped(d) ? 1 : 0; commit('Cast ' + who + ' from the graveyard'); }
     }
     if(a.spell) fireWatch('cast', iid);
@@ -3172,6 +3294,15 @@ function altSection(parent, iid, d, z){
   list.forEach(function(a){
     var b = el('button','btn', a.label + ' ' + a.cost);
     if(a.exileOthers) b.title = 'Then exile ' + a.exileOthers + ' other cards from your graveyard';
+    if(a.locked){
+      b.disabled = true;
+      b.title = a.locked;
+      g.appendChild(b);
+      var why = el('p','note', a.label + ': ' + a.locked.toLowerCase() + '.');
+      why.style.cssText = 'grid-column:1/-1;margin:0';
+      g.appendChild(why);
+      return;
+    }
     b.onclick = function(){
       if(a.k === 'multi'){
         askNumber('Kicked how many times', 'Each one costs ' + a.cost + ' more, and puts a charge counter on it.', 0,
@@ -3353,6 +3484,8 @@ function render(){
   // nothing about it, so draw none of them until the lists agree.
   if(!deckReady()){ main.appendChild(renderDeckWait()); return; }
   deckWaitSince = 0;
+  var sbar = stackStrip();
+  if(sbar) main.appendChild(sbar);
   if(mode === 'hand') main.appendChild(renderHandView());
   else main.appendChild(renderBoard());
   restoreScrolls();
@@ -4724,6 +4857,18 @@ function openTableSheet(){
   sh.appendChild(el('p','note','Currently ' + (n+1) + ' players: you plus ' + n + ' opponent' + (n===1?'':'s') + '.'));
 }
 
+function askCommanderHome(iid, went){
+  if(zoneOf(iid) !== went) return;          // already moved on
+  var d = defOf(state.cards[iid]);
+  confirmSheet('Back to the command zone?',
+    (d ? d.n : 'Your commander') + ' is going to your ' + (ZONES[went] || went).toLowerCase()
+      + '. You may put him in the command zone instead.',
+    'Command zone', function(){
+      move(iid, 'cmd');
+      commit((d ? d.n : 'Commander') + ' went back to the command zone');
+    });
+}
+
 // The commander is the one card that is always somewhere, so the rail says
 // where rather than making him hunt for it.
 function commanderName(){
@@ -4782,7 +4927,7 @@ function commanderRow(){
 
 // A zone draws as the pile it is: thicker when it holds more, with whatever is
 // on top of it showing face up where a real pile would show it.
-function zoneStack(ids, faceUp){
+function zoneStack(ids, faceUp, topFirst){
   var n = ids.length;
   var st = el('div','zstack' + (n ? '' : ' none'));
   var layers = n === 0 ? 1 : n < 2 ? 1 : n < 6 ? 2 : n < 20 ? 3 : 4;
@@ -4791,7 +4936,7 @@ function zoneStack(ids, faceUp){
     lay.style.transform = 'translate(' + (i*2) + 'px,' + (i*2) + 'px)';
     if(i === 0){
       lay.className = 'top';
-      var d = faceUp && n ? defOf(state.cards[ids[ids.length-1]]) : null;
+      var d = faceUp && n ? defOf(state.cards[ids[topFirst ? 0 : ids.length-1]]) : null;
       if(hasArt(d)){
         var im = new Image(); im.src = artSrc(d); im.alt = ''; im.loading = 'lazy';
         lay.appendChild(im);
@@ -4808,25 +4953,48 @@ function zoneStack(ids, faceUp){
   return st;
 }
 
-function zoneRow(label, ids, faceUp, onClick){
+function zoneRow(label, ids, faceUp, onClick, topFirst){
   var b = el('button','zrow');
   b.type = 'button';
-  b.appendChild(zoneStack(ids, faceUp));
+  b.appendChild(zoneStack(ids, faceUp, topFirst));
   var t = el('div','zt');
   t.appendChild(el('span','zl', label));
   t.appendChild(el('div','zn', String(ids.length)));
-  var top = faceUp && ids.length ? defOf(state.cards[ids[ids.length-1]]) : null;
-  if(top) t.appendChild(el('div','zsub', top.n));
+  var top = faceUp && ids.length ? defOf(state.cards[ids[topFirst ? 0 : ids.length-1]]) : null;
+  if(top) t.appendChild(el('div','zsub', (topFirst ? 'Top: ' : '') + top.n));
   b.appendChild(t);
   b.setAttribute('aria-label', label + ': ' + ids.length + ' card' + (ids.length===1?'':'s'));
   b.onclick = onClick;
   return b;
 }
 
+// "Play with the top card of your library revealed." Everyone can see it, so
+// the app shows it too.
+function revealsTop(){
+  return state.z.bf.some(function(iid){
+    var d = defOf(state.cards[iid]);
+    return d && /top card of your library revealed/i.test(d.o || '');
+  });
+}
+// "You may cast Goblin spells from the top of your library."
+function castFromTop(topD){
+  if(!topD) return null;
+  var hit = null;
+  state.z.bf.forEach(function(iid){
+    var d = defOf(state.cards[iid]);
+    if(!d || hit) return;
+    var m = /You may cast ([A-Za-z]+) spells from the top of your library/i.exec(d.o || '');
+    if(m && anthemHits(topD, m[1])) hit = d.n;
+    if(/You may play lands from the top of your library/i.test(d.o || '') && isLand(topD)) hit = d.n;
+  });
+  return hit;
+}
+
 function zoneGrid(){
   var g = el('div','zones');
 
-  g.appendChild(zoneRow('Library', state.z.lib, false, openLibrarySheet));
+  var shown = revealsTop();
+  g.appendChild(zoneRow('Library', state.z.lib, shown, openLibrarySheet, true));
   g.appendChild(zoneRow('Hand', state.z.hand, false, function(){ openBrowse('hand'); }));
   g.appendChild(zoneRow('Graveyard', state.z.gy, true, function(){ openBrowse('gy'); }));
   g.appendChild(zoneRow('Exile', state.z.ex, true, function(){ openBrowse('ex'); }));
@@ -5458,6 +5626,22 @@ function openManaChoice(d, iid){
 
 function openLibrarySheet(){
   var s = sheet('Library', state.z.lib.length + ' cards remaining');
+  if(revealsTop() && state.z.lib.length){
+    var topId = state.z.lib[0], topD = defOf(state.cards[topId]);
+    var row = el('div','tkrow');
+    if(hasArt(topD)){ var im = new Image(); im.src = artSrc(topD); im.alt=''; row.appendChild(im); }
+    var tx = el('div','tkn');
+    tx.appendChild(el('b', null, 'Top of your library: ' + (topD ? topD.n : '?')));
+    var via = castFromTop(topD);
+    tx.appendChild(el('span', null, via ? ('You can cast it from there, ' + via + ' says so.') : 'Revealed. Not castable from here.'));
+    row.appendChild(tx);
+    if(via){
+      var cb = el('button','btn sm primary','Cast it');
+      cb.onclick = function(){ closeLayer(); castCard(topId); };
+      row.appendChild(cb);
+    }
+    s.appendChild(row);
+  }
   actionGrid(s, [
     ['Draw 1', function(){ draw(1); closeLayer(); }, true],
     ['Draw 2', function(){ draw(2); closeLayer(); }],
@@ -5682,27 +5866,47 @@ function borrowsFrom(d, iid){
 }
 
 var TOKEN_NOTE = [
-  { n:'Howlsquad Heavy', tok:'Goblin', must:'Attacks this combat if able' }
+  // Empty on purpose: "That token attacks this combat if able" is read.
 ];
+// "create a 1/1 red Goblin creature token that's tapped and attacking." Read
+// off the card, so any card written that way works.
+function arrivesAttacking(d, td){
+  var word = String((td && td.n) || '').split(' ')[0];
+  return String((d && d.o) || '').split('\n').some(function(l){
+    return l.indexOf(word) >= 0 && /tapped and attacking/i.test(l);
+  });
+}
+// Who they attack: whoever your other attackers are attacking, else your
+// chosen target, else the first opponent.
+function attackTargetNow(){
+  var tally = {};
+  state.z.bf.forEach(function(iid){
+    var c = state.cards[iid];
+    if(c && c.atk) tally[c.atk] = (tally[c.atk] || 0) + 1;
+  });
+  var best = null;
+  Object.keys(tally).forEach(function(k){ if(!best || tally[k] > tally[best]) best = k; });
+  if(best) return best;
+  if(combatTarget) return combatTarget;
+  var o = seats().filter(function(x){ return x.opp; })[0];
+  return o ? o.id : null;
+}
+
 function tokenNoteFor(d, td){
   for(var i=0;i<TOKEN_NOTE.length;i++){
     var r = TOKEN_NOTE[i];
     if(r.n === d.n && td.n.indexOf(r.tok) >= 0) return r.must;
   }
-  return null;
+  var word = String((td && td.n) || '').split(' ')[0];
+  var hit = String((d && d.o) || '').split('\n').some(function(l){
+    return l.indexOf(word) >= 0 && /That token attacks this combat if able/i.test(l);
+  });
+  return hit ? 'Attacks this combat if able' : null;
 }
 
 var TOKEN_COUNT = [
-  { n:'Krenko, Mob Boss', tok:'Goblin',
-    amount:function(){ return countOnBoard('Goblin'); },
-    why:function(n){ return 'You control ' + n + ' Goblin' + (n===1?'':'s'); } },
-  { n:'Krenko, Tin Street Kingpin', tok:'Goblin',
-    amount:function(iid){
-      var pt = effectivePT(iid);
-      var p = pt ? parseInt(pt.p, 10) : 0;
-      return isNaN(p) ? 0 : p;
-    },
-    why:function(n){ return 'Its power is ' + n; } }
+  // Empty on purpose: both Krenkos are read, "X is the number of Goblins you
+  // control" and "equal to Krenko's power". A count that cannot be read goes here.
 ];
 
 function countOnBoard(word){
@@ -5742,9 +5946,28 @@ function writtenTokenCount(d, td){
   return null;
 }
 
+// "Create X 1/1 red Goblin creature tokens, where X is the number of Goblins
+// you control", and "a number of ... tokens equal to Krenko's power".
+function writtenTokenX(iid, d, td){
+  var o = String((d && d.o) || '');
+  var m = /[Cc]reate X [^.]*?tokens?, where X is the number of ([A-Za-z]+?) you control/.exec(o);
+  if(m){
+    var n = countOnBoard(oneWord(m[1]));
+    return { n:n, why:'You control ' + n + ' ' + m[1] };
+  }
+  var m2 = /[Cc]reate a number of [^.]*?tokens? equal to [^']+'s (power|toughness)/.exec(o);
+  if(m2 && iid){
+    var pt = effectivePT(iid);
+    var v = pt ? parseInt(m2[1] === 'power' ? pt.p : pt.t, 10) : 0;
+    v = isNaN(v) ? 0 : v;
+    return { n:v, why:'Its ' + m2[1] + ' is ' + v };
+  }
+  return null;
+}
+
 function tokenCountFor(iid, d, td){
   if(!cardEffects) return null;
-  var w = writtenTokenCount(d, td);
+  var w = writtenTokenCount(d, td) || writtenTokenX(iid, d, td);
   for(var i=0;i<TOKEN_COUNT.length;i++){
     var r = TOKEN_COUNT[i];
     if(r.n !== d.n) continue;
@@ -5786,8 +6009,9 @@ function tokenMakeRow(iid, d, td){
   row.appendChild(cnt);
 
   var must = tokenNoteFor(d, td);
+  var swinging = arrivesAttacking(d, td);
   mk.onclick = function(){
-    makeToken(JSON.parse(JSON.stringify(td)), n, must);
+    makeToken(JSON.parse(JSON.stringify(td)), n, must, swinging ? attackTargetNow() : null);
     closeLayer();
   };
   mk.disabled = n < 1;
@@ -5800,6 +6024,11 @@ function tokenMakeRow(iid, d, td){
     w.setAttribute('data-auto','1');
     w.style.cssText = 'margin:-2px 0 8px;padding-left:2px';
     wrap.appendChild(w);
+  }
+  if(swinging){
+    var sw = el('p','note', 'Arrives tapped and already attacking, at whoever your other attackers are hitting.');
+    sw.style.cssText = 'margin:-2px 0 8px;padding-left:2px';
+    wrap.appendChild(sw);
   }
   if(must){
     var mn = el('p','note', must + ', so it comes in marked. The mark clears at end of turn.');
