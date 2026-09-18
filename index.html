@@ -133,6 +133,15 @@ input,textarea{-webkit-user-select:text;user-select:text}
 
 /* ---------- board ---------- */
 .board{flex:1 1 auto;display:grid;grid-template-columns:1fr 176px;min-height:0}
+/* With the commander on the board itself, the column beside it had nothing
+   left to hold, so it goes and the table gets the width. */
+.board.norail{grid-template-columns:1fr}
+.cw.incmd .card{box-shadow:0 0 0 2px var(--brass-dim),var(--shadow)}
+.speedchip{cursor:pointer}
+.speedchip.max{border-color:var(--brass);background:#2a2415}
+.speedchip.max b{color:var(--brass)}
+.bdg.cmd{background:rgba(212,169,75,.94);color:#20180a;border-color:rgba(255,255,255,.3)}
+.zonestrip .youbtn{margin-top:2px}
 /* The other three sit across the table from you, so they sit across the top of
    your board, in one row, in the order they are seated. */
 .seatbar{flex:0 0 auto;display:flex;gap:var(--s3);padding:var(--s2) var(--s3);
@@ -603,7 +612,7 @@ input:focus,textarea:focus,select:focus{border-color:var(--brass-dim);outline:no
 /* ---------- responsive ---------- */
 @media (max-width:1000px){ :root{--cw:88px} .board{grid-template-columns:1fr 180px} }
 @media (max-width:820px){
-  .board{grid-template-columns:1fr}
+  .board,.board.norail{grid-template-columns:1fr}
   .rail{border-left:0;border-top:1px solid var(--line);max-height:42%}
   .zones{flex-direction:row;flex-wrap:wrap}
   .zrow{flex:1 1 44%}
@@ -762,6 +771,32 @@ function cmdLethal(sx){
 }
 
 function isLand(d){ return !!d && /Land/.test(d.t||''); }
+// Speed. "Start your engines!" gives you a speed from 1 to 4, and it goes up
+// once a turn when an opponent loses life during your turn. At 4 it is max
+// speed, which is what Howlsquad Heavy's mana ability is waiting for. It only
+// exists while a card with the words is on your board, so it only shows then.
+function hasEngines(){
+  for(var i = 0; i < state.z.bf.length; i++){
+    var d = defOf(state.cards[state.z.bf[i]]);
+    if(d && /Start your engines/i.test(d.o || '')) return true;
+  }
+  return false;
+}
+function speedNow(){ return Math.max(0, Math.min(4, seat().speed || 0)); }
+function maxSpeed(){ return hasEngines() && speedNow() >= 4; }
+// Once a turn, only on your own turn, only because an opponent lost life.
+function speedUp(why){
+  var s = seat();
+  if(!hasEngines() || speedNow() >= 4) return false;
+  if(s.speedTurn === state.turn) return false;
+  s.speed = speedNow() + 1;
+  s.speedTurn = state.turn;
+  logg('Speed ' + s.speed + (s.speed >= 4 ? ', max speed' : '') + (why ? ' (' + why + ')' : ''));
+  return true;
+}
+
+// An instant or sorcery happens and is gone. It does not sit on the table.
+function isSpell(d){ return !!d && /Instant|Sorcery/.test(d.t||'') && !/Creature|Artifact|Enchantment|Land|Planeswalker|Battle/.test(d.t||''); }
 function isCommanderDef(d){
   var b = builtinDeck();
   return !!d && !!b && d.n === b.commander;
@@ -1181,8 +1216,18 @@ function turnTriggers(only){
 
 // Moving to a phase puts up only the things that happen in that phase, which is
 // the difference between a list you read and a list you act on.
+function returnDashed(){
+  var back = [];
+  state.z.bf.slice().forEach(function(iid){
+    var c = state.cards[iid];
+    if(c && c.dash){ delete c.dash; move(iid, 'hand'); back.push((defOf(c) || {}).n || 'a card'); }
+  });
+  if(back.length) commit('Dash ends: ' + back.join(', ') + ' back to hand');
+}
+
 function phaseTriggers(){
   if(state.phase === 2) advanceSagas();      // after the draw step
+  if(state.phase === 6) returnDashed();      // the end step
   if(!turnList) return;
   var kinds = [];
   TRIG_WHEN.forEach(function(w){ if(w.phase === state.phase) kinds.push(w.k); });
@@ -1475,6 +1520,7 @@ function freeMana(d){
     // "Max speed", "Channel" and the like put a condition in front of the cost.
     // The app cannot check it, so the ability is not free ON DEMAND and is left
     // out rather than guessed at.
+    if(/^\s*Max speed\s*\u2014/i.test(cost) && maxSpeed()) cost = cost.replace(/^\s*Max speed\s*\u2014\s*/i, '');
     if(cost.indexOf('\u2014') >= 0 || /Max speed|Channel|Threshold|Delirium/i.test(cost)) return;
     if(!/\{T\}/.test(cost)) return;                            // has to be a tap
     if(/\{[0-9XWUBRGC]/.test(cost.replace(/\{T\}/g, ''))) return;  // costs mana first
@@ -1503,7 +1549,8 @@ function scaledMana(d, iid){
     var line = lines[i];
     var m = /Add \{([WUBRGC])\} for each ([^.]+)/i.exec(line);
     if(!m) continue;
-    if(line.indexOf('\u2014') >= 0 || /Max speed|Channel/i.test(line)) continue;
+    if(/^\s*Max speed\s*\u2014/i.test(line) && maxSpeed()) line = line.replace(/^\s*Max speed\s*\u2014\s*/i, '');
+    else if(line.indexOf('\u2014') >= 0 || /Max speed|Channel/i.test(line)) continue;
     var what = m[2].trim();
     var n = null, why = '';
     var t1 = /^([A-Za-z][A-Za-z' -]*?) you control$/.exec(what);
@@ -1528,6 +1575,41 @@ function scaledMana(d, iid){
 function oneWord(sub){
   var w = String(sub || '').trim().replace(/\s+creatures?$/i, '');
   return /^creatures?$/i.test(w) ? 'Creature' : w.replace(/s$/, '');
+}
+
+// Rituals. "Add {R}{R}{R}" is counted, and "Add {R} for each creature you
+// control" is worked out from your board. Anything that counts another
+// player's cards, like Jeska's Will, is left for you.
+function spellMana(d){
+  var o = String((d && d.o) || '');
+  var sc = scaledMana(d, null);
+  if(sc) return [{ col:sc.col, n:sc.n, why:sc.why }];
+  var out = [];
+  o.split('\n').forEach(function(line){
+    var l = line.replace(/^\s*\u2022\s*/, '').trim();
+    if(!/^Add\b/.test(l)) return;
+    if(/for each|equal to|X mana/i.test(l)) return;
+    var first = l.split(/ or /i)[0];
+    var syms = first.match(/\{([WUBRGC])\}/g) || [];
+    var tally = {};
+    syms.forEach(function(x){ var k = x.charAt(1); tally[k] = (tally[k] || 0) + 1; });
+    Object.keys(tally).forEach(function(k){ out.push({ col:k, n:tally[k], why:'the card says so' }); });
+  });
+  return out.length ? out : null;
+}
+
+// Cast and gone: the pool gets whatever it made, and the card goes to the
+// graveyard, where a spell goes.
+function resolveSpell(iid, d){
+  var made = spellMana(d);
+  var note = '';
+  if(made){
+    made.forEach(function(m){ addMana(m.col, m.n); });
+    note = ', added ' + made.map(function(m){ return m.n + ' ' + m.col; }).join(' and ')
+      + ' (' + made[0].why + ')';
+  }
+  move(iid, 'gy');
+  return note;
 }
 
 // What one permanent makes when it taps. Scryfall says which colours; the
@@ -1657,6 +1739,13 @@ function castCard(iid){
     addMana(t.colour, t.amount);
   });
   payFromPool(cost);
+  if(isSpell(d)){
+    fireWatch('cast', iid);
+    var sn = resolveSpell(iid, d);
+    blip('act');
+    commit('Cast ' + d.n + sn);
+    return;
+  }
   move(iid,'bf');
   c.tp = entersTapped(d) ? 1 : 0;
   startingLoyalty(c, d);
@@ -1705,7 +1794,7 @@ function advanceSagas(){
     var c = state.cards[iid], d = defOf(c);
     if(!c || !d || !isSaga(d)) return;
     c.ctr = c.ctr || {};
-    c.ctr.lore = (c.ctr.lore || 0) + counterMath('lore', 1).n;
+    c.ctr.lore = (c.ctr.lore || 0) + counterMath('lore', 1, iid).n;
     var text = sagaChapter(d, c.ctr.lore);
     moved.push({ iid:iid, d:d, when:{ label:'Chapter ' + ROMAN[c.ctr.lore - 1] || 'Chapter' },
                  line: text || 'No chapter that high. Sacrifice it if it is finished.' });
@@ -1720,7 +1809,7 @@ function advanceSagas(){
 function startingLore(c, d){
   if(!c || !isSaga(d)) return;
   c.ctr = c.ctr || {};
-  c.ctr.lore = counterMath('lore', 1).n;
+  c.ctr.lore = counterMath('lore', 1, c.i).n;
 }
 
 function startingLoyalty(c, d){
@@ -1728,7 +1817,7 @@ function startingLoyalty(c, d){
   var base = parseInt(d.loy, 10);
   if(!base) return;
   c.ctr = c.ctr || {};
-  c.ctr.loyalty = counterMath('loyalty', base).n;
+  c.ctr.loyalty = counterMath('loyalty', base, c.i).n;
 }
 
 function offerAnyway(iid, d, plan){
@@ -1768,16 +1857,16 @@ var COUNTER_RULES = [
   { n:'Primal Vigor',                 mult:2, tokens:2 },
   { n:'Vorinclex, Monstrous Raider',  mult:2 },
   { n:"Innkeeper's Talent",           mult:2 },
-  { n:'Branching Evolution',          mult:2, only:'p1p1' },
-  { n:'Corpsejack Menace',            mult:2, only:'p1p1' },
-  { n:'Hardened Scales',              add:1,  only:'p1p1' },
-  { n:'Ozolith, the Shattered Spire', add:1,  only:'p1p1' },
-  { n:'Conclave Mentor',              add:1,  only:'p1p1' },
+  { n:'Branching Evolution',          mult:2, only:'p1p1', scope:'creature' },
+  { n:'Corpsejack Menace',            mult:2, only:'p1p1', scope:'creature' },
+  { n:'Hardened Scales',              add:1,  only:'p1p1', scope:'creature' },
+  { n:'Ozolith, the Shattered Spire', add:1,  only:'p1p1', scope:'artifact or creature' },
+  { n:'Conclave Mentor',              add:1,  only:'p1p1', scope:'creature' },
   { n:'Parallel Lives',               tokens:2 },
   { n:'Anointed Procession',          tokens:2 },
   { n:'Mondrak, Glory Dominus',       tokens:2 },
-  { n:'Kami of Whispered Hopes',      add:1,  only:'p1p1' },
-  { n:'The Earth Crystal',            mult:2, only:'p1p1' }
+  { n:'Kami of Whispered Hopes',      add:1,  only:'p1p1', scope:'permanent' },
+  { n:'The Earth Crystal',            mult:2, only:'p1p1', scope:'creature' }
 ];
 
 var cardEffects = lsGet('ktm.effects','1') === '1';
@@ -2161,10 +2250,41 @@ function applyEnterCounters(iid){
     });
   });
   if(!extra) return null;
-  var m = counterMath('p1p1', extra);
+  var m = counterMath('p1p1', extra, iid);
   c.ctr = c.ctr || {};
   c.ctr.p1p1 = (c.ctr.p1p1 || 0) + m.n;
   return { n:m.n, why: why.concat(m.why) };
+}
+
+// Twelve cards across the two decks change how many counters or tokens you get,
+// and they are written four ways. The table above wins where it has the card;
+// anything else written the same way is read, so a new deck does not need a
+// new line here. Benevolent Hydra's "another creature" is the reason for the
+// `others` flag: it helps everyone but itself.
+var ctrRuleCache = {};
+function writtenCounterRules(d){
+  if(!d || !d.o) return [];
+  if(ctrRuleCache[d.n]) return ctrRuleCache[d.n];
+  var out = [];
+  String(d.o).split('\n').forEach(function(line){
+    var l = line.trim();
+    var m = /^If one or more \+1\/\+1 counters would be put on (another|a|an) ([a-z ]+?)(?: you control)?, (twice that many|that many plus one)/i.exec(l);
+    if(m){
+      out.push({ n:d.n, only:'p1p1', others: m[1].toLowerCase() === 'another',
+                 scope: m[2].trim().toLowerCase(),
+                 mult: /twice/i.test(m[3]) ? 2 : 0, add: /plus one/i.test(m[3]) ? 1 : 0 });
+      return;
+    }
+    if(/^If (an effect|you) would put one or more counters on a permanent/i.test(l) && /twice that many/i.test(l)){
+      out.push({ n:d.n, mult:2 });
+      return;
+    }
+    if(/^If an effect would create one or more tokens under your control, it creates twice that many/i.test(l)){
+      out.push({ n:d.n, tokens:2 });
+    }
+  });
+  ctrRuleCache[d.n] = out;
+  return out;
 }
 
 function rulesInPlay(){
@@ -2174,19 +2294,37 @@ function rulesInPlay(){
     if(!c || c.fd) return;                     // a face down card does nothing
     var d = defOf(c);
     if(!d) return;
+    var listed = [];
     for(var i=0;i<COUNTER_RULES.length;i++){
-      if(COUNTER_RULES[i].n === d.n) out.push(COUNTER_RULES[i]);
+      if(COUNTER_RULES[i].n === d.n) listed.push(COUNTER_RULES[i]);
     }
+    (listed.length ? listed : writtenCounterRules(d)).forEach(function(r){
+      var copy = {}; for(var k in r) copy[k] = r[k];
+      copy.sid = iid;
+      out.push(copy);
+    });
   });
   return out;
 }
 
+// Does a rule scoped to "creature" or "artifact or creature" reach this one?
+function ruleReaches(r, target){
+  if(!target) return true;                   // no particular card, as before
+  if(r.others && r.sid === target) return false;
+  if(!r.scope || r.scope === 'permanent') return true;
+  var t = String((defOf(state.cards[target]) || {}).t || '');
+  if(r.scope === 'creature') return /Creature/.test(t);
+  if(r.scope === 'artifact or creature') return /Creature|Artifact/.test(t);
+  return true;
+}
+
 // Adders apply before doublers, which is the order that gives the most and the
 // one you would choose. Returns the final number and the working.
-function counterMath(kind, base){
+function counterMath(kind, base, target){
   var adds = 0, mults = [], why = [];
   rulesInPlay().forEach(function(r){
     if(r.only && r.only !== kind) return;
+    if(!ruleReaches(r, target)) return;
     if(r.add){ adds += r.add; why.push(r.n + ' adds ' + r.add); }
     if(r.mult){ mults.push(r.mult); why.push(r.n + ' doubles'); }
   });
@@ -2251,7 +2389,7 @@ function openCounters(iid){
     }
 
     body.appendChild(el('div','divider'));
-    var math = counterMath('p1p1', 1);
+    var math = counterMath('p1p1', 1, iid);
     if(math.why.length){
       var m = el('p','note');
       m.innerHTML = '<b>One +1/+1 counter becomes ' + math.n + '.</b> ' + math.why.join(', ') + '.';
@@ -2285,7 +2423,7 @@ function addCounter(iid, kind, delta, raw){
   var applied = delta;
   var note = '';
   if(delta > 0 && !raw){
-    var m = counterMath(kind, delta);
+    var m = counterMath(kind, delta, iid);
     applied = m.n;
     if(m.why.length) note = ' (' + m.why.join(', ') + ')';
   }
@@ -2337,7 +2475,7 @@ function openProliferate(){
       if(!picked[iid]) return;
       var c = state.cards[iid];
       Object.keys(c.ctr || {}).forEach(function(k){
-        var m = counterMath(k, 1);
+        var m = counterMath(k, 1, iid);
         c.ctr[k] = (c.ctr[k] || 0) + (c.ctr[k] < 0 ? -m.n : m.n);
         n++;
       });
@@ -2373,6 +2511,13 @@ function enterNote(iid){
 function playCard(iid, opts){
   opts = opts||{};
   var c = state.cards[iid], d = defOf(c); if(!c) return;
+  if(isSpell(d) && !opts.toBoard){
+    fireWatch('cast', iid);
+    var sn = resolveSpell(iid, d);
+    blip('act');
+    commit('Cast ' + d.n + sn);
+    return;
+  }
   move(iid,'bf');
   var tapped = !!opts.tapped || entersTapped(d);
   c.tp = tapped ? 1 : 0;
@@ -2852,12 +2997,14 @@ function payWritten(manaStr){
   return true;
 }
 
-function abilitySection(parent, iid, d){
-  var list = abilitiesOf(d);
+function abilitySection(parent, iid, d, from){
+  // `from` is the card lending the ability. The cost is paid and the tap is
+  // taken by THIS card, which is the whole point of borrowing.
+  var list = abilitiesOf(from ? from.d : d);
   if(!list.length) return;
   var c = state.cards[iid];
   parent.appendChild(el('div','divider'));
-  var h = el('p','sub','Abilities');
+  var h = el('p','sub', from ? ('Borrowed from ' + from.d.n + ', ' + from.why) : 'Abilities');
   h.style.margin = '0 0 7px';
   parent.appendChild(h);
 
@@ -2894,7 +3041,7 @@ function abilitySection(parent, iid, d){
         c.ctr = c.ctr || {};
         c.ctr.loyalty = Math.max(0, (c.ctr.loyalty || 0) + a.loyalty);
       }
-      var note = d.n + ': ' + a.cost + ', ' + a.text.slice(0, 70);
+      var note = d.n + (from ? ' using ' + from.d.n + "'s" : '') + ': ' + a.cost + ', ' + a.text.slice(0, 70);
       if(a.sac) move(iid, 'gy');
       if(!a.mana || !/^\{T\}$/.test(a.cost)) fireWatch('activate', iid);
       blip('act');
@@ -2904,6 +3051,138 @@ function abilitySection(parent, iid, d){
     row.appendChild(b);
     parent.appendChild(row);
   });
+}
+
+// Other prices a card can be played for. They live on the hold sheet, under
+// the card, only when the card is somewhere that price can be paid from.
+function breachOut(){
+  for(var i = 0; i < state.z.bf.length; i++){
+    var d = defOf(state.cards[state.z.bf[i]]);
+    if(d && d.n === 'Underworld Breach') return true;
+  }
+  return false;
+}
+function altCosts(d, z){
+  if(!d) return [];
+  var o = String(d.o || ''), out = [], m;
+  var COST = '((?:\\{[^}]+\\})+)';
+  function find(re){ return new RegExp(re.replace('COST', COST), 'im').exec(o); }
+  if(z === 'hand'){
+    if((m = find('^Dash\\s+COST')))        out.push({ k:'dash',     label:'Dash',     cost:m[1], spell:true });
+    if((m = find('^Surge\\s+COST')))       out.push({ k:'surge',    label:'Surge',    cost:m[1], spell:true });
+    if((m = find('^Multikicker\\s+COST'))) out.push({ k:'multi',    label:'Cast with multikicker', cost:m[1], spell:true });
+    if((m = find('^Cycling\\s+COST')))     out.push({ k:'cycle',    label:'Cycle',    cost:m[1] });
+    if((m = find('^Channel\\s*\u2014\\s*COST'))) out.push({ k:'channel', label:'Channel', cost:m[1] });
+  }
+  if(z === 'gy'){
+    if((m = find('^Flashback\\s+COST')))   out.push({ k:'flashback', label:'Flashback',  cost:m[1], spell:true });
+    if((m = find('^Eternalize\\s+COST')))  out.push({ k:'eternalize',label:'Eternalize', cost:m[1] });
+    if((m = find('cast this card from your graveyard by paying COST')))
+      out.push({ k:'gycast', label:'Cast from graveyard', cost:m[1], spell:true, exileOthers:4 });
+    if(breachOut() && !isLand(d) && d.m)
+      out.push({ k:'escape', label:'Escape, from Underworld Breach', cost:d.m, spell:true, exileOthers:3 });
+  }
+  return out;
+}
+
+// Pay it. A spell cast for another price is still a spell, so things that make
+// spells cheaper apply. Cycling, channel and eternalize are abilities, so they
+// do not.
+function payAlt(manaStr, d, spell){
+  if(!autoTap || !manaStr) return true;
+  var cost = costNeed(manaStr);
+  if(spell){
+    var cut = costCut(d);
+    if(cut.n) cost.generic = Math.max(0, cost.generic - cut.n);
+  }
+  if(!cost.generic && !MANA.some(function(k){ return cost.need[k]; })) return true;
+  var plan = planPayment(cost);
+  if(!plan.ok) return false;
+  plan.taps.forEach(function(t){
+    var sc = state.cards[t.iid];
+    if(sc){ sc.tp = 1; delete sc.gave; }
+    addMana(t.colour, t.amount);
+  });
+  payFromPool(cost);
+  return true;
+}
+
+function useAlt(iid, d, a, times){
+  var c = state.cards[iid];
+  var price = a.cost;
+  if(a.k === 'multi') price = (d.m || '') + new Array((times || 0) + 1).join(a.cost);
+  function go(){
+    var who = d.n;
+    if(a.k === 'dash'){
+      move(iid, 'bf'); c.tp = 0; c.dash = 1;
+      commit('Dashed ' + who + ', it goes back to hand at the end step');
+    } else if(a.k === 'surge'){
+      move(iid, 'bf'); c.tp = entersTapped(d) ? 1 : 0;
+      commit('Cast ' + who + ' for its surge cost');
+    } else if(a.k === 'multi'){
+      move(iid, 'bf'); c.tp = 0;
+      if(times){ c.ctr = c.ctr || {}; c.ctr.charge = (c.ctr.charge || 0) + counterMath('charge', times, iid).n; }
+      commit('Cast ' + who + ', kicked ' + (times || 0) + ' time' + (times === 1 ? '' : 's'));
+    } else if(a.k === 'cycle'){
+      move(iid, 'gy');
+      if(state.z.lib.length) move(state.z.lib[0], 'hand');
+      commit('Cycled ' + who + ' and drew a card');
+    } else if(a.k === 'channel'){
+      move(iid, 'gy');
+      commit('Channelled ' + who);
+    } else if(a.k === 'flashback'){
+      var note = resolveSpell(iid, d);
+      move(iid, 'ex');                        // flashback exiles it after
+      commit('Flashed back ' + who + note);
+    } else if(a.k === 'eternalize'){
+      move(iid, 'ex');
+      var td = JSON.parse(JSON.stringify(d));
+      td.p = '4'; td.tg = '4'; td.ci = ['B'];
+      td.t = String(d.t || '').replace(/\u2014/, '\u2014 Zombie');
+      makeToken(td, 1);
+      commit('Eternalized ' + who + ', a 4/4 black Zombie copy');
+    } else if(a.k === 'gycast' || a.k === 'escape'){
+      if(isSpell(d)){ var n2 = resolveSpell(iid, d); move(iid, 'ex'); commit('Cast ' + who + ' from the graveyard' + n2); }
+      else { move(iid, 'bf'); c.tp = entersTapped(d) ? 1 : 0; commit('Cast ' + who + ' from the graveyard'); }
+    }
+    if(a.spell) fireWatch('cast', iid);
+    blip('act');
+    closeLayer();
+    if(a.exileOthers){
+      setTimeout(function(){ openBulk('gy'); }, 80);
+    }
+  }
+  if(!payAlt(price, d, a.spell)){
+    closeLayer();
+    confirmSheet('Not enough mana', 'Nothing untapped pays ' + price
+      + '. Do it anyway and sort the mana out by hand?', 'Do it anyway', go);
+    return;
+  }
+  go();
+}
+
+function altSection(parent, iid, d, z){
+  var list = altCosts(d, z);
+  if(!list.length) return;
+  parent.appendChild(el('div','divider'));
+  var h = el('p','sub', z === 'gy' ? 'From the graveyard' : 'Other ways to play it');
+  h.style.margin = '0 0 7px';
+  parent.appendChild(h);
+  var g = el('div','grid');
+  list.forEach(function(a){
+    var b = el('button','btn', a.label + ' ' + a.cost);
+    if(a.exileOthers) b.title = 'Then exile ' + a.exileOthers + ' other cards from your graveyard';
+    b.onclick = function(){
+      if(a.k === 'multi'){
+        askNumber('Kicked how many times', 'Each one costs ' + a.cost + ' more, and puts a charge counter on it.', 0,
+          function(v){ useAlt(iid, d, a, Math.max(0, v)); });
+        return;
+      }
+      useAlt(iid, d, a);
+    };
+    g.appendChild(b);
+  });
+  parent.appendChild(g);
 }
 
 // The card as big as the screen allows, with what you can do beside it.
@@ -3005,6 +3284,7 @@ function cardNode(iid, opts){
       left.appendChild(eb);
     }
     if(c && c.tok) left.appendChild(el('span','bdg tok','TOKEN'));
+    if(c && c.dash) left.appendChild(el('span','bdg must','DASH'));
     if(c && c.must){
       var mb2 = el('span','bdg must','MUST ATTACK');
       mb2.title = c.must;
@@ -3180,6 +3460,26 @@ function renderTop(){
   chip.appendChild(el('b','', String(state.turn)));
   t.appendChild(chip);
 
+  if(hasEngines()){
+    var sp = speedNow();
+    var sc = el('button','turnchip speedchip' + (sp >= 4 ? ' max' : ''));
+    sc.type = 'button';
+    sc.appendChild(el('span','', sp >= 4 ? 'Max speed' : 'Speed'));
+    sc.appendChild(el('b','', String(sp)));
+    sc.setAttribute('aria-label', 'Speed ' + sp + '. Tap to go up one, hold to type it.');
+    sc.onclick = function(){
+      if(sp >= 4) return;
+      seat().speed = sp + 1;
+      seat().speedTurn = state.turn;
+      blip('tick');
+      commit('Speed ' + (sp + 1) + (sp + 1 >= 4 ? ', max speed' : ''));
+    };
+    holdToType(sc, 'Speed', 'From 0 to 4. At 4 you are at max speed.',
+      function(){ return speedNow(); },
+      function(v){ seat().speed = Math.max(0, Math.min(4, v)); commit('Speed set to ' + seat().speed); });
+    t.appendChild(sc);
+  }
+
   if(mode === 'board'){
     var pb = el('div','phasebar');
     PHASES.forEach(function(p,i){
@@ -3252,6 +3552,24 @@ function renderBoard(){
   field.appendChild(seatBar());
 
   var mb = band('Battlefield', others, 'Nothing on the battlefield yet, play a card from your hand.');
+  // Waiting in the command zone, the commander sits at the front of your
+  // battlefield. Once he is cast he is on the battlefield anyway, so this goes.
+  var cid = commanderIid();
+  if(cid && zoneOf(cid) === 'cmd'){
+    var tray0 = mb.querySelector('.tray');
+    var cn = cardNode(cid, { zone:'cmd', noDrag:true });
+    cn.classList.add('incmd');
+    var tx = (seat().cmdTax || 0) * 2;
+    var cb = el('span','bdg cmd', 'COMMAND' + (tx ? ' +' + tx : ''));
+    cb.title = tx ? ('Commander tax: ' + tx + ' more to cast') : 'In the command zone';
+    var bar = el('div','badges');
+    var left = el('div'); left.style.cssText = 'display:flex;gap:3px';
+    left.appendChild(cb);
+    bar.appendChild(left);
+    cn.querySelector('.card').appendChild(bar);
+    tray0.classList.remove('empty');
+    tray0.insertBefore(cn, tray0.firstChild);
+  }
   var wipe = el('button','btn sm ghost','Move several');
   wipe.setAttribute('aria-label','Move several permanents at once, for a board wipe');
   wipe.onclick = function(){ openBulk('bf'); };
@@ -3278,7 +3596,10 @@ function renderBoard(){
   lrow.appendChild(strip);
   field.appendChild(lrow);
   board.appendChild(field);
-  board.appendChild(renderRail());
+  // The rail only ever held the commander and, when they are switched on, the
+  // life counters. The commander now sits on the battlefield itself.
+  if(showLife) board.appendChild(renderRail());
+  else board.classList.add('norail');
   wrap.appendChild(board);
   if(combatMode || anyAttacking()) wrap.appendChild(combatBar());
   // No hand strip: this screen sits on the table where opponents can read it,
@@ -3361,7 +3682,7 @@ function addCounterQuiet(iid, kind, delta){
   var c = state.cards[iid];
   if(!c) return;
   c.ctr = c.ctr || {};
-  var m = counterMath(kind, delta);
+  var m = counterMath(kind, delta, iid);
   c.ctr[kind] = (c.ctr[kind] || 0) + (delta > 0 ? m.n : delta);
   if(!c.ctr[kind]) delete c.ctr[kind];
 }
@@ -3733,6 +4054,7 @@ function combatBar(){
     b.onclick = function(){
       sx.life = (sx.life == null ? 40 : sx.life) - d;
       clearAttacks();
+      speedUp(sx.name + ' lost life');
       fireWatch('hit', null);
       blip('turn');
       commit(sx.name + ' took ' + d);
@@ -4510,6 +4832,12 @@ function zoneGrid(){
   g.appendChild(zoneRow('Exile', state.z.ex, true, function(){ openBrowse('ex'); }));
 
   var acts = el('div','zacts');
+  var youBtn = el('button','zone youbtn');
+  youBtn.style.cssText='justify-content:center;background:var(--bg3);border-color:var(--brass-dim)';
+  youBtn.appendChild(el('span','zl','You'));
+  youBtn.setAttribute('aria-label','Your own life, poison and commander damage taken');
+  youBtn.onclick = function(){ openPlayerSheet(state.seats[0].id); };
+  acts.appendChild(youBtn);
   var tokBtn = el('button','zone');
   tokBtn.style.cssText='justify-content:center;background:var(--bg3);border-color:var(--brass-dim)';
   tokBtn.appendChild(el('span','zl','+ Token'));
@@ -4790,8 +5118,16 @@ function actionGrid(s, actions){
   return g;
 }
 
+// "Equip {3}". Written without a colon, so it is not in the ability list, but
+// it is an ability with a price. It is not a spell, so nothing that makes
+// spells cheaper touches it: the printed number is what it costs.
+function equipCost(d){
+  var m = /^Equip\s+((?:\{[^}]+\})+)/m.exec(String((d && d.o) || ''));
+  return m ? m[1] : null;
+}
+
 // Which creature is carrying it. Only your own board, as ever.
-function openAttachPicker(iid){
+function openAttachPicker(iid, paid){
   var d = defOf(state.cards[iid]);
   var b = attachBonus(d);
   var sh = sheet('Attach ' + (d ? d.n : 'it'),
@@ -4810,9 +5146,19 @@ function openAttachPicker(iid){
     var node = cardNode(g[0], { zone:'bf', ids:g,
       onTap: function(){
         var cc = state.cards[iid];
-        cc.eq = g[0];
         var to = defOf(state.cards[g[0]]);
-        commit((d ? d.n : 'It') + ' goes on ' + (to ? to.n : 'it'));
+        var cost = isAttachable(d) && /Equipment/.test(d.t || '') ? equipCost(d) : null;
+        if(cost && !paid && autoTap && !payWritten(cost)){
+          closeLayer();
+          confirmSheet('Not enough mana', 'Nothing untapped pays ' + cost
+            + ' to equip. Attach it anyway and sort the mana out by hand?', 'Attach anyway', function(){
+              cc.eq = g[0];
+              commit((d ? d.n : 'It') + ' goes on ' + (to ? to.n : 'it') + ', mana by hand');
+            });
+          return;
+        }
+        cc.eq = g[0];
+        commit((d ? d.n : 'It') + ' goes on ' + (to ? to.n : 'it') + (cost ? ', paid ' + cost : ''));
         closeLayer();
       },
       onHold: function(){} });
@@ -4862,14 +5208,14 @@ function openCardSheet(iid, zone){
     d.tk.forEach(function(td){ s.appendChild(tokenMakeRow(iid, d, td)); });
     s.appendChild(el('div','divider'));
   }
-  var borrowed = borrowsFrom(d);
+  var borrowed = z === 'bf' ? borrowsFrom(d, iid) : [];
   if(borrowed.length){
-    var bh = el('p','sub','Borrowed from the rest of your board');
+    var bh = el('p','sub','Tokens it can make, borrowed');
     bh.style.margin = '0 0 7px';
     s.appendChild(bh);
     borrowed.forEach(function(b){
       var row = tokenMakeRow(b.iid, b.from, b.td);
-      var tag = el('p','note', 'From ' + b.from.n + '.');
+      var tag = el('p','note', 'From ' + b.from.n + ', ' + b.why + '.');
       tag.style.cssText = 'margin:-4px 0 8px;padding-left:2px';
       row.appendChild(tag);
       s.appendChild(row);
@@ -4878,7 +5224,9 @@ function openCardSheet(iid, zone){
   }
 
   if(z === 'bf') abilitySection(s, iid, d);
+  if(z === 'bf') lenders(iid, d).forEach(function(L){ abilitySection(s, iid, d, L); });
   if(z === 'bf') attackSection(s, [iid], d);
+  if(z === 'hand' || z === 'gy') altSection(s, iid, d, z);
 
   var acts = [];
   if(z === 'hand'){
@@ -4892,7 +5240,8 @@ function openCardSheet(iid, zone){
     acts.push(['+1/+1', function(){ addCounter(iid,'p1p1',1); closeLayer(); }]);
     acts.push(['\u22121/\u22121', function(){ addCounter(iid,'p1p1',-1,true); closeLayer(); }]);
     if(isAttachable(d)){
-      acts.push([c.eq ? 'Move it to another creature' : 'Attach to a creature',
+      var eqc = /Equipment/.test(d.t || '') ? equipCost(d) : null;
+      acts.push([(c.eq ? 'Move it' : 'Equip') + (eqc ? ' for ' + eqc : ' to a creature'),
         function(){ closeLayer(); openAttachPicker(iid); }, !c.eq]);
       if(c.eq) acts.push(['Take it off', function(){
         delete c.eq; commit((d?d.n:'It') + ' comes off'); closeLayer(); }]);
@@ -4902,6 +5251,11 @@ function openCardSheet(iid, zone){
   }
   if(z === 'cmd'){
     acts.push(['Cast commander', function(){ playCard(iid); seat().cmdTax=(seat().cmdTax||0)+1; commit(null); closeLayer(); }, true]);
+  }
+  if(d && commanderName() === d.n){
+    s.appendChild(el('div','divider'));
+    stepRow(s, 'Commander tax, times cast', function(){ return seat().cmdTax || 0; },
+      function(v){ seat().cmdTax = Math.max(0, v); });
   }
   if(z === 'lib'){
     acts.push(['Draw to hand', function(){ move(iid,'hand'); commit('Took '+(d?d.n:'a card')+' from library'); closeLayer(); }, true]);
@@ -5273,18 +5627,56 @@ function openBrowse(z){
 // the card that made it does, so the note is kept on the token.
 // A few cards do what another creature does. Marvin is the one in the deck, so
 // his sheet offers what the rest of the board can do, borrowed.
-var BORROWS_ABILITIES = ['Marvin, Murderous Mimic'];
-function borrowsFrom(d){
-  if(!d || BORROWS_ABILITIES.indexOf(d.n) < 0) return [];
+// Three cards in the decks lend abilities, each from a different place, and
+// all three places are yours:
+//   Marvin             the other creatures on your battlefield
+//   Conspicuous Snoop  the top card of your library, while it is a Goblin
+//   Agatha's Soul Cauldron  creature cards in exile, to any creature of yours
+//                      with a +1/+1 counter. The app cannot tell which exiled
+//                      cards the Cauldron itself exiled, so it offers every
+//                      creature card in your exile and says so.
+function lenders(iid, d){
   var out = [];
-  state.z.bf.forEach(function(sid){
-    var sc = state.cards[sid];
-    if(!sc || sc.fd) return;
-    var sd = defOf(sc);
-    if(!sd || sd.n === d.n) return;                       // not its own name
-    if(!/Creature/.test(sd.t || '')) return;              // creatures you control
-    if(!sd.tk || !sd.tk.length) return;                   // only the ones that make things
-    sd.tk.forEach(function(td){ out.push({ from:sd, iid:sid, td:td }); });
+  if(!d) return out;
+  function add(sid, why){
+    var sd = defOf(state.cards[sid]);
+    if(!sd || sd.n === d.n) return;
+    if(!/Creature/.test(sd.t || '')) return;
+    out.push({ iid:sid, d:sd, why:why });
+  }
+  if(d.n === 'Marvin, Murderous Mimic'){
+    state.z.bf.forEach(function(sid){
+      var sc = state.cards[sid];
+      if(sc && !sc.fd) add(sid, 'from your battlefield');
+    });
+  }
+  if(d.n === 'Conspicuous Snoop' && state.z.lib.length){
+    var top = state.z.lib[0], td = defOf(state.cards[top]);
+    if(td && /Goblin/.test(td.t || '')) add(top, 'the top card of your library is a Goblin');
+  }
+  var c = state.cards[iid];
+  var cauldron = state.z.bf.some(function(sid){
+    var sd = defOf(state.cards[sid]);
+    return sd && sd.n === "Agatha's Soul Cauldron";
+  });
+  if(cauldron && c && c.ctr && c.ctr.p1p1 > 0 && /Creature/.test(d.t || '')){
+    state.z.ex.forEach(function(sid){ add(sid, 'in exile, through Agatha\'s Soul Cauldron'); });
+  }
+  return out;
+}
+
+// Only ACTIVATED abilities are lent. Howlsquad Heavy's goblin comes from a
+// trigger and Ragavan's Treasure from combat damage, so neither is Marvin's to
+// make. A token counts only if an activated ability of the lender makes it.
+function borrowsFrom(d, iid){
+  var out = [];
+  lenders(iid, d).forEach(function(L){
+    var acts = abilitiesOf(L.d).map(function(a){ return a.text; }).join(' ');
+    (L.d.tk || []).forEach(function(td){
+      var word = String(td.n || '').split(' ')[0];
+      if(!word || acts.indexOf(word) < 0) return;
+      out.push({ from:L.d, iid:L.iid, td:td, why:L.why });
+    });
   });
   return out;
 }
@@ -5324,8 +5716,35 @@ function countOnBoard(word){
   return n;
 }
 
+// "Create two 1/1 red Goblin creature tokens." The number is on the card, so
+// the Make row starts there instead of at one.
+var NUMBER_WORD = { a:1, an:1, one:1, two:2, three:3, four:4, five:5, six:6,
+                    seven:7, eight:8, nine:9, ten:10 };
+function writtenTokenCount(d, td){
+  var o = String((d && d.o) || '');
+  var name = String((td && td.n) || '').split(' ')[0];
+  var lines = o.split('\n');
+  for(var i = 0; i < lines.length; i++){
+    var l = lines[i];
+    if(name && l.indexOf(name) < 0 && !/token/i.test(l)) continue;
+    var m = /[Cc]reate (a|an|one|two|three|four|five|six|seven|eight|nine|ten)\b[^.]*?token/.exec(l);
+    if(!m) continue;
+    var n = NUMBER_WORD[m[1].toLowerCase()];
+    // "a 6/6 green Wurm creature token for each land you control"
+    var each = /tokens? for each ([^.]+?) you control/.exec(l);
+    if(each){
+      var k = countOnBoard(oneWord(each[1]));
+      return { n: n * k, why: k + ' ' + each[1] + ' you control' };
+    }
+    if(n > 1) return { n:n, why:'the card says ' + m[1] };
+    return null;
+  }
+  return null;
+}
+
 function tokenCountFor(iid, d, td){
   if(!cardEffects) return null;
+  var w = writtenTokenCount(d, td);
   for(var i=0;i<TOKEN_COUNT.length;i++){
     var r = TOKEN_COUNT[i];
     if(r.n !== d.n) continue;
@@ -5333,7 +5752,7 @@ function tokenCountFor(iid, d, td){
     var n = r.amount(iid);
     return { n:n, why:r.why(n) };
   }
-  return null;
+  return w;
 }
 
 // One row per token the card actually makes. Scryfall names them outright, so
