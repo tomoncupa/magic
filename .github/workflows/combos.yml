@@ -1,0 +1,21 @@
+name: Refresh combo list
+on:
+  schedule: [{ cron: '0 20 * * *' }]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  combos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install ijson
+      - run: curl -sSfL -o /tmp/variants.json https://json.commanderspellbook.com/variants.json
+      - run: python build/slim_combos.py /tmp/variants.json build/combos.json
+      - run: |
+          git config user.name "combo-bot"
+          git config user.email "combo-bot@users.noreply.github.com"
+          git add build/combos.json
+          git diff --cached --quiet || (git commit -m "Refresh combo list" && git push)

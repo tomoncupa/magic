@@ -6300,6 +6300,7 @@ function openMenu(){
   actionGrid(s, [
     ['Deck & sideboard', function(){ closeLayer(); openDeckSheet(); }, true],
     ['Import a deck', function(){ closeLayer(); openImport(); }],
+    ['Build a deck', function(){ location.href = 'build/'; }],
     ['New game', function(){ closeLayer(); confirmSheet('Start a new game?',
         'The current board, hand and graveyard are discarded. Life totals reset.',
         'Start new game', function(){
@@ -6407,7 +6408,8 @@ async function scryLookup(names, onProgress){
     if(!res.ok) throw new Error('scryfall ' + res.status);
     var j = await res.json();
     (j.not_found || []).forEach(function(nf){ if(nf && nf.name) missing.push(nf.name); });
-    (j.data || []).forEach(function(c){ found[c.name.toLowerCase()] = scryCard(c); });
+    // A double-faced card is asked for by its front face but answered with both names.
+    (j.data || []).forEach(function(c){ var d = scryCard(c); found[c.name.toLowerCase()] = d; found[c.name.split(' // ')[0].toLowerCase()] = d; });
     if(i + 70 < names.length) await new Promise(function(r){ setTimeout(r,120); });
   }
   return { found: found, missing: missing };
@@ -6540,7 +6542,7 @@ function copyText(txt, btn, okLabel){
   btn.textContent = 'Select it above instead'; reset();
 }
 
-function openImport(){
+function openImport(prefill){
   var s = sheet('Import a deck', 'From Moxfield: open your deck \u2192 More \u2192 Export \u2192 Copy, then paste it here.');
   var note = el('p','note');
   note.innerHTML = 'Paste an export from Moxfield, Archidekt, Arena, MTGO, TappedOut, '
@@ -6552,6 +6554,7 @@ function openImport(){
 
   var ta = el('textarea');
   ta.id = 'importText';
+  if(prefill) ta.value = prefill.text;
   ta.placeholder = "1 Sol Ring (LTC) 254\n1 Arcane Signet\n10 Forest\n\u2026";
   s.appendChild(ta);
 
@@ -6646,7 +6649,7 @@ function openImport(){
     if(!p.cards.length){ errBox.textContent='Nothing to import, paste a decklist first.'; return; }
     finish(p.cards.map(function(c){
       return { n:c.n, q:c.q, side:c.side, t:'', m:'', ci:[], pm:[], o:'' };
-    }), p.commander, 'Imported deck');
+    }), p.commander, (prefill && prefill.name) || 'Imported deck');
   };
 
   b1.onclick = async function(){
@@ -6685,8 +6688,20 @@ function openImport(){
       out.q = c.q; out.side = c.side;
       return out;
     });
-    finish(list, p.commander, 'Imported deck');
+    finish(list, p.commander, (prefill && prefill.name) || 'Imported deck');
   };
+  if(prefill) status.textContent = 'From Deck Forge: ' + (prefill.name || 'a deck') + '. Tap Import to deal it.';
+}
+// Deck Forge hands a deck over in the link: #import=<base64 of {name,text}>.
+function importFromLink(){
+  var m = location.hash.match(/^#import=([A-Za-z0-9_-]+)/);
+  if(!m) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  try{
+    var b = m[1].replace(/-/g,'+').replace(/_/g,'/');
+    var j = JSON.parse(decodeURIComponent(escape(atob(b))));
+    if(j && j.text) setTimeout(function(){ openImport(j); }, 300);
+  }catch(e){}
 }
 
 /* ---------------- boot ---------------- */
@@ -6736,6 +6751,7 @@ function boot(){
   setDot('connecting');
   render();
   initSync();
+  importFromLink();
 
   // Cache the app and every card picture seen, so a shop with no wifi still
   // deals a game. Sync still needs a connection.
