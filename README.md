@@ -11,6 +11,15 @@ opponents are tracked as life totals and commander damage, never as boards.
 It is a plain static site. Any web host works, including GitHub Pages. Open the
 same link on both devices and give them the same table code from the menu.
 
+## Brewing Station on Windows
+
+`desktop/Brewing Station.pyw` serves this folder on 127.0.0.1:8766 and opens
+`/build/` in an Edge app window. Its Claude review (Check step) runs the Claude
+desktop app's own `claude.exe` with no tools in an empty temp folder, on the
+signed-in subscription. Anywhere else the page offers copy prompt / paste answer.
+Decks saved in the app window are separate from the web version's (different
+origin, different local storage).
+
 ## Card data
 
 Card art and rules text come from Scryfall at run time, so any deck you paste
