@@ -6300,7 +6300,7 @@ function openMenu(){
   actionGrid(s, [
     ['Deck & sideboard', function(){ closeLayer(); openDeckSheet(); }, true],
     ['Import a deck', function(){ closeLayer(); openImport(); }],
-    ['Build a deck', function(){ location.href = 'build/'; }],
+    ['Brewing Station', function(){ location.href = 'build/'; }],
     ['New game', function(){ closeLayer(); confirmSheet('Start a new game?',
         'The current board, hand and graveyard are discarded. Life totals reset.',
         'Start new game', function(){
@@ -6690,9 +6690,9 @@ function openImport(prefill){
     });
     finish(list, p.commander, (prefill && prefill.name) || 'Imported deck');
   };
-  if(prefill) status.textContent = 'From Deck Forge: ' + (prefill.name || 'a deck') + '. Tap Import to deal it.';
+  if(prefill) status.textContent = 'From Brewing Station: ' + (prefill.name || 'a deck') + '. Tap Import to deal it.';
 }
-// Deck Forge hands a deck over in the link: #import=<base64 of {name,text}>.
+// Brewing Station hands a deck over in the link: #import=<base64 of {name,text}>.
 function importFromLink(){
   var m = location.hash.match(/^#import=([A-Za-z0-9_-]+)/);
   if(!m) return;
