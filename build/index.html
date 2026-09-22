@@ -738,9 +738,15 @@ function drawSkeleton(){
   if(!S.ci.length) h += '<p class="note">Colourless commander: every land is a Wastes or a colourless utility land.</p>';
   h += '</div>';
   if(S.missingMust && S.missingMust.length) h += '<p class="bad" style="margin-top:12px">Scryfall did not know these must-includes: ' + esc(S.missingMust.join(', ')) + '. Check the spelling.</p>';
-  h += '<div class="row" style="margin-top:16px"><button class="btn small" id="resetQ">Reset to suggested</button></div>';
+  var stale = S.deck.length && S.deckPlan !== planKey();
+  if(stale) h += '<p class="warn" style="margin-top:12px">The plan has changed since the 99 was built. Build the 99 makes a new list with your changes.</p>';
+  h += '<div class="row" style="margin-top:16px"><button class="btn small" id="resetQ">Reset to suggested</button>' +
+    (S.deck.length && !stale ? '<button class="btn small" id="rebuild">Build the 99 again</button><span class="note">Replaces the current list, including your edits.</span>' : '') + '</div>';
   main.innerHTML = h;
-  main.onclick = function(e){ if(e.target.id === 'resetQ'){ makeSkeleton(); save(); drawSkeleton(); } };
+  main.onclick = function(e){
+    if(e.target.id === 'resetQ'){ makeSkeleton(); save(); drawSkeleton(); }
+    if(e.target.id === 'rebuild'){ buildDeck(); go(4); }
+  };
   main.oninput = function(e){
     var k = e.target.dataset.q, c = e.target.dataset.src, v = Math.max(0, Math.min(60, +e.target.value || 0));
     if(k){ S.quotas[k] = v; if(S.why[k].indexOf('Set by you.') < 0) S.why[k].push('Set by you.'); }
@@ -748,10 +754,12 @@ function drawSkeleton(){
     save();
   };
   main.onchange = function(){ drawSkeleton(); };
-  $('nextBtn').textContent = S.deck.length ? 'Next' : 'Build the 99';
+  $('nextBtn').textContent = S.deck.length && !stale ? 'Next' : 'Build the 99';
   $('nextBtn').disabled = false;
 }
-NEXT[3] = function(){ $('nextBtn').textContent = 'Next'; if(!S.deck.length) buildDeck(); go(4); };
+// What the 99 was built from. A different plan means the list is out of date.
+function planKey(){ return JSON.stringify([S.cmd && S.cmd.n, S.partner && S.partner.n, S.bracket, S.theme, S.wins, S.mustText, S.refuseText, S.quotas, S.sources]); }
+NEXT[3] = function(){ if(!S.deck.length || S.deckPlan !== planKey()) buildDeck(); go(4); };
 
 /* ============ step 4: build ============ */
 function gcLimit(){ return BRACKETS[S.bracket].gc; }
@@ -788,28 +796,38 @@ function buildDeck(){
   }
   var ranked = pool.filter(function(c){ return allowed(c); }).sort(function(a, b){ return score(b) - score(a); });
   // Must-includes go in first, whatever they cost.
+  var dropped = [];
   lines(S.mustText).forEach(function(n){
-    var c = poolCard(n); if(!c || !withinCI(c) || c.legal !== 'legal') return;
+    var c = poolCard(n);
+    if(!c) return;
+    if(c.legal !== 'legal'){ dropped.push(c.n + ' (not legal in Commander)'); return; }
+    if(!withinCI(c)){ dropped.push(c.n + ' (outside the colour identity)'); return; }
     var role = isLand(c) ? 'lands' : primaryRole(c);
     take(c, role, 'must');
   });
   // Combo preference: seed the best allowed combo with the commander.
   // (Applied after combos load in validation; the builder keeps it simple here.)
   var nonland = ranked.filter(function(c){ return !isLand(c); });
+  var spellSlots = deckSlots() - q.lands;
+  function spells(){ return deck.filter(function(d){ return d.role !== 'lands'; }).length; }
+  // Role quotas count the jobs a must-include does, and never push past the spell slots.
   ['ramp', 'draw', 'removal', 'wipes', 'protection', 'wincon'].forEach(function(role){
-    var have = deck.filter(function(d){ return d.role === role; }).length;
     var key = ROLE_KEY[role];
-    for(var i = 0; i < nonland.length && have < q[role]; i++){
+    var have = deck.filter(function(d){ var c = poolCard(d.n); return d.role === role || (d.must && c && c.roles[key]); }).length;
+    for(var i = 0; i < nonland.length && have < q[role] && spells() < spellSlots; i++){
       var c = nonland[i];
       if(c.roles[key] || (role === 'wincon' && c.roles.tutor && S.bracket >= 4)){ if(take(c, role)) have++; }
     }
   });
-  var spellSlots = deckSlots() - q.lands;
-  for(var i = 0; i < nonland.length && deck.filter(function(d){ return d.role !== 'lands'; }).length < spellSlots; i++){
+  for(var i = 0; i < nonland.length && spells() < spellSlots; i++){
     take(nonland[i], 'synergy');
   }
-  fillLands(deck, used, ranked);
-  S.deck = deck; S.side = null; S.fixes = [];
+  // When the must-includes take more than the spell slots, the lands give way.
+  var landRoom = deckSlots() - spells();
+  S.landShort = Math.max(0, q.lands - landRoom);
+  S.dropped = dropped;
+  fillLands(deck, used, ranked, Math.min(q.lands, landRoom));
+  S.deck = deck; S.side = null; S.fixes = []; S.deckPlan = planKey();
   save();
 }
 function primaryRole(c){
@@ -818,8 +836,8 @@ function primaryRole(c){
   return 'synergy';
 }
 var BASICS = { W:'Plains', U:'Island', B:'Swamp', R:'Mountain', G:'Forest' };
-function fillLands(deck, used, ranked){
-  var target = S.quotas.lands;
+function fillLands(deck, used, ranked, target){
+  if(target == null) target = S.quotas.lands;
   var have = deck.filter(function(d){ return d.role === 'lands'; });
   var lands = ranked.filter(function(c){ return isLand(c) && !isBasic(c) && !used[c.n]; });
   var multi = S.ci.length > 1;
@@ -867,6 +885,9 @@ VIEW[4] = function(){
   h += '<div class="row"><span class="chip">' + esc(S.cmd.n) + '</span>' + (S.partner ? '<span class="chip">' + esc(S.partner.n) + '</span>' : '') +
     '<span class="chip">Bracket ' + S.bracket + '</span><span class="chip">Game Changers ' + S.deck.filter(function(d){ return d.gc; }).length + ' / ' + (gcLimit() === Infinity ? 'no limit' : gcLimit()) + '</span>' +
     '<button class="btn small" id="rebuild">Rebuild from scratch</button></div>';
+  var landsNow = S.deck.filter(function(d){ return d.role === 'lands'; }).length;
+  if(S.landShort && landsNow < S.quotas.lands) h += '<p class="warn" style="margin-top:12px">Your must-include cards leave room for ' + landsNow + ' lands; the plan says ' + S.quotas.lands + '. Cut ' + (S.quotas.lands - landsNow) + ' of your cards here and add lands, or play it with fewer lands. The Check step shows what that does to your opening hands.</p>';
+  if(S.dropped && S.dropped.length) h += '<p class="bad" style="margin-top:8px">Left out of your must-includes: ' + esc(S.dropped.join(', ')) + '.</p>';
   h += '<div class="suggest" style="margin-top:12px"><input type="text" id="addIn" placeholder="Add a card by name" autocomplete="off"><ul id="addList" hidden></ul></div>';
   groups.forEach(function(g){
     var items = S.deck.filter(function(d){ return d.role === g; }).sort(function(a, b){ return a.mv - b.mv || a.n.localeCompare(b.n); });
@@ -1223,6 +1244,7 @@ function autoFix(r){
     if(w){ S.deck.splice(S.deck.indexOf(w), 1); S.quotas.lands++; var u = {}; S.deck.forEach(function(d){ u[d.n] = 1; }); fillLands(S.deck, u, []); log.push('Cut ' + w.n + ' for a land: the opening-hand odds were low.'); }
   }
   S.fixes = log.length ? log : ['Nothing could be fixed automatically. Edit the list on step 4.'];
+  if(S.deckPlan) S.deckPlan = planKey();   // the fixes move land counts; that is not a new plan
   S.side = null; save(); VIEW[5]();
 }
 function swapOut(d, rep, reason, log){
