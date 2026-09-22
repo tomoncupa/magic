@@ -749,6 +749,7 @@ function drawSkeleton(){
   };
   main.onchange = function(){ drawSkeleton(); };
   $('nextBtn').textContent = S.deck.length ? 'Next' : 'Build the 99';
+  $('nextBtn').disabled = false;
 }
 NEXT[3] = function(){ $('nextBtn').textContent = 'Next'; if(!S.deck.length) buildDeck(); go(4); };
 
