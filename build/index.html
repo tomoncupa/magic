@@ -1469,6 +1469,15 @@ function deckTxt(){
   if(S.companion) out.push('', 'Companion', '1 ' + S.companion);
   return out.join('\n') + '\n';
 }
+// One paste for Moxfield: its own Arena export headers, side deck under Sideboard, no comment lines.
+function moxTxt(){
+  var out = deckTxt().trim().split('\n');
+  if(S.side && (S.side.up.length || S.side.down.length)){
+    out.push('', 'Sideboard');
+    S.side.up.concat(S.side.down).forEach(function(p){ out.push('1 ' + p.inn); });
+  }
+  return out.join('\n') + '\n';
+}
 function sideTxt(){
   if(!S.side) return '';
   var out = [];
@@ -1524,6 +1533,9 @@ VIEW[7] = function(){
   var h = '<h1>Export</h1>';
   h += '<div class="panel stack"><h2 style="margin:0">Play it at the table</h2><p class="note">Opens Kitchen Table Magic with this deck in its import box, ready for card art. The link also works on your other device.</p>' +
     '<div class="row"><button class="btn primary" id="toTable">Send to Kitchen Table</button><button class="btn" id="copyLink">Copy table link</button></div></div>';
+  h += '<div class="panel stack"><h2 style="margin:0">Put it on Moxfield</h2><p class="note">One paste holds the commander, the 99' + (S.side ? ' and the side deck' : '') + '. On Moxfield: Create Deck, format Commander, paste it into the list box. ' +
+    'If ' + esc(S.cmd.n) + ' lands in the 99, open it and press Set as Commander.</p>' +
+    '<div class="row"><button class="btn primary" id="copyMox">Copy for Moxfield</button><a class="btn" href="https://moxfield.com/decks/new" target="_blank" rel="noopener">Open Moxfield</a></div></div>';
   [['deck.txt', deckTxt(), 'Moxfield import format, commander under its own header.'], ['sideboard.txt', sideTxt() || '(Make the side deck on step 6 first.)', 'Swap pairs as comments, cards under Sideboard.'], ['primer.md', primerMd(), 'Game plan, mulligans, key lines, threats.' + (S.claude && S.claude.primer ? ' Written by Claude.' : '')]].forEach(function(f, i){
     h += '<h2>' + f[0] + '</h2><p class="note">' + f[2] + '</p><pre class="out">' + esc(f[1]) + '</pre>' +
       '<div class="row" style="margin-top:8px"><button class="btn small" data-copy="' + i + '">Copy</button><button class="btn small" data-dl="' + i + '">Download</button></div>';
@@ -1534,6 +1546,7 @@ VIEW[7] = function(){
     var t = e.target;
     if(t.dataset.copy) copy(files[+t.dataset.copy][1](), 'Copied.');
     if(t.dataset.dl){ var f = files[+t.dataset.dl]; download(f[0], f[1]()); }
+    if(t.id === 'copyMox') copy(moxTxt(), 'Copied. Paste it into Moxfield.');
     if(t.id === 'toTable') location.href = tableLink();
     if(t.id === 'copyLink') copy(new URL(tableLink(), location.href).href, 'Link copied. Open it on the iPad.');
   };
