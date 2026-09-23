@@ -1427,9 +1427,10 @@ function makeSide(){
       var c = x.c;
       if(isGC(c) && gcNow + gcAdd >= nextLim) return;
       var role = primaryRole(c);
-      var outs = S.deck.filter(function(d){ return !d.must && !d.basic && d.role === role && !used[d.n] && Math.abs(d.mv - c.mv) <= 1; })
+      // Never cut a Game Changer to power up, and only swap for a clear gain.
+      var outs = S.deck.filter(function(d){ return !d.must && !d.basic && !d.gc && d.role === role && !used[d.n] && Math.abs(d.mv - c.mv) <= 1; })
         .sort(function(a, b){ return score(cardOf(a)) - score(cardOf(b)); });
-      var o = outs[0]; if(!o || score(cardOf(o)) >= x.s) return;
+      var o = outs[0]; if(!o || score(cardOf(o)) + 0.15 >= x.s) return;
       used[o.n] = 1; if(isGC(c)) gcAdd++;
       up.push({ out:o.n, outMv:o.mv, inn:c.n, inMv:c.mv, why:(isGC(c) ? 'Game Changer. ' : '') + ROLE_NAMES[role] + ', ' + why(c, role).replace(/^[^.]+\. /, '') });
     });
