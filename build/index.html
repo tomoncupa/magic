@@ -242,13 +242,26 @@ function slim(c){
   return { n:c.name, id:c.id, mv:c.cmc || 0, cost:c.mana_cost || (f[0] && f[0].mana_cost) || '',
     type:c.type_line || (f[0] && f[0].type_line) || '', o:o, ci:c.color_identity || [],
     legal:(c.legalities || {}).commander, prod:c.produced_mana || [], gc:!!c.game_changer,
-    img:img.normal || '', sm:img.small || '', kw:c.keywords || [] };
+    img:img.normal || '', sm:img.small || '', kw:c.keywords || [], rel:c.released_at || '' };
+}
+// A card Scryfall knows but that is not out yet. Commander calls it not legal until release day.
+// The date is the newest printing's, so a reprint in an upcoming set has a future date too; it stays legal.
+function unreleased(c){ return !!(c && c.rel) && c.legal !== 'legal' && c.rel > new Date().toISOString().slice(0, 10); }
+function relDate(c){ return new Date(c.rel + 'T00:00:00').toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }); }
+// Unreleased must-includes and cards added by name wait here instead of the 99.
+function considering(){
+  var out = [], seen = {}, must = lines(S.mustText);
+  must.concat(S.considerAdd || []).forEach(function(n){
+    var c = poolCard(n); if(!c || !unreleased(c) || seen[c.n]) return;
+    seen[c.n] = 1; out.push({ c:c, added:!must.some(function(m){ return sameName(c.n, m); }) });
+  });
+  return out;
 }
 // Look up many cards at once, by Scryfall id where known, else by name.
 async function sfCollection(list, onProgress){
   var out = {}, todo = [];
   list.forEach(function(x){
-    var k = 'card:' + (x.id || x.n.toLowerCase()), hit = cacheGet(k);
+    var k = 'card2:' + (x.id || x.n.toLowerCase()), hit = cacheGet(k);
     if(hit){ out[(x.id || x.n.toLowerCase())] = hit; } else todo.push(x);
   });
   var missing = [];
@@ -262,7 +275,7 @@ async function sfCollection(list, onProgress){
       var front = s.n.split(' // ')[0].toLowerCase(); byName[front] = s; });
     chunk.forEach(function(x){
       var s = x.id ? byName[x.id] : byName[x.n.toLowerCase()];
-      if(s){ var k = x.id || x.n.toLowerCase(); out[k] = s; cachePut('card:' + k, s); }
+      if(s){ var k = x.id || x.n.toLowerCase(); out[k] = s; cachePut('card2:' + k, s); }
     });
   }
   return { cards:out, missing:missing };
@@ -632,7 +645,7 @@ async function loadPool(onStep){
     });
   });
   var must = lines(S.mustText);
-  must.forEach(function(n){ var k = n.toLowerCase(); if(!m[k]) m[k] = { n:n, stats:{}, mustOnly:true }; });
+  must.concat(S.considerAdd || []).forEach(function(n){ var k = n.toLowerCase(); if(!m[k]) m[k] = { n:n, stats:{}, mustOnly:true }; });
   // Cards already in the deck from outside EDHREC (Claude's swaps) still need their data.
   (S.deck || []).forEach(function(d){ var k = d.n.toLowerCase(); if(!d.basic && !m[k]) m[k] = { n:d.n, id:d.id, stats:{} }; });
   var list = Object.keys(m).map(function(k){ return m[k]; });
@@ -799,7 +812,7 @@ function buildDeck(){
   var dropped = [];
   lines(S.mustText).forEach(function(n){
     var c = poolCard(n);
-    if(!c) return;
+    if(!c || unreleased(c)) return;
     if(c.legal !== 'legal'){ dropped.push(c.n + ' (not legal in Commander)'); return; }
     if(!withinCI(c)){ dropped.push(c.n + ' (outside the colour identity)'); return; }
     var role = isLand(c) ? 'lands' : primaryRole(c);
@@ -887,7 +900,9 @@ VIEW[4] = function(){
     '<button class="btn small" id="rebuild">Rebuild from scratch</button></div>';
   var landsNow = S.deck.filter(function(d){ return d.role === 'lands'; }).length;
   if(S.landShort && landsNow < S.quotas.lands) h += '<p class="warn" style="margin-top:12px">Your must-include cards leave room for ' + landsNow + ' lands; the plan says ' + S.quotas.lands + '. Cut ' + (S.quotas.lands - landsNow) + ' of your cards here and add lands, or play it with fewer lands. The Check step shows what that does to your opening hands.</p>';
-  if(S.dropped && S.dropped.length) h += '<p class="bad" style="margin-top:8px">Left out of your must-includes: ' + esc(S.dropped.join(', ')) + '.</p>';
+  var consN = considering().map(function(x){ return x.c.n; });
+  var dropped = (S.dropped || []).filter(function(t){ return !consN.some(function(n){ return t.indexOf(n + ' (') === 0; }); });
+  if(dropped.length) h += '<p class="bad" style="margin-top:8px">Left out of your must-includes: ' + esc(dropped.join(', ')) + '.</p>';
   h += '<div class="suggest" style="margin-top:12px"><input type="text" id="addIn" placeholder="Add a card by name" autocomplete="off"><ul id="addList" hidden></ul></div>';
   groups.forEach(function(g){
     var items = S.deck.filter(function(d){ return d.role === g; }).sort(function(a, b){ return a.mv - b.mv || a.n.localeCompare(b.n); });
@@ -905,6 +920,16 @@ VIEW[4] = function(){
     });
     h += '</details>';
   });
+  var cons = considering();
+  if(cons.length){
+    h += '<details class="cat" open><summary>Considering <span class="ct">' + cons.length + '</span> <span class="target">not out yet</span></summary>' +
+      '<p class="note" style="margin:4px 8px">Not in the 99 until release day. On Export they go to the Considering list on Moxfield.</p>';
+    cons.forEach(function(x){
+      h += '<div class="card"><span class="mv">' + x.c.mv + '</span><div><div class="nm">' + esc(x.c.n) + '</div><div class="why">Out ' + relDate(x.c) + '. ' + (x.added ? 'Added by you.' : 'From your must-includes.') + '</div></div>' +
+        (x.added ? '<button class="x" data-uncons="' + esc(x.c.n) + '" aria-label="Remove ' + esc(x.c.n) + '">&times;</button>' : '') + '</div>';
+    });
+    h += '</details>';
+  }
   main.innerHTML = h;
   main.onclick = onBuildClick;
   wireAdd();
@@ -923,6 +948,8 @@ function onBuildClick(e){
   if(cut){ showReplacements(cut.dataset.cut); return; }
   var rep = t.closest('[data-rep]');
   if(rep){ replaceCard(rep.dataset.old, rep.dataset.rep); return; }
+  var unc = t.closest('[data-uncons]');
+  if(unc){ S.considerAdd = (S.considerAdd || []).filter(function(n){ return n !== unc.dataset.uncons; }); save(); VIEW[4](); return; }
   var only = t.closest('[data-only]');
   if(only){ S.deck = S.deck.filter(function(d){ return d.n !== only.dataset.only; }); S.side = null; save(); VIEW[4](); return; }
   var bas = t.closest('[data-basic]');
@@ -980,6 +1007,10 @@ function wireAdd(){
       c = Object.assign({}, c, { stats:{} }); c.roles = rolesOf(c); S.pool.push(c);
     }
     if(!withinCI(c)){ msg('<span class="bad">' + esc(c.n) + ' is outside your colours.</span>'); return; }
+    if(unreleased(c)){
+      S.considerAdd = S.considerAdd || []; if(S.considerAdd.indexOf(c.n) < 0) S.considerAdd.push(c.n);
+      save(); VIEW[4](); msg(esc(c.n) + ' comes out ' + relDate(c) + '. Added to Considering.'); return;
+    }
     if(c.legal !== 'legal'){ msg('<span class="bad">' + esc(c.n) + ' is not legal in Commander.</span>'); return; }
     if(S.deck.some(function(d){ return d.n === c.n; }) && !anyNumber(c)){ msg('<span class="bad">' + esc(c.n) + ' is already in the deck.</span>'); return; }
     S.deck.push(entry(c, isLand(c) ? 'lands' : primaryRole(c))); S.side = null; save(); VIEW[4]();
@@ -1266,7 +1297,10 @@ function claudePrompt(){
   L.push('Commander: ' + S.cmd.n + (S.partner ? ' + ' + S.partner.n : '') + '. Colour identity: ' + (S.ci.join('') || 'colourless') + '.');
   L.push('Bracket ' + S.bracket + ' (' + B.name + '): ' + B.desc + ' Game Changer limit: ' + (lim === Infinity ? 'none' : lim) + '.');
   L.push('Strategy: ' + th + '.' + (S.companion ? ' Companion: ' + S.companion + '.' : ''));
-  if(lines(S.mustText).length) L.push('Must stay in the deck: ' + lines(S.mustText).join(', ') + '.');
+  var cons = considering().map(function(x){ return x.c.n; });
+  var mustIn = lines(S.mustText).filter(function(n){ return !cons.some(function(c){ return sameName(c, n); }); });
+  if(mustIn.length) L.push('Must stay in the deck: ' + mustIn.join(', ') + '.');
+  if(cons.length) L.push('Not released yet, kept out of the 99, do not suggest them: ' + cons.join(', ') + '.');
   if(lines(S.refuseText).length) L.push('Never add: ' + lines(S.refuseText).join(', ') + '.');
   if(S.meta.length || S.metaText) L.push('About the table: ' + S.meta.concat(S.metaText ? [S.metaText] : []).join('; ') + '.');
   L.push('', 'What the builder\'s own checks found:');
@@ -1469,13 +1503,16 @@ function deckTxt(){
   if(S.companion) out.push('', 'Companion', '1 ' + S.companion);
   return out.join('\n') + '\n';
 }
-// One paste for Moxfield: its own Arena export headers, side deck under Sideboard, no comment lines.
+// One paste for Moxfield: its own Arena export headers, side deck under Sideboard,
+// unreleased cards under Maybeboard (Moxfield's Considering), no comment lines.
 function moxTxt(){
   var out = deckTxt().trim().split('\n');
   if(S.side && (S.side.up.length || S.side.down.length)){
     out.push('', 'Sideboard');
     S.side.up.concat(S.side.down).forEach(function(p){ out.push('1 ' + p.inn); });
   }
+  var cons = considering();
+  if(cons.length){ out.push('', 'Maybeboard'); cons.forEach(function(x){ out.push('1 ' + x.c.n); }); }
   return out.join('\n') + '\n';
 }
 function sideTxt(){
@@ -1533,7 +1570,8 @@ VIEW[7] = function(){
   var h = '<h1>Export</h1>';
   h += '<div class="panel stack"><h2 style="margin:0">Play it at the table</h2><p class="note">Opens Kitchen Table Magic with this deck in its import box, ready for card art. The link also works on your other device.</p>' +
     '<div class="row"><button class="btn primary" id="toTable">Send to Kitchen Table</button><button class="btn" id="copyLink">Copy table link</button></div></div>';
-  h += '<div class="panel stack"><h2 style="margin:0">Put it on Moxfield</h2><p class="note">One paste holds the commander, the 99' + (S.side ? ' and the side deck' : '') + '. On Moxfield: Create Deck, format Commander, paste it into the list box. ' +
+  var nCons = considering().length;
+  h += '<div class="panel stack"><h2 style="margin:0">Put it on Moxfield</h2><p class="note">One paste holds the commander, the 99' + (S.side && (S.side.up.length || S.side.down.length) ? ', the side deck' : '') + (nCons ? ' and ' + nCons + ' unreleased card' + (nCons > 1 ? 's' : '') + ' for Considering' : '') + '. On Moxfield: Create Deck, format Commander, paste it into the list box. ' +
     'If ' + esc(S.cmd.n) + ' lands in the 99, open it and press Set as Commander.</p>' +
     '<div class="row"><button class="btn primary" id="copyMox">Copy for Moxfield</button><a class="btn" href="https://moxfield.com/decks/new" target="_blank" rel="noopener">Open Moxfield</a></div></div>';
   [['deck.txt', deckTxt(), 'Moxfield import format, commander under its own header.'], ['sideboard.txt', sideTxt() || '(Make the side deck on step 6 first.)', 'Swap pairs as comments, cards under Sideboard.'], ['primer.md', primerMd(), 'Game plan, mulligans, key lines, threats.' + (S.claude && S.claude.primer ? ' Written by Claude.' : '')]].forEach(function(f, i){
