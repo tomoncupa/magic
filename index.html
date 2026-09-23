@@ -632,6 +632,7 @@ input:focus,textarea:focus,select:focus{border-color:var(--brass-dim);outline:no
   <div class="topbar">
     <div class="brand">Kitchen Table<small>Magic</small></div>
     <span class="syncdot" id="dot" title="sync status"></span>
+    <button class="btn sm hide" id="signinBtn" type="button">Sign in to sync</button>
     <div id="topMana" class="manabar"></div>
     <div class="spacer"></div>
     <div id="topActions" style="display:flex;gap:7px;align-items:center;overflow:hidden;min-width:0"></div>
@@ -893,9 +894,12 @@ var db=null, stateRef=null, deckRef=null, syncMode='local', saveTimer=null, savi
 function setDot(m){
   syncMode = m;
   var d = document.getElementById('dot');
-  d.className = 'syncdot' + (m==='live'?' live':(m==='local'?' local':''));
+  d.className = 'syncdot' + (m==='live'?' live':((m==='local'||m==='signin')?' local':''));
   d.title = m==='live' ? 'Synced, open this same link on your other device'
-          : m==='local' ? 'Local only, this device is not syncing' : 'Connecting\u2026';
+          : m==='local' ? 'Local only, this device is not syncing'
+          : m==='signin' ? 'Sign in with Google to sync this device' : 'Connecting\u2026';
+  var b = document.getElementById('signinBtn');
+  if(b) b.classList.toggle('hide', m !== 'signin');
 }
 
 function touch(){ state.rev = (state.rev||0) + 1; state.by = DEVICE; }
@@ -917,7 +921,8 @@ function flush(){
     if(pending){ pending = false; flush(); }
   }, function(err){
     saving = false;
-    if(err && err.code === 'invalid_argument'){ setDot('local'); stateRef = null; }
+    if(err && err.code === 'unauthenticated'){ setDot('signin'); stateRef = null; }
+    else if(err && err.code === 'invalid_argument'){ setDot('local'); stateRef = null; }
     else if(err && err.code === 'revoked'){ setDot('local'); stateRef = null; }
     else { setTimeout(function(){ saving=false; flush(); }, 900 + Math.random()*600); }
   });
@@ -956,34 +961,136 @@ function undo(){
   markClean();
 }
 
+// ---- sign-in ---------------------------------------------------------------
+// The game data only opens for one Google account. Google hands an ID token
+// back in the link after a plain page redirect, because pop-ups do not come
+// back to a home screen app on iOS. Firebase swaps that for its own token,
+// every request carries it, and the refresh token keeps the device signed in.
+var auth = null, refreshing = null, authNote = '';
+try{ auth = JSON.parse(lsGet('ktm.auth','null')); }catch(e){ auth = null; }
+
+function authCfg(){
+  var c = window.MTG_FIREBASE;
+  return (c && c.apiKey && c.googleClientId) ? c : null;
+}
+function signedIn(){ return !!(auth && auth.refresh); }
+function appUrl(){ return location.origin + location.pathname.replace(/index\.html$/,''); }
+function randomHex(n){
+  var a = new Uint8Array(n); crypto.getRandomValues(a);
+  return Array.prototype.map.call(a, function(b){ return ('0' + b.toString(16)).slice(-2); }).join('');
+}
+function keepAuth(id, refresh, secs, email){
+  auth = { id:id, refresh:refresh || (auth && auth.refresh),
+           exp: Date.now() + (+secs || 3600) * 1000,
+           email: email || (auth && auth.email) || '' };
+  lsSet('ktm.auth', JSON.stringify(auth));
+}
+
+function signIn(){
+  var cfg = authCfg();
+  if(!cfg) return;
+  var wait = { state: randomHex(8), nonce: randomHex(16), hash: location.hash };
+  lsSet('ktm.authwait', JSON.stringify(wait));
+  var q = { client_id: cfg.googleClientId, redirect_uri: appUrl(), response_type: 'id_token',
+            scope: 'openid email', nonce: wait.nonce, state: wait.state, prompt: 'select_account' };
+  location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + Object.keys(q).map(function(k){
+    return k + '=' + encodeURIComponent(q[k]);
+  }).join('&');
+}
+function signOut(){
+  auth = null;
+  try{ localStorage.removeItem('ktm.auth'); }catch(e){}
+}
+
+// Coming back from Google: the token is in the link. Check it is the answer to
+// the question this device asked, then trade it for a Firebase one.
+function finishSignIn(){
+  var cfg = authCfg();
+  if(!cfg || !/[#&](id_token|error)=/.test(location.hash)) return Promise.resolve();
+  var p = {};
+  location.hash.slice(1).split('&').forEach(function(kv){
+    var i = kv.indexOf('=');
+    if(i > 0) p[kv.slice(0,i)] = decodeURIComponent(kv.slice(i+1).replace(/\+/g,' '));
+  });
+  var wait = null;
+  try{ wait = JSON.parse(lsGet('ktm.authwait','null')); localStorage.removeItem('ktm.authwait'); }catch(e){}
+  history.replaceState(null, '', location.pathname + location.search + ((wait && wait.hash) || ''));
+  if(p.error){ authNote = 'Google said: ' + p.error.replace(/_/g,' '); return Promise.resolve(); }
+  var claims = {};
+  try{
+    var seg = p.id_token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    claims = JSON.parse(decodeURIComponent(escape(atob(seg))));
+  }catch(e){}
+  if(!wait || p.state !== wait.state || claims.nonce !== wait.nonce){
+    authNote = 'That sign-in was not started on this device. Try again.';
+    return Promise.resolve();
+  }
+  return fetch('https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=' + cfg.apiKey, {
+    method:'POST', headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ postBody: 'id_token=' + p.id_token + '&providerId=google.com',
+                           requestUri: appUrl(), returnSecureToken: true })
+  }).then(function(r){ return r.json(); }).then(function(j){
+    if(!j.idToken){ authNote = 'Firebase refused the sign-in: ' + ((j.error && j.error.message) || 'no reason given'); return; }
+    keepAuth(j.idToken, j.refreshToken, j.expiresIn, j.email);
+  }, function(){ authNote = 'No connection, so the sign-in could not finish.'; });
+}
+
+// A Firebase token lasts an hour. Swap the refresh token for a new one a
+// couple of minutes before that, and share one swap between callers.
+function idToken(){
+  var cfg = authCfg();
+  if(!cfg || !signedIn()) return Promise.resolve(null);
+  if(auth.id && auth.exp - Date.now() > 120000) return Promise.resolve(auth.id);
+  if(refreshing) return refreshing;
+  refreshing = fetch('https://securetoken.googleapis.com/v1/token?key=' + cfg.apiKey, {
+    method:'POST', headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
+    body: 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(auth.refresh)
+  }).then(function(r){ return r.json().then(function(j){ return { ok:r.ok, j:j }; }); })
+    .then(function(x){
+      refreshing = null;
+      if(x.ok && x.j.id_token){ keepAuth(x.j.id_token, x.j.refresh_token, x.j.expires_in); return auth.id; }
+      // Only a refusal about the account itself signs the device out.
+      if(/TOKEN_EXPIRED|INVALID_REFRESH_TOKEN|USER_DISABLED|USER_NOT_FOUND/.test((x.j.error && x.j.error.message) || '')) signOut();
+      return auth ? auth.id : null;
+    }, function(){ refreshing = null; return auth ? auth.id : null; });
+  return refreshing;
+}
+
 // ---- sync ----------------------------------------------------------------
 // Firebase's Realtime Database over plain HTTP: PUT to write, EventSource to
 // listen. No SDK. With no config.js the app runs on this device alone.
 function firebaseDb(base){
   base = String(base).replace(/\/+$/,'');
+  function authed(url){
+    return idToken().then(function(t){ return t ? url + '?auth=' + encodeURIComponent(t) : url; });
+  }
+  function refused(status){ return status === 401 || status === 403; }
   return {
     doc: function(path){
       var url = base + '/' + path + '.json';
       return {
         set: function(data){
-          return fetch(url, {
-            method:'PUT', headers:{ 'Content-Type':'application/json' },
-            body: JSON.stringify(data)
+          return authed(url).then(function(u){
+            return fetch(u, {
+              method:'PUT', headers:{ 'Content-Type':'application/json' },
+              body: JSON.stringify(data)
+            });
           }).then(function(r){
+            if(refused(r.status)) return Promise.reject({ code:'unauthenticated', message:'http '+r.status });
             if(!r.ok) return Promise.reject({ code:'unavailable', message:'http '+r.status });
           });
         },
-        delete: function(){ return fetch(url, { method:'DELETE' }).then(function(){}); },
+        delete: function(){
+          return authed(url).then(function(u){ return fetch(u, { method:'DELETE' }); }).then(function(){});
+        },
         onSnapshot: function(next, onErr){
-          var es;
-          try { es = new EventSource(url); }
-          catch(e){ if(onErr) onErr({ code:'unavailable', message:String(e) }); return function(){}; }
+          var es = null, closed = false;
           function deliver(raw){
             var payload = null;
             try { payload = JSON.parse(raw); } catch(e){ return; }
             // A patch names the changed key; re-read rather than merge by hand.
             if(payload && payload.path !== undefined && payload.path !== '/'){
-              fetch(url).then(function(r){ return r.json(); })
+              authed(url).then(function(u){ return fetch(u); }).then(function(r){ return r.json(); })
                 .then(function(v){ next({ exists: v != null, data: function(){ return v; },
                                           metadata:{ fromCache:false, hasPendingWrites:false } }); })
                 .catch(function(){});
@@ -993,13 +1100,36 @@ function firebaseDb(base){
             next({ exists: v != null, data: function(){ return v; },
                    metadata:{ fromCache:false, hasPendingWrites:false } });
           }
-          es.addEventListener('put', function(e){ deliver(e.data); });
-          es.addEventListener('patch', function(e){ deliver(e.data); });
-          es.onerror = function(){
-            // EventSource retries on its own; only a hard close is terminal.
-            if(es.readyState === 2 && onErr) onErr({ code:'unavailable', message:'stream closed' });
-          };
-          return function(){ try{ es.close(); }catch(e){} };
+          function open(){
+            authed(url).then(function(u){
+              if(closed) return;
+              try { es = new EventSource(u); }
+              catch(e){ if(onErr) onErr({ code:'unavailable', message:String(e) }); return; }
+              es.addEventListener('put', function(e){ deliver(e.data); });
+              es.addEventListener('patch', function(e){ deliver(e.data); });
+              // The hour is up: reopen the stream with a fresh token.
+              es.addEventListener('auth_revoked', function(){
+                try{ es.close(); }catch(e){}
+                if(auth) auth.exp = 0;
+                open();
+              });
+              // The rules said no.
+              es.addEventListener('cancel', function(){
+                try{ es.close(); }catch(e){}
+                if(onErr) onErr({ code:'unauthenticated', message:'refused' });
+              });
+              es.onerror = function(){
+                // EventSource retries on its own; only a hard close is terminal.
+                // A locked database closes it at once when nobody is signed in.
+                if(es.readyState === 2 && onErr){
+                  onErr({ code: (authCfg() && !signedIn()) ? 'unauthenticated' : 'unavailable',
+                          message:'stream closed' });
+                }
+              };
+            });
+          }
+          open();
+          return function(){ closed = true; try{ if(es) es.close(); }catch(e){} };
         }
       };
     }
@@ -1098,7 +1228,7 @@ async function initSync(){
     markClean();          // the other device moved; undo starts again from here
     render();
   }, function(err){
-    setDot('local'); stateRef = null;
+    setDot(err && err.code === 'unauthenticated' ? 'signin' : 'local'); stateRef = null;
   });
   setDot('live');
 }
@@ -4953,7 +5083,25 @@ function zoneStack(ids, faceUp, topFirst){
   return st;
 }
 
-function zoneRow(label, ids, faceUp, onClick, topFirst){
+// A tap does one thing and a hold does another, as with a card.
+function tapOrHold(node, onTap, onHold){
+  var t = null, fired = false;
+  node.addEventListener('pointerdown', function(){
+    fired = false;
+    t = setTimeout(function(){ fired = true; onHold(); }, 430);
+  });
+  ['pointerup','pointerleave','pointercancel'].forEach(function(ev){
+    node.addEventListener(ev, function(){ clearTimeout(t); });
+  });
+  node.addEventListener('click', function(ev){ ev.preventDefault(); if(!fired) onTap(); });
+  node.addEventListener('contextmenu', function(ev){ ev.preventDefault(); clearTimeout(t); if(!fired) onHold(); fired = true; });
+  return node;
+}
+
+// The library is a real deck: tap it to draw one, hold it for everything else.
+function libTap(){ draw(1); }
+
+function zoneRow(label, ids, faceUp, onClick, topFirst, onHold){
   var b = el('button','zrow');
   b.type = 'button';
   b.appendChild(zoneStack(ids, faceUp, topFirst));
@@ -4963,8 +5111,10 @@ function zoneRow(label, ids, faceUp, onClick, topFirst){
   var top = faceUp && ids.length ? defOf(state.cards[ids[topFirst ? 0 : ids.length-1]]) : null;
   if(top) t.appendChild(el('div','zsub', (topFirst ? 'Top: ' : '') + top.n));
   b.appendChild(t);
-  b.setAttribute('aria-label', label + ': ' + ids.length + ' card' + (ids.length===1?'':'s'));
-  b.onclick = onClick;
+  b.setAttribute('aria-label', label + ': ' + ids.length + ' card' + (ids.length===1?'':'s')
+    + (onHold ? '. Tap to draw one, hold for more.' : ''));
+  if(onHold) tapOrHold(b, onClick, onHold);
+  else b.onclick = onClick;
   return b;
 }
 
@@ -4994,7 +5144,7 @@ function zoneGrid(){
   var g = el('div','zones');
 
   var shown = revealsTop();
-  g.appendChild(zoneRow('Library', state.z.lib, shown, openLibrarySheet, true));
+  g.appendChild(zoneRow('Library', state.z.lib, shown, libTap, true, openLibrarySheet));
   g.appendChild(zoneRow('Hand', state.z.hand, false, function(){ openBrowse('hand'); }));
   g.appendChild(zoneRow('Graveyard', state.z.gy, true, function(){ openBrowse('gy'); }));
   g.appendChild(zoneRow('Exile', state.z.ex, true, function(){ openBrowse('ex'); }));
@@ -5219,7 +5369,11 @@ function phoneZones(){
     var b = el('button');
     b.appendChild(el('span','zl',p[1]));
     b.appendChild(el('span','zc', String(state.z[p[0]].length)));
-    b.onclick = function(){ p[0]==='lib' ? openLibrarySheet() : openBrowse(p[0]); };
+    if(p[0] === 'lib'){
+      b.setAttribute('aria-label', 'Library. Tap to draw one, hold for more.');
+      tapOrHold(b, libTap, openLibrarySheet);
+    }
+    else b.onclick = function(){ openBrowse(p[0]); };
     zs.appendChild(b);
   });
   var tb = el('button','tokbtn');
@@ -5642,17 +5796,48 @@ function openLibrarySheet(){
     }
     s.appendChild(row);
   }
-  actionGrid(s, [
-    ['Draw 1', function(){ draw(1); closeLayer(); }, true],
-    ['Draw 2', function(){ draw(2); closeLayer(); }],
-    ['Draw 7', function(){ draw(7); closeLayer(); }],
-    ['Shuffle', function(){ doShuffle(); closeLayer(); }],
-    ['Mill 1', function(){ mill(1); closeLayer(); }],
-    ['Mill 3', function(){ mill(3); closeLayer(); }],
-    ['Look at top 5', function(){ closeLayer(); openTopSheet(5); }],
-    ['Search library', function(){ closeLayer(); openBrowse('lib'); }],
-    ['Take several out', function(){ closeLayer(); openBulk('lib'); }]
-  ]);
+  // One number, then the command. Every card that says "the top X" is one of these.
+  var n = libCount;
+  var cg = el('div','cdgrid');
+  cg.appendChild(el('div','lbl', 'How many'));
+  var dn = el('button',null,'−'), val = el('button','val'), up = el('button',null,'+');
+  var grid;
+  function paint(){
+    val.textContent = String(n);
+    val.setAttribute('aria-label', 'How many cards, ' + n + '. Tap to type a number.');
+    if(grid) grid.remove();
+    var w = n === 1 ? 'the top card' : 'the top ' + n;
+    grid = actionGrid(s, [
+      ['Draw ' + n, function(){ draw(n); closeLayer(); }, true],
+      ['Mill ' + n, function(){ mill(n); closeLayer(); }],
+      ['Exile ' + w, function(){ exileTop(n); closeLayer(); }],
+      ['Look at ' + w, function(){ closeLayer(); openTopSheet(n); }],
+      ['Put ' + w + ' on the bottom', function(){ bottomTop(n); closeLayer(); }],
+      ['Shuffle', function(){ doShuffle(); closeLayer(); }],
+      ['Search library', function(){ closeLayer(); openBrowse('lib'); }],
+      ['Take several out', function(){ closeLayer(); openBulk('lib'); }]
+    ]);
+  }
+  function set(v){ n = libCount = Math.max(1, Math.min(v|0, Math.max(1, state.z.lib.length))); paint(); }
+  dn.onclick = function(){ set(n - 1); };
+  up.onclick = function(){ set(n + 1); };
+  val.onclick = function(){ askNumber('How many', null, n, function(v){ openLibrarySheet(); libSet(v); }); };
+  cg.appendChild(dn); cg.appendChild(val); cg.appendChild(up);
+  s.appendChild(el('p','note', 'Tap the library to draw one. Hold it for this.'));
+  s.appendChild(cg);
+  libSet = set;
+  paint();
+}
+var libCount = 1, libSet = function(){};
+function exileTop(n){
+  var got = 0;
+  for(var i=0;i<n;i++){ if(!state.z.lib.length) break; move(state.z.lib[0],'ex'); got++; }
+  commit('Exiled the top ' + (got === 1 ? 'card' : got) + ' of the library');
+}
+function bottomTop(n){
+  var ids = state.z.lib.slice(0, n);
+  ids.forEach(function(iid){ move(iid,'lib'); });
+  commit('Put ' + ids.length + ' on the bottom');
 }
 
 function openTopSheet(n){
@@ -6351,6 +6536,26 @@ function openMenu(){
       + 'other device.';
     s.appendChild(warn);
   }
+  if(authCfg()){
+    var aw = el('div');
+    aw.style.marginTop = 'var(--s3)';
+    var arow = el('div','row');
+    if(signedIn()){
+      arow.appendChild(el('span','note', 'Signed in' + (auth.email ? ' as ' + auth.email : '')));
+      arow.appendChild(el('div','spacer'));
+      var ob = el('button','btn sm ghost','Sign out');
+      ob.onclick = function(){ signOut(); location.reload(); };
+      arow.appendChild(ob);
+    } else {
+      var ib = el('button','btn sm primary','Sign in with Google');
+      ib.style.cssText = 'width:100%;justify-content:center';
+      ib.onclick = signIn;
+      arow.appendChild(ib);
+    }
+    aw.appendChild(arow);
+    if(!signedIn()) aw.appendChild(el('p','note', 'Games only open for your Google account. Sign in once on each device.'));
+    tw.appendChild(aw);
+  }
   var tnote = el('p','note');
   tnote.style.marginTop='8px';
   tnote.innerHTML = 'Your iPad and iPhone share a table code. A second person playing on their '
@@ -6750,8 +6955,12 @@ function boot(){
   markClean();
   setDot('connecting');
   render();
-  initSync();
-  importFromLink();
+  document.getElementById('signinBtn').onclick = signIn;
+  finishSignIn().then(function(){
+    initSync();
+    importFromLink();
+    if(authNote){ var sn = sheet('Sign-in did not finish', authNote); actionGrid(sn, [['Try again', signIn, true]]); }
+  });
 
   // Cache the app and every card picture seen, so a shop with no wifi still
   // deals a game. Sync still needs a connection.

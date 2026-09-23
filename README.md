@@ -40,18 +40,25 @@ Rebuild it from a Moxfield export with:
 `config.js` points at a Firebase Realtime Database. The app talks to it over
 plain HTTP: PUT to write, EventSource to listen. There is no SDK.
 
-The database URL is not a secret. Access is controlled by the database rules,
-which allow reads and writes only under `/tables/<code>` and `/decks/<code>`:
+Games are locked to one Google account. The app signs in with a plain page
+redirect to Google (pop-ups do not come back to a home screen app on iOS),
+swaps Google's token for a Firebase one through the Auth REST API, and adds
+`?auth=<token>` to every request. The refresh token keeps each device signed in.
+`config.js` holds the database URL, the web API key and the OAuth client id.
+None of them is a secret; the rules do the work:
 
     {
       "rules": {
-        "tables": { "$code": { ".read": true, ".write": true } },
-        "decks":  { "$code": { ".read": true, ".write": true } }
+        "tables": { "$code": {
+          ".read":  "auth != null && auth.token.email == '<owner>' && auth.token.email_verified == true",
+          ".write": "auth != null && auth.token.email == '<owner>' && auth.token.email_verified == true" } },
+        "decks": { same as tables }
       }
     }
 
-Anyone who knows a table code can read and write that game, which is why codes
-are eight characters. Do not put anything private in a game.
+The OAuth web client needs `https://tomoncupa.github.io/magic/` as an
+authorised redirect URI in Google Cloud. Leave `apiKey` and `googleClientId`
+out of `config.js` to sync with no sign-in.
 
 Delete `config.js` to run with no sync at all. The app then keeps each device's
 game to itself.
