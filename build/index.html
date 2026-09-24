@@ -467,7 +467,7 @@ $('prevBtn').onclick = function(){ if(S.step > 1) go(S.step - 1); };
 $('nextBtn').onclick = function(){ if(NEXT[S.step]) NEXT[S.step](); };
 function go(n){ S.step = n; save(); render(); window.scrollTo(0, 0); }
 function render(){
-  renderSteps(); msg('');
+  syncGc(); renderSteps(); msg('');
   main.onclick = main.oninput = main.onchange = null;
   $('nextBtn').textContent = 'Next';
   $('prevBtn').hidden = S.step === 1;
@@ -617,8 +617,11 @@ function drawPlan(b, err){
     h += '<button class="opt' + (S.bracket === n ? ' on' : '') + '" data-br="' + n + '"><span class="tick"></span><span><b>' + n + ' ' + B.name + '</b><span class="note">' + B.desc + '</span></span></button>';
   });
   h += '</div><p class="src" style="margin-top:8px">Rules: ' + BRACKET_SRC + '. The Game Changers list is read live from Scryfall.</p>';
+  h += houseHtml();
 
-  h += '<h2>2. Strategy</h2><div class="stack">';
+  h += '<h2>2. Game Changers</h2><div id="gcBox"></div>';
+
+  h += '<h2>3. Strategy</h2><div class="stack">';
   tags.forEach(function(t){
     var p = themePitch(t);
     h += '<button class="opt' + (S.theme === t.slug ? ' on' : '') + '" data-th="' + esc(t.slug) + '"><span class="tick"></span><span><b>' + esc(t.value) + '</b>' +
@@ -627,22 +630,27 @@ function drawPlan(b, err){
   h += '<button class="opt' + (S.theme === '' ? ' on' : '') + '" data-th=""><span class="tick"></span><span><b>No theme</b><span class="note">Build from the commander\'s overall EDHREC data.</span></span></button>';
   h += '</div>';
 
-  h += '<h2>3. How you like to win</h2><div class="stack">';
+  h += '<h2>4. How you like to win</h2><div class="stack">';
   WINS.forEach(function(w){
     h += '<button class="opt multi' + (S.wins.indexOf(w[0]) >= 0 ? ' on' : '') + '" data-win="' + w[0] + '"><span class="tick"></span><span><b>' + w[1] + '</b><span class="note">' + w[2] + '</span></span></button>';
   });
   h += '</div>';
 
-  h += '<h2>4. Cards</h2><div class="grid2">' +
+  h += '<h2>5. Cards</h2><div class="grid2">' +
     '<div><label class="lab" for="mustIn">Must include, one per line</label><textarea id="mustIn" placeholder="Skirk Prospector">' + esc(S.mustText) + '</textarea></div>' +
     '<div><label class="lab" for="refIn">Refuse to play, one per line</label><textarea id="refIn" placeholder="Armageddon">' + esc(S.refuseText) + '</textarea></div></div>';
 
-  h += '<h2>5. Your playgroup</h2><div class="row">';
+  h += '<h2>6. Your playgroup</h2><div class="row">';
   META.forEach(function(m){ h += '<button class="chip' + (S.meta.indexOf(m[0]) >= 0 ? ' on' : '') + '" data-meta="' + m[0] + '">' + m[1] + '</button>'; });
   h += '</div><div style="margin-top:10px"><label class="lab" for="metaIn">Anything else about the table</label><input type="text" id="metaIn" value="' + esc(S.metaText) + '" placeholder="Two friends on precons, one on a tuned Yuriko"></div>';
   main.innerHTML = h;
 
+  drawGcBox();
   main.onclick = function(e){
+    if(onGcClick(e)) return;
+    var hb = e.target.closest('[data-hflag]');
+    if(hb){ var hk = hb.dataset.hflag; house()[hk] = !house()[hk]; save(); drawPlan(b); return; }
+    if(e.target.id === 'houseReset'){ S.house = {}; save(); drawPlan(b); return; }
     var t = e.target.closest('[data-br],[data-th],[data-win],[data-meta]'); if(!t) return;
     if(t.dataset.br) S.bracket = +t.dataset.br;
     else if(t.dataset.th != null && t.hasAttribute('data-th')) S.theme = t.dataset.th;
@@ -653,12 +661,97 @@ function drawPlan(b, err){
   $('mustIn').onchange = function(e){ S.mustText = e.target.value; S.quotas = null; save(); };
   $('refIn').onchange = function(e){ S.refuseText = e.target.value; S.quotas = null; save(); };
   $('metaIn').onchange = function(e){ S.metaText = e.target.value; save(); };
+  main.onchange = function(e){
+    var id = e.target.id, v = e.target.value;
+    if(id === 'hGc'){ house().gc = v === '' ? null : Math.max(0, Math.min(99, +v || 0)); }
+    else if(id === 'hFree') house().gcFree = v;
+    else if(id === 'hCombo') house().combo = v;
+    else if(id === 'hEarly') house().early = Math.max(1, Math.min(30, +v || 6));
+    else return;
+    save(); drawPlan(b);
+  };
   var ready = S.bracket && S.theme !== null;
   $('nextBtn').disabled = !ready;
   msg(ready ? '' : 'Pick a bracket and a strategy to continue.');
   renderSteps();
 }
 function toggle(arr, v){ var i = arr.indexOf(v); if(i >= 0) arr.splice(i, 1); else arr.push(v); }
+function houseHtml(){
+  var h = house(), n = houseLines().length, B = bracketOf();
+  var flag = function(k, label, note){ return '<button class="opt multi' + (h[k] ? ' on' : '') + '" data-hflag="' + k + '"><span class="tick"></span><span><b>' + label + '</b><span class="note">' + note + '</span></span></button>'; };
+  return '<details class="cat"' + (n ? ' open' : '') + '><summary>House rules <span class="ct">' + (n ? n + ' changed' : 'bracket as written') + '</span></summary>' +
+    '<p class="note">Bend the bracket for your table. Everything left blank follows the bracket. The checks, the builder and Claude all follow these.</p>' +
+    '<div class="grid2">' +
+      '<div><label class="lab" for="hGc">Game Changer limit</label><input type="number" id="hGc" min="0" max="99" value="' + (h.gc != null ? h.gc : '') + '" placeholder="' + (B.gc === Infinity ? 'none' : B.gc) + '"><p class="small" style="margin-top:6px">Blank keeps the bracket\'s ' + (B.gc === Infinity ? 'no limit' : B.gc) + '.</p></div>' +
+      '<div><label class="lab" for="hFree">Game Changers that don\'t count, one per line</label><textarea id="hFree" placeholder="Rhystic Study">' + esc(h.gcFree || '') + '</textarea></div>' +
+      '<div><label class="lab" for="hCombo">Two-card infinite combos</label><select id="hCombo">' +
+        [['', 'As the bracket says'], ['none', 'Never'], ['late', 'Only late in the game'], ['any', 'Always allowed']].map(function(o){ return '<option value="' + o[0] + '"' + ((h.combo || '') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') +
+      '</select></div>' +
+      '<div><label class="lab" for="hEarly">"Late" means the pieces cost more than</label><input type="number" id="hEarly" min="1" max="30" value="' + earlyMv() + '"><p class="small" style="margin-top:6px">Mana in total. Used by bracket 3 and by "Only late".</p></div>' +
+    '</div><div class="stack" style="margin-top:12px">' +
+      flag('mld', 'Allow mass land destruction', 'Armageddon and friends can be picked.') +
+      flag('extra', 'Allow extra-turn cards freely', 'More than one, and chained.') +
+      flag('fast', 'Skip the speed check', 'A deck that wins faster than the bracket usually does still passes.') +
+    '</div>' + (n ? '<div class="row" style="margin-top:12px"><button class="btn small" id="houseReset">Back to the bracket as written</button></div>' : '') + '</details>';
+}
+// Every Game Changer, read once from Scryfall. The picker shows the ones in these colours.
+var GCALL = null;
+function gcCandidates(){
+  var inc = {};
+  ((S.base && S.base.cards) || []).forEach(function(c){ var v = c.pd ? c.nd / c.pd : 0; if(!inc[c.n] || v > inc[c.n]) inc[c.n] = v; });
+  return (GCALL || []).filter(function(c){ return c.legal === 'legal' && withinCI(c); })
+    .map(function(c){ return { c:c, inc:inc[c.n] || 0 }; })
+    .sort(function(a, b){ return b.inc - a.inc || a.c.n.localeCompare(b.c.n); });
+}
+function drawGcBox(){
+  var box = $('gcBox'); if(!box) return;
+  if(!GCALL){
+    box.innerHTML = '<p class="note"><span class="busy"></span>Reading the Game Changers list from Scryfall</p>';
+    sfSearchAll('is:gamechanger').then(function(l){ GCALL = l; S.gcNames = l.map(function(x){ return x.n; }); drawGcBox(); }, function(e){ box.innerHTML = '<p class="bad">' + esc(e.message) + '</p>'; });
+    return;
+  }
+  var lim = gcLimit(), mine = gcMode() === 'mine', picks = S.gcPick || [];
+  var counted = picks.filter(function(n){ return !gcFree(n); }).length;
+  var h = '<p class="note">The builder ignores price: the strongest card for each job goes in. Game Changers are the one thing held back, ' +
+    (lim === Infinity ? 'with no limit at this bracket.' : 'up to ' + lim + '.') + '</p>';
+  h += '<div class="seg"><button data-gcmode="auto"' + (!mine ? ' class="on"' : '') + '>Builder picks the strongest</button><button data-gcmode="mine"' + (mine ? ' class="on"' : '') + '>I pick them</button></div>';
+  if(!mine){ box.innerHTML = h + '<p class="small">It fills the limit with the Game Changers this commander\'s decks play most.</p>'; return; }
+  if(!S.bracket){ box.innerHTML = h + '<p class="small">Pick a bracket first.</p>'; return; }
+  if(lim === 0) h += '<p class="warn">Bracket ' + S.bracket + ' allows no Game Changers. Raise the limit under House rules to pick some, or add free passes.</p>';
+  var list = gcCandidates();
+  h += '<p class="note"><b>' + counted + (lim === Infinity ? '' : ' of ' + lim) + '</b> picked. Only these go in; the builder adds no other Game Changer. Most played with ' + esc(S.cmd.n.split(',')[0]) + ' first.</p>';
+  if(counted > lim) h += '<p class="warn">That is over the limit. Untick ' + (counted - lim) + ', or the extra ones are left out.</p>';
+  h += '<div class="deal">' + list.map(function(x){
+    var c = x.c, on = picks.some(function(n){ return sameName(c.n, n); });
+    return '<div class="tile' + (on ? ' on' : '') + '"><button class="tpick" data-gct="' + esc(c.n) + '" aria-pressed="' + on + '">' +
+      (c.img ? '<img loading="lazy" src="' + esc(c.img) + '" alt="' + esc(c.n) + '">' : '<span class="noimg">' + esc(c.n) + '</span>') +
+      '<span class="tk">' + (on ? '&#10003;' : '') + '</span></button>' +
+      '<div class="tinfo"><b>' + esc(c.n) + (gcFree(c.n) ? '<span class="tag must">Free pass</span>' : '') + '</b><span class="tw">' + (x.inc ? 'In ' + pct(x.inc) + ' of ' + esc(S.cmd.n.split(',')[0]) + ' decks.' : 'Not on this commander\'s EDHREC page.') + '</span></div>' +
+      (c.img ? '<button class="zoom" data-zoom="' + esc(c.img) + '" aria-label="Read ' + esc(c.n) + '">Read</button>' : '') + '</div>';
+  }).join('') + '</div>';
+  box.innerHTML = h;
+}
+function onGcClick(e){
+  var t = e.target;
+  var z = t.closest('[data-zoom]'); if(z && t.closest('#gcBox')){ zoomCard(z.dataset.zoom); return true; }
+  var m = t.closest('[data-gcmode]');
+  if(m){ S.gcMode = m.dataset.gcmode; if(!S.gcPick) S.gcPick = []; save(); drawGcBox(); return true; }
+  var g = t.closest('[data-gct]');
+  if(g){
+    var n = g.dataset.gct; S.gcPick = S.gcPick || [];
+    var i = S.gcPick.indexOf(n);
+    if(i >= 0) S.gcPick.splice(i, 1);
+    else {
+      var counted = S.gcPick.filter(function(x){ return !gcFree(x); }).length;
+      if(!gcFree(n) && counted >= gcLimit()){ msg('<span class="warn">The limit is ' + gcLimit() + '. Untick one first, or raise it under House rules.</span>'); return true; }
+      S.gcPick.push(n);
+      var card = (GCALL || []).filter(function(c){ return c.n === n; })[0];
+      if(card) inPool(Object.assign({}, card));
+    }
+    save(); drawGcBox(); return true;
+  }
+  return false;
+}
 var WINS = [
   ['combat', 'Combat damage', 'Overruns, anthems, extra combats.'],
   ['cmdr', 'Commander damage', 'Equipment, auras, evasion on the commander.'],
@@ -681,6 +774,11 @@ async function loadPool(onStep){
     if(S.theme){ onStep && onStep('Reading the ' + S.theme + ' page on EDHREC'); var t = await edh('/commanders/' + S.slug + '/' + S.theme); if(t) pages.push(['theme', t]); }
     onStep && onStep('Reading the ' + BRACKETS[S.bracket].name + ' bracket page on EDHREC');
     var br = await edh('/commanders/' + S.slug + '/' + BRACKETS[S.bracket].page); if(br) pages.push(['bracket', br]);
+    // Budget is no object: EDHREC's Expensive decks show the pricey cards cheaper decks leave out.
+    onStep && onStep('Reading the no-budget decks on EDHREC');
+    var ex = await edh('/commanders/' + S.slug + (S.theme ? '/' + S.theme : '') + '/expensive');
+    if(!ex && S.theme) ex = await edh('/commanders/' + S.slug + '/expensive');
+    if(ex) pages.push(['exp', ex]);
   }
   var m = {};
   pages.forEach(function(pg){
@@ -692,17 +790,24 @@ async function loadPool(onStep){
     });
   });
   var must = lines(S.mustText);
-  must.concat(S.considerAdd || []).forEach(function(n){ var k = n.toLowerCase(); if(!m[k]) m[k] = { n:n, stats:{}, mustOnly:true }; });
+  must.concat(S.considerAdd || [], S.gcPick || []).forEach(function(n){ var k = n.toLowerCase(); if(!m[k]) m[k] = { n:n, stats:{}, mustOnly:true }; });
   // Cards already in the deck from outside EDHREC (Claude's swaps) still need their data.
   (S.deck || []).forEach(function(d){ var k = d.n.toLowerCase(); if(!d.basic && !m[k]) m[k] = { n:d.n, id:d.id, stats:{} }; });
   var list = Object.keys(m).map(function(k){ return m[k]; });
   onStep && onStep('Looking up ' + list.length + ' cards on Scryfall');
   var res = await sfCollection(list.map(function(x){ return { id:x.id, n:x.n }; }), function(d, all){ onStep && onStep('Looking up cards on Scryfall ' + d + ' / ' + all); });
-  var pool = [];
+  // EDHREC and the must-include box can name one card two ways ("Fable of the Mirror-Breaker"
+  // and its full two-face name). Scryfall gives both the same card, which is kept once.
+  var pool = [], byName = {};
   list.forEach(function(x){
     var c = res.cards[x.id || x.n.toLowerCase()];
     if(!c) return;
-    c = Object.assign({}, c, { stats:x.stats });
+    var had = byName[c.n];
+    if(had){
+      Object.keys(x.stats).forEach(function(k){ if(!had.stats[k] || x.stats[k].inc > had.stats[k].inc) had.stats[k] = x.stats[k]; });
+      return;
+    }
+    c = byName[c.n] = Object.assign({}, c, { stats:Object.assign({}, x.stats) });
     c.roles = rolesOf(c);
     pool.push(c);
   });
@@ -723,11 +828,15 @@ VIEW[3] = function(){
 };
 function avgMv(cards){ var n = 0, s = 0; cards.forEach(function(c){ if(!isLand(c)){ n++; s += c.mv; } }); return n ? s / n : 0; }
 function score(c){
-  var b = c.stats.base || {}, t = c.stats.theme, r = c.stats.bracket;
+  var b = c.stats.base || {}, t = c.stats.theme, r = c.stats.bracket, x = c.stats.exp;
   var s = (b.inc || 0) + 0.8 * Math.max(0, b.syn || 0);
+  // No budget: a card counts as popular as it is in the decks that spent freely.
+  if(x) s = Math.max(s, (x.inc || 0) + 0.8 * Math.max(0, x.syn || 0));
   if(t) s = Math.max(s, (t.inc || 0) + 0.8 * Math.max(0, t.syn || 0)) + 0.15;
   if(r) s += 0.25 * (r.inc || 0);
-  if(!b.pd && !t && !r) s = 0.05;
+  if(!b.pd && !t && !r && !x) s = 0.05;
+  // With the builder choosing, Game Changers are the strongest cards, so they fill the limit first.
+  if(gcMode() === 'auto' && isGC(c)) s += 0.2;
   var o = low(c);
   if(S.wins.indexOf('combat') >= 0 && /creatures you control get \+|additional combat|double strike|trample/.test(o)) s += 0.08;
   if(S.wins.indexOf('cmdr') >= 0 && /equipped creature|enchanted creature|equip \{/.test(o)) s += 0.1;
@@ -818,32 +927,68 @@ function drawSkeleton(){
   $('nextBtn').disabled = false;
 }
 // What the 99 was built from. A different plan means the list is out of date.
-function planKey(){ return JSON.stringify([S.cmd && S.cmd.n, S.partner && S.partner.n, S.bracket, S.theme, S.wins, S.mustText, S.refuseText, S.quotas, S.sources]); }
+function planKey(){ return JSON.stringify([S.cmd && S.cmd.n, S.partner && S.partner.n, S.bracket, S.theme, S.wins, S.mustText, S.refuseText, S.quotas, S.sources, S.house || {}, gcMode(), S.gcPick || []]); }
 // An empty deck starts the picking rounds. A changed plan is flagged on step 4, where he
 // chooses to keep his picks or start again; nothing he picked is thrown away here.
 NEXT[3] = function(){ if(!S.deck.length) startDraft(); go(4); };
 
 /* ============ step 4: build ============ */
-function gcLimit(){ return BRACKETS[S.bracket].gc; }
-function isGC(c){ return c.gc || (S.gcNames || []).indexOf(c.n) >= 0; }
+/* House rules bend the bracket for his table. Empty means the bracket's own rule. */
+function house(){ return S.house || (S.house = {}); }
+function bracketOf(){ return BRACKETS[S.bracket] || BRACKETS[3]; }
+function gcLimit(){ var h = house(); return h.gc != null && h.gc !== '' ? +h.gc : bracketOf().gc; }
+function gcFree(n){ return lines(house().gcFree).some(function(m){ return sameName(n, m); }); }
+function rawGC(c){ return !!(c.gc || (S.gcNames || []).indexOf(c.n) >= 0); }
+// A Game Changer on the free-pass list plays without counting toward the limit.
+function isGC(c){ return rawGC(c) && !gcFree(c.n); }
+// 'auto': the builder picks the strongest Game Changers up to the limit. 'mine': only the ones he ticked.
+function gcMode(){ return S.gcMode === 'mine' ? 'mine' : 'auto'; }
+function gcPicked(n){ return (S.gcPick || []).some(function(m){ return sameName(n, m); }); }
+function gcBlocked(c){ return gcMode() === 'mine' && rawGC(c) && !gcPicked(c.n) && !gcFree(c.n); }
+function houseLines(){
+  var h = house(), L = [];
+  if(h.gc != null && h.gc !== '') L.push('Game Changer limit ' + h.gc + ' instead of ' + (bracketOf().gc === Infinity ? 'none' : bracketOf().gc));
+  if(lines(h.gcFree).length) L.push('these Game Changers do not count toward the limit: ' + lines(h.gcFree).join(', '));
+  if(h.combo === 'none') L.push('no two-card infinite combos at all');
+  if(h.combo === 'late') L.push('two-card infinite combos only when their pieces cost more than ' + earlyMv() + ' mana in total');
+  if(h.combo === 'any') L.push('any combo is allowed');
+  if(h.mld) L.push('mass land destruction is allowed');
+  if(h.extra) L.push('extra-turn cards are allowed, chained or not');
+  if(h.fast) L.push('the deck may win faster than the bracket usually does');
+  return L;
+}
+function earlyMv(){ var v = +house().early; return v > 0 ? v : 6; }
 function allowed(c, deckNames){
   if(c.legal !== 'legal') return false;
   if(!withinCI(c)) return false;
   if(sameName(c.n, S.cmd.n) || (S.partner && sameName(c.n, S.partner.n))) return false;
   if(lines(S.refuseText).some(function(n){ return sameName(c.n, n); })) return false;
-  if(S.bracket <= 3 && c.roles.mld) return false;
+  if(S.bracket <= 3 && c.roles.mld && !house().mld) return false;
+  if(gcBlocked(c)) return false;
   if(/Background/.test(c.type) && !/Choose a Background/.test(S.cmd.o)) {}
   return true;
 }
+function bestInc(c){ var m = 0; Object.keys(c.stats || {}).forEach(function(k){ m = Math.max(m, c.stats[k].inc || 0); }); return m; }
 function why(c, role){
-  var b = c.stats.base, t = c.stats.theme, parts = [];
+  var b = c.stats.base, t = c.stats.theme, x = c.stats.exp, parts = [];
   if(b && b.pd) parts.push('EDHREC: in ' + pct(b.inc) + ' of ' + b.pd.toLocaleString() + ' decks, synergy ' + (b.syn >= 0 ? '+' : '') + pct(b.syn));
   if(t && t.pd) parts.push(S.theme + ' decks: ' + pct(t.inc));
+  if(x && x.pd && (!b || x.inc > (b.inc || 0) + 0.1)) parts.push('no-budget decks: ' + pct(x.inc));
   if(!parts.length) parts.push('Not on this commander\'s EDHREC page');
   return ROLE_NAMES[role] + '. ' + parts.join('; ') + '.';
 }
 function entry(c, role, flag){
-  return { n:c.n, id:c.id, role:role, mv:c.mv, why:(flag === 'must' ? 'Must include. ' : '') + why(c, role), must:flag === 'must', gc:isGC(c), basic:isBasic(c) };
+  return { n:c.n, id:c.id, role:role, mv:c.mv, why:(flag === 'must' ? 'Must include. ' : flag === 'gcpick' ? 'Your Game Changer pick. ' : '') + why(c, role), must:flag === 'must' || flag === 'gcpick', gc:isGC(c), gc0:rawGC(c), basic:isBasic(c) };
+}
+// The free-pass list can change after cards are in; every count reads d.gc, so it is kept current.
+function syncGc(){
+  (S.deck || []).forEach(function(d){ if(d.basic) return; if(d.gc0 == null) d.gc0 = !!d.gc; d.gc = d.gc0 && !gcFree(d.n); });
+}
+function inDeckAlready(c){ return !anyNumber(c) && S.deck.some(function(d){ return sameName(d.n, c.n) || sameName(c.n, d.n); }); }
+// His ticked Game Changers go in first, like must-includes.
+function gcPickCards(){
+  if(gcMode() !== 'mine') return [];
+  return (S.gcPick || []).map(poolCard).filter(function(c){ return c && c.legal === 'legal' && withinCI(c) && !unreleased(c); });
 }
 function poolCard(n){ return (S.pool || []).filter(function(c){ return sameName(c.n, n); })[0]; }
 
@@ -852,7 +997,7 @@ function buildDeck(){
   function take(c, role, flag){
     if(used[c.n]) return false;
     if(isGC(c) && flag !== 'must'){ if(gcs >= gcLimit()) return false; }
-    if(c.roles.extra && S.bracket <= 3 && flag !== 'must'){ if(extras >= 1) return false; extras++; }
+    if(c.roles.extra && S.bracket <= 3 && !house().extra && flag !== 'must'){ if(extras >= 1) return false; extras++; }
     if(isGC(c)) gcs++;
     used[c.n] = 1; deck.push(entry(c, role, flag)); return true;
   }
@@ -867,6 +1012,7 @@ function buildDeck(){
     var role = isLand(c) ? 'lands' : primaryRole(c);
     take(c, role, 'must');
   });
+  gcPickCards().forEach(function(c){ take(c, isLand(c) ? 'lands' : primaryRole(c), 'gcpick'); });
   // Combo preference: seed the best allowed combo with the commander.
   // (Applied after combos load in validation; the builder keeps it simple here.)
   var nonland = ranked.filter(function(c){ return !isLand(c); });
@@ -907,7 +1053,7 @@ function fillLands(deck, used, ranked, target){
   if(S.bracket >= 4) cap = target - (S.ci.length ? S.ci.length * 2 : 0);
   lands.forEach(function(c){
     if(have.length >= Math.max(0, cap)) return;
-    var b = c.stats.base || c.stats.theme || c.stats.bracket || {};
+    var b = { inc:bestInc(c) };
     var makesOurs = c.prod.some(function(x){ return S.ci.indexOf(x) >= 0; });
     var need = multi ? 0.15 : 0.3;
     if(!makesOurs && (b.inc || 0) < 0.4) return;
@@ -956,7 +1102,7 @@ function drawList(){
   var total = S.deck.length + (S.partner ? 2 : 1);
   var h = '<h1>The 99</h1>' + viewTabs('list') + '<p class="note">' + total + ' cards with the commander' + (S.partner ? 's' : '') + '. Tap &times; to cut a card and pick a replacement for the same job.</p>';
   h += '<div class="row"><span class="chip">' + esc(S.cmd.n) + '</span>' + (S.partner ? '<span class="chip">' + esc(S.partner.n) + '</span>' : '') +
-    '<span class="chip">Bracket ' + S.bracket + '</span><span class="chip">Game Changers ' + S.deck.filter(function(d){ return d.gc; }).length + ' / ' + (gcLimit() === Infinity ? 'no limit' : gcLimit()) + '</span>' +
+    '<span class="chip">Bracket ' + S.bracket + (houseLines().length ? ' + house rules' : '') + '</span><span class="chip">Game Changers ' + S.deck.filter(function(d){ return d.gc; }).length + ' / ' + (gcLimit() === Infinity ? 'no limit' : gcLimit()) + '</span>' +
     '<button class="btn small" id="rebuild">Build the 99 for me</button></div>';
   var landsNow = S.deck.filter(function(d){ return d.role === 'lands'; }).length;
   if(S.landShort && landsNow < S.quotas.lands) h += '<p class="warn" style="margin-top:12px">Your must-include cards leave room for ' + landsNow + ' lands; the plan says ' + S.quotas.lands + '. Cut ' + (S.quotas.lands - landsNow) + ' of your cards here and add lands, or play it with fewer lands. The Check step shows what that does to your opening hands.</p>';
@@ -999,7 +1145,7 @@ function drawList(){
 function cardRow(d){
   var combo = (S.comboNames || {})[d.n];
   return '<div class="card" data-row="' + esc(d.n) + '"><span class="mv">' + d.mv + '</span><div><div class="nm">' + esc(d.n) +
-    (d.gc ? '<span class="tag gc">Game Changer</span>' : '') + (combo ? '<span class="tag combo">Combo piece</span>' : '') + (d.must ? '<span class="tag must">Must</span>' : '') +
+    (d.gc ? '<span class="tag gc">Game Changer</span>' : d.gc0 ? '<span class="tag must">Game Changer, free pass</span>' : '') + (combo ? '<span class="tag combo">Combo piece</span>' : '') + (d.must ? '<span class="tag must">Must</span>' : '') +
     '</div><div class="why">' + esc(d.why) + '</div></div><button class="x" data-cut="' + esc(d.n) + '" aria-label="Cut ' + esc(d.n) + '">&times;</button></div>';
 }
 function onBuildClick(e){
@@ -1125,6 +1271,12 @@ function startDraft(){
     if(!withinCI(c)){ dropped.push(c.n + ' (outside the colour identity)'); return; }
     used[c.n] = 1; deck.push(entry(c, isLand(c) ? 'lands' : primaryRole(c), 'must'));
   });
+  var gcIn = deck.filter(function(d){ return d.gc; }).length;
+  gcPickCards().forEach(function(c){
+    if(used[c.n] || (isGC(c) && gcIn >= gcLimit())) return;
+    if(isGC(c)) gcIn++;
+    used[c.n] = 1; deck.push(entry(c, isLand(c) ? 'lands' : primaryRole(c), 'gcpick'));
+  });
   S.deck = deck; S.dropped = dropped; S.landShort = 0; S.side = null; S.fixes = []; S.deckPlan = planKey();
   S.draft = newDraft(); S.v4 = 'rounds';
   S.draft.job = openSlots('ramp') > 0 ? 'ramp' : nextOpenJob('ramp') || 'ramp';
@@ -1188,7 +1340,8 @@ function fitLine(c){
   return 'Works with ' + f.parts.map(function(p){ return p.n + ' ' + p.label; }).join(' and ') + ' cards in the deck.';
 }
 function edhLine(c){
-  var b = c.stats && c.stats.base, t = c.stats && c.stats.theme;
+  var b = c.stats && c.stats.base, t = c.stats && c.stats.theme, x = c.stats && c.stats.exp;
+  if(x && x.pd && (!b || !b.pd || x.inc > (b.inc || 0) + 0.1)) return 'In ' + pct(x.inc) + ' of no-budget ' + S.cmd.n.split(',')[0] + ' decks' + (b && b.pd ? ', ' + pct(b.inc) + ' of all' : '') + '.';
   if(b && b.pd) return 'In ' + pct(b.inc) + ' of ' + S.cmd.n.split(',')[0] + ' decks, synergy ' + (b.syn >= 0 ? '+' : '') + pct(b.syn) + (t && t.pd ? '; ' + pct(t.inc) + ' of ' + S.theme + ' decks' : '') + '.';
   return 'Not on this commander\'s EDHREC page.';
 }
@@ -1250,9 +1403,18 @@ function tableLines(){
   var th = S.theme && S.base ? (S.base.tags.filter(function(t){ return t.slug === S.theme; })[0] || { value:S.theme }).value : 'No theme';
   L.push('Commander: ' + S.cmd.n + (S.partner ? ' + ' + S.partner.n : '') + '. Colour identity: ' + (S.ci.join('') || 'colourless') + '.');
   L.push('Bracket ' + S.bracket + ' (' + B.name + '): ' + B.desc + ' Game Changer limit: ' + (lim === Infinity ? 'none' : lim) + '.');
+  L = L.concat(budgetLines());
   L.push('Strategy: ' + th + '.' + (S.wins.length ? ' Likes to win by: ' + S.wins.map(function(w){ return WINS.filter(function(x){ return x[0] === w; })[0][1].toLowerCase(); }).join(', ') + '.' : ''));
   if(lines(S.refuseText).length) L.push('Never add: ' + lines(S.refuseText).join(', ') + '.');
   if(S.meta.length || S.metaText) L.push('About the table: ' + S.meta.concat(S.metaText ? [S.metaText] : []).join('; ') + '.');
+  return L;
+}
+// Said to Claude in every prompt: money is no object, the bracket (as his table bends it) is.
+function budgetLines(){
+  var L = ['Budget is no object. Price never matters: pick the strongest card for the job, expensive staples included. The Game Changer limit and bracket rules still apply.'];
+  var hl = houseLines();
+  if(hl.length) L.push('House rules at his table, these override the bracket: ' + hl.join('; ') + '.');
+  if(gcMode() === 'mine') L.push('He chose his own Game Changers: ' + ((S.gcPick || []).join(', ') || 'none') + '. Never suggest any other Game Changer.');
   return L;
 }
 function roundPrompt(job){
@@ -1291,11 +1453,13 @@ async function readRound(job, text){
   var todo = want.filter(function(x){ return !poolCard(String(x.name)); }).map(function(x){ return { n:String(x.name) }; });
   var got = todo.length ? await sfCollection(todo) : { cards:{} };
   var inDeck = {}; S.deck.forEach(function(d){ inDeck[d.n] = 1; });
-  var ok = [], dropped = [], gcs = draftGcs();
+  var ok = [], dropped = [], gcs = draftGcs(), named = {};
   want.forEach(function(x){
     var nm = String(x.name), c = poolCard(nm) || got.cards[nm.toLowerCase()];
     if(!c){ dropped.push(nm + ' (not found)'); return; }
     c = inPool(Object.assign({}, c));
+    if(named[c.n]) return;
+    named[c.n] = 1;
     var why = '';
     if(inDeck[c.n]) why = 'already picked';
     else if(unreleased(c)) why = 'not out yet';
@@ -1320,6 +1484,8 @@ function keepRound(){
   var job = R.job, passed = D.passed[job] || (D.passed[job] = []), kept = 0;
   R.cards.forEach(function(x){
     var c = poolCard(x.n);
+    // A card can already be in the deck: dealt twice in one round, or added on the list while this round waited.
+    if(c && inDeckAlready(c)) return;
     if(R.ticked.indexOf(x.n) >= 0 && c && openSlots(job) > 0){
       var e = entry(c, job);
       e.why = x.src === 'claude' && x.why ? 'Claude: ' + x.why : ROLE_NAMES[job] + '. ' + edhLine(c) + ' ' + fitLine(c);
@@ -1343,7 +1509,7 @@ function fillJob(job){
   } else {
     var gcs = draftGcs();
     rankedFor(job).forEach(function(c){
-      if(openSlots(job) <= 0) return;
+      if(openSlots(job) <= 0 || inDeckAlready(c)) return;
       if(isGC(c)){ if(gcs >= gcLimit()) return; gcs++; }
       var e = entry(c, job); e.why = ROLE_NAMES[job] + '. ' + edhLine(c) + ' ' + fitLine(c); S.deck.push(e);
     });
@@ -1491,8 +1657,9 @@ async function validate(combos){
   var cmdNames = [S.cmd.n].concat(S.partner ? [S.partner.n] : []);
   var total = S.deck.length + cmdNames.length;
   (total === 100 ? r.passes : r.fails).push({ k:'count', t:total + ' cards including the commander' + (cmdNames.length > 1 ? 's' : '') + '.' });
+  syncGc();
   var seen = {}, dup = [];
-  S.deck.forEach(function(d){ if(d.basic) return; var c = cardOf(d); if(seen[d.n] && !(c && anyNumber(c))) dup.push(d.n); seen[d.n] = 1; });
+  S.deck.forEach(function(d){ if(d.basic) return; var c = cardOf(d), k = d.n.split(' // ')[0]; if(seen[k] && !(c && anyNumber(c))) dup.push(d.n); seen[k] = 1; });
   (dup.length ? r.fails : r.passes).push({ k:'single', t:dup.length ? 'Duplicates: ' + dup.join(', ') + '.' : 'Singleton: no duplicates besides basics.' });
   var illegal = [], outside = [];
   S.deck.forEach(function(d){ var c = cardOf(d); if(!c || d.basic) return; if(c.legal !== 'legal') illegal.push(d.n); if(!withinCI(c)) outside.push(d.n); });
@@ -1547,23 +1714,26 @@ async function validate(combos){
   var landOk = r.sim.t3 >= 0.75 && r.sim.p3 >= 0.4;
   (landOk ? r.passes : r.fails).push({ k:'lands7', t:'Opening 7 with 3 or more lands: ' + pct(r.sim.p3) + '; land drops or cheap ramp through turn 3: ' + pct(r.sim.t3) + (landOk ? '.' : '. Floors are 40% and 75% (rule of thumb).') });
   var turn = BRACKETS[S.bracket].turn;
-  var early = r.sim.winTurn && r.sim.winTurn < turn - 2 && S.bracket <= 3;
+  var early = r.sim.winTurn && r.sim.winTurn < turn - 2 && S.bracket <= 3 && !house().fast;
   (early ? r.fails : r.passes).push({ k:'speed', t:'Estimated goldfish win around turn ' + (r.sim.winTurn || '15+') + '; bracket ' + S.bracket + ' games usually run to about turn ' + turn + ' (estimate).' + (early ? ' Too fast for this bracket.' : '') });
   S.check = { fails:r.fails.length };
   save();
   return r;
 }
 function comboBreaksBracket(o){
+  var mode = house().combo || '', two = o.cards.length <= 2 && o.inf;
+  function early(){
+    var mv = o.cards.reduce(function(s, n){ var c = poolCard(n) || (sameName(n, S.cmd.n) ? S.cmd : S.partner && sameName(n, S.partner.n) ? S.partner : null); return s + (c ? c.mv : 3); }, 0);
+    return mv + o.mvNeeded <= earlyMv();
+  }
+  if(mode === 'any') return false;
+  if(mode === 'none') return two;
+  if(mode === 'late') return two && early();
   if(S.bracket >= 4) return false;
-  var two = o.cards.length <= 2 && o.inf;
   if(S.bracket <= 2) return two;
   // Bracket 3 allows two-card infinites late in the game only. "Early" is not defined
   // by Wizards; this treats pieces costing 6 mana or less in total as early (estimate).
-  if(two){
-    var mv = o.cards.reduce(function(s, n){ var c = poolCard(n) || (sameName(n, S.cmd.n) ? S.cmd : S.partner && sameName(n, S.partner.n) ? S.partner : null); return s + (c ? c.mv : 3); }, 0);
-    return mv + o.mvNeeded <= 6;
-  }
-  return false;
+  return two && early();
 }
 // Goldfish simulation: no opponents, on the play.
 function simulate(cards, N, combos){
@@ -1685,6 +1855,14 @@ function autoFix(r){
     var list = S.deck.filter(pred).sort(function(a, b){ var ca = cardOf(a), cb = cardOf(b); return (ca && ca.stats ? score(ca) : 0) - (cb && cb.stats ? score(cb) : 0); });
     return list;
   }
+  // Second copies go first; the count fill below replaces them.
+  var seenOnce = {};
+  S.deck = S.deck.filter(function(d){
+    if(d.basic) return true;
+    var c = cardOf(d), k = d.n.split(' // ')[0];
+    if(seenOnce[k] && !(c && anyNumber(c))){ log.push('Took out the second ' + d.n + '.'); return false; }
+    seenOnce[k] = 1; return true;
+  });
   // Game Changers over the limit: swap the weakest for a non-GC doing the same job.
   var lim = gcLimit(), gcs = cutFor(function(d){ return d.gc && !d.must; });
   while(S.deck.filter(function(d){ return d.gc; }).length > lim && gcs.length){
@@ -1753,9 +1931,10 @@ function claudePrompt(){
   L.push('You are reviewing a Magic: The Gathering Commander deck for Tom, who plays it at a kitchen table with friends.', '');
   L.push('Commander: ' + S.cmd.n + (S.partner ? ' + ' + S.partner.n : '') + '. Colour identity: ' + (S.ci.join('') || 'colourless') + '.');
   L.push('Bracket ' + S.bracket + ' (' + B.name + '): ' + B.desc + ' Game Changer limit: ' + (lim === Infinity ? 'none' : lim) + '.');
+  L = L.concat(budgetLines());
   L.push('Strategy: ' + th + '.' + (S.companion ? ' Companion: ' + S.companion + '.' : ''));
   var cons = considering().map(function(x){ return x.c.n; });
-  var mustIn = lines(S.mustText).filter(function(n){ return !cons.some(function(c){ return sameName(c, n); }); });
+  var mustIn = lines(S.mustText).concat(gcMode() === 'mine' ? S.gcPick || [] : []).filter(function(n){ return !cons.some(function(c){ return sameName(c, n); }); });
   if(mustIn.length) L.push('Must stay in the deck: ' + mustIn.join(', ') + '.');
   if(cons.length) L.push('Not released yet, kept out of the 99, do not suggest them: ' + cons.join(', ') + '.');
   if(lines(S.refuseText).length) L.push('Never add: ' + lines(S.refuseText).join(', ') + '.');
@@ -1902,7 +2081,7 @@ function makeSide(){
   var inDeck = {}; S.deck.forEach(function(d){ inDeck[d.n] = 1; });
   var used = {};
   var up = [], down = [];
-  var nextLim = S.bracket < 5 ? BRACKETS[S.bracket + 1].gc : 0;
+  var nextLim = S.bracket < 5 ? Math.max(gcLimit(), BRACKETS[S.bracket + 1].gc) : 0;
   var gcNow = S.deck.filter(function(d){ return d.gc; }).length;
   if(S.bracket < 5){
     // Up: the strongest cards not in the deck, including Game Changers the next bracket allows.
@@ -1933,7 +2112,8 @@ function makeSide(){
       var c = cardOf(d), pri = (d.gc ? 3 : 0) + ((S.comboNames || {})[d.n] ? 2 : 0) + (c && c.roles && c.roles.ramp && c.mv === 0 ? 1 : 0);
       return { d:d, c:c, pri:pri };
     }).sort(function(a, b){ return b.pri - a.pri || score(b.c) - score(a.c); });
-    var usedIn = {};
+    // A card already on the Power Up list is not offered again, so the Sideboard holds each card once.
+    var usedIn = {}; up.forEach(function(p){ usedIn[p.inn] = 1; });
     outs2.forEach(function(x){
       if(down.length >= 10) return;
       if(x.pri === 0 && down.length >= 6) return;
@@ -1964,10 +2144,8 @@ function deckTxt(){
 // unreleased cards under Maybeboard (Moxfield's Considering), no comment lines.
 function moxTxt(){
   var out = deckTxt().trim().split('\n');
-  if(S.side && (S.side.up.length || S.side.down.length)){
-    out.push('', 'Sideboard');
-    S.side.up.concat(S.side.down).forEach(function(p){ out.push('1 ' + p.inn); });
-  }
+  var side = sideCards();
+  if(side.length){ out.push('', 'Sideboard'); side.forEach(function(n){ out.push('1 ' + n); }); }
   var cons = considering();
   if(cons.length){ out.push('', 'Maybeboard'); cons.forEach(function(x){ out.push('1 ' + x.c.n); }); }
   return out.join('\n') + '\n';
@@ -1978,8 +2156,14 @@ function sideTxt(){
   if(S.side.up.length){ out.push('// Power Up: bracket ' + (S.bracket + 1) + ', OUT -> IN'); S.side.up.forEach(function(p){ out.push('// ' + p.out + ' -> ' + p.inn); }); }
   if(S.side.down.length){ out.push('// Power Down: bracket ' + (S.bracket - 1) + ', OUT -> IN'); S.side.down.forEach(function(p){ out.push('// ' + p.out + ' -> ' + p.inn); }); }
   out.push('', 'Sideboard');
-  S.side.up.concat(S.side.down).forEach(function(p){ out.push('1 ' + p.inn); });
+  sideCards().forEach(function(n){ out.push('1 ' + n); });
   return out.join('\n') + '\n';
+}
+// Each side-deck card once, and never one already in the 99.
+function sideCards(){
+  if(!S.side) return [];
+  var seen = {}; S.deck.forEach(function(d){ seen[d.n] = 1; });
+  return S.side.up.concat(S.side.down).map(function(p){ return p.inn; }).filter(function(n){ if(seen[n]) return false; seen[n] = 1; return true; });
 }
 function primerMd(){
   if(S.claude && S.claude.primer){
