@@ -23,6 +23,7 @@ import sys
 import tempfile
 import threading
 import time
+import webbrowser
 
 PORT = 8766
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -156,6 +157,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if self.path == "/api/claude/login":
                 claude_login()
                 return self.send_json({"ok": True})
+            if self.path == "/api/open":
+                open_site(str(data.get("url") or ""))
+                return self.send_json({"ok": True})
             if self.path == "/api/claude/ask":
                 prompt = str(data.get("prompt") or "")
                 if not prompt:
@@ -173,6 +177,26 @@ def find_edge():
             if os.path.exists(p):
                 return p
     return None
+
+
+def find_chrome():
+    for base in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)"), os.environ.get("LOCALAPPDATA")):
+        if base:
+            p = os.path.join(base, "Google", "Chrome", "Application", "chrome.exe")
+            if os.path.exists(p):
+                return p
+    return None
+
+
+def open_site(url):
+    """Outside sites open in Chrome, where Tom is signed in. Web addresses only."""
+    if not url.startswith(("https://", "http://")) or any(ch.isspace() for ch in url):
+        raise RuntimeError("Not a web address.")
+    chrome = find_chrome()
+    if chrome:
+        subprocess.Popen([chrome, url])
+    else:
+        webbrowser.open(url)
 
 
 def open_window():

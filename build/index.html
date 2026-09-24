@@ -195,6 +195,18 @@ pre.out{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r
 .clround{margin-bottom:var(--s2)}
 .clpaste summary{cursor:pointer;min-height:var(--tap);display:flex;align-items:center;font-family:var(--disp);font-size:var(--t2);letter-spacing:var(--cap);text-transform:uppercase;color:var(--ink2)}
 .linkbtn{color:var(--brass);text-decoration:underline;min-height:var(--tap);padding:0 4px}
+.card[data-row]{cursor:pointer}
+.card[data-row]:hover{background:var(--bg3)}
+.x.sw{width:auto;padding:0 var(--s3);font-family:var(--disp);font-size:var(--t1);font-weight:600;letter-spacing:var(--cap);text-transform:uppercase;border-color:var(--line)}
+.scrim{position:fixed;inset:0;z-index:14;background:rgba(0,0,0,.6)}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:15;max-height:88vh;overflow:auto;background:var(--bg2);border-top:1px solid var(--line2);
+  border-radius:var(--r-lg) var(--r-lg) 0 0;padding:var(--s4) 16px calc(var(--s5) + env(safe-area-inset-bottom,0px))}
+.sheet .in{max-width:980px;margin:0 auto}
+.swnow{display:flex;gap:var(--s4);align-items:flex-start}
+.swnow img{width:110px;border-radius:6px;flex:0 0 auto}
+.swhead{position:sticky;top:calc(-1 * var(--s4));background:var(--bg2);padding:var(--s2) 0;z-index:2;display:flex;gap:var(--s3);align-items:center;flex-wrap:wrap}
+.guide h2{font-size:var(--t4);margin:var(--s5) 0 var(--s2)} .guide h2:first-child{margin-top:0}
+.guide ul{margin:0 0 var(--s3);padding-left:20px} .guide li{margin:3px 0;max-width:68ch} .guide p{margin:0 0 var(--s3)}
 .empty{padding:var(--s6);text-align:center;color:var(--ink3);border:1px dashed var(--line2);border-radius:var(--r-md)}
 </style>
 </head>
@@ -357,9 +369,9 @@ function rolesOf(c){
   if(/take an extra turn/.test(o)) r.extra = 1;
   return r;
 }
-var ROLE_NAMES = { lands:'Lands', ramp:'Ramp', draw:'Card draw', removal:'Targeted removal', wipes:'Board wipes',
+var ROLE_NAMES = { lands:'Lands', ramp:'Ramp', tutor:'Tutors', draw:'Card draw', removal:'Targeted removal', wipes:'Board wipes',
   protection:'Protection', wincon:'Win conditions', synergy:'Synergy' };
-var ROLE_KEY = { ramp:'ramp', draw:'draw', removal:'removal', wipes:'wipe', protection:'protection', wincon:'wincon' };
+var ROLE_KEY = { ramp:'ramp', tutor:'tutor', draw:'draw', removal:'removal', wipes:'wipe', protection:'protection', wincon:'wincon' };
 function pips(cost){
   var out = { W:0, U:0, B:0, R:0, G:0 };
   (cost.match(/\{[^}]+\}/g) || []).forEach(function(s){
@@ -465,9 +477,15 @@ function renderSteps(){
 $('steps').onclick = function(e){ var b = e.target.closest('[data-step]'); if(b && !b.disabled) go(+b.dataset.step); };
 $('prevBtn').onclick = function(){ if(S.step > 1) go(S.step - 1); };
 $('nextBtn').onclick = function(){ if(NEXT[S.step]) NEXT[S.step](); };
-function go(n){ S.step = n; save(); render(); window.scrollTo(0, 0); }
+function go(n){ closeSwap(); S.step = n; save(); render(); window.scrollTo(0, 0); }
+// Plans saved before the Tutors job existed get it now.
+function addTutorJob(){
+  if(!S.quotas || S.quotas.tutor != null) return;
+  S.quotas.tutor = tutorBase(); S.why = S.why || {};
+  S.why.tutor = ['Baseline ' + S.quotas.tutor + ' at bracket ' + S.bracket + ': tutors find the cards the deck is built around. Added after this plan was made.'];
+}
 function render(){
-  syncGc(); renderSteps(); msg('');
+  addTutorJob(); syncGc(); renderSteps(); msg('');
   main.onclick = main.oninput = main.onchange = null;
   $('nextBtn').textContent = 'Next';
   $('prevBtn').hidden = S.step === 1;
@@ -845,8 +863,9 @@ function score(c){
   return s;
 }
 function makeSkeleton(){
-  var q = { lands:37, ramp:10, draw:10, removal:10, wipes:3, protection:3, wincon:3 };
-  var why = { lands:['Baseline 37.'], ramp:['Baseline 10.'], draw:['Baseline 10.'], removal:['Baseline 10.'], wipes:['Baseline 3.'], protection:['Baseline 3.'], wincon:['Baseline 3.'] };
+  var tb = tutorBase();
+  var q = { lands:37, ramp:10, tutor:tb, draw:10, removal:10, wipes:3, protection:3, wincon:3 };
+  var why = { lands:['Baseline 37.'], ramp:['Baseline 10.'], tutor:['Baseline ' + tb + ' at bracket ' + S.bracket + ': tutors find the cards the deck is built around.'], draw:['Baseline 10.'], removal:['Baseline 10.'], wipes:['Baseline 3.'], protection:['Baseline 3.'], wincon:['Baseline 3.'] };
   function mv(k, d, reason){ q[k] += d; why[k].push((d > 0 ? '+' : '') + d + ' ' + reason); }
   var b = S.base, br = S.bracket, th = S.theme || '';
   var edhLands = b && b.pie && b.pie.Land;
@@ -872,7 +891,11 @@ function makeSkeleton(){
   if(S.meta.indexOf('big') >= 0){ mv('removal', 1, 'Big creatures need answers.'); mv('wipes', 1, 'Reset boards of big creatures.'); }
   if(S.meta.indexOf('stax') >= 0){ mv('removal', 1, 'Stax pieces must be removed.'); }
   if(S.meta.indexOf('casual') >= 0){ mv('removal', -1, 'A casual table needs less interaction.'); }
-  Object.keys(q).forEach(function(k){ q[k] = Math.max(k === 'lands' ? 26 : k === 'wipes' ? 0 : 1, q[k]); });
+  if(br >= 3) mv('draw', 1, 'Consistency: the deck sees more of itself every game.');
+  // Never ask for more tutors than there are cards that can fill the job.
+  var tutors = S.pool.filter(function(c){ return c.roles.tutor && !isLand(c) && allowed(c); }).length;
+  if(q.tutor > tutors) mv('tutor', tutors - q.tutor, 'Only ' + tutors + ' tutor' + (tutors === 1 ? '' : 's') + ' fit this deck and its rules.');
+  Object.keys(q).forEach(function(k){ q[k] = Math.max(k === 'lands' ? 26 : k === 'wipes' || k === 'tutor' ? 0 : 1, q[k]); });
   if(br >= 4) q.wipes = Math.max(0, q.wipes);
   S.quotas = q; S.why = why;
   S.sources = sourceTargets(top, q.lands);
@@ -889,13 +912,15 @@ function sourceTargets(top, lands){
   });
   return out;
 }
-function nonlandTotal(){ var q = S.quotas; return q.ramp + q.draw + q.removal + q.wipes + q.protection + q.wincon; }
+// Tutors per bracket: none of the rules limit them, but lower brackets play them lightly (rule of thumb).
+function tutorBase(){ return { 1:1, 2:2, 3:4, 4:6, 5:8 }[S.bracket] || 3; }
+function nonlandTotal(){ var q = S.quotas; return q.ramp + (q.tutor || 0) + q.draw + q.removal + q.wipes + q.protection + q.wincon; }
 function deckSlots(){ return 100 - (S.partner ? 2 : 1); }
 function drawSkeleton(){
   var q = S.quotas, syn = deckSlots() - q.lands - nonlandTotal();
   var h = '<h1>Skeleton</h1><p class="note">How many slots each job gets. Change any number; the reasons show why it moved from the baseline.</p>';
   h += '<div class="panel">';
-  ['lands', 'ramp', 'draw', 'removal', 'wipes', 'protection', 'wincon'].forEach(function(k){
+  ['lands', 'ramp', 'tutor', 'draw', 'removal', 'wipes', 'protection', 'wincon'].forEach(function(k){
     h += '<div class="quota"><b>' + ROLE_NAMES[k] + '</b><input type="number" min="0" max="60" id="q_' + k + '" data-q="' + k + '" value="' + q[k] + '">' +
       '<div class="why">' + esc(S.why[k].join(' ')) + '</div></div>';
   });
@@ -1019,7 +1044,7 @@ function buildDeck(){
   var spellSlots = deckSlots() - q.lands;
   function spells(){ return deck.filter(function(d){ return d.role !== 'lands'; }).length; }
   // Role quotas count the jobs a must-include does, and never push past the spell slots.
-  ['ramp', 'draw', 'removal', 'wipes', 'protection', 'wincon'].forEach(function(role){
+  ['ramp', 'tutor', 'draw', 'removal', 'wipes', 'protection', 'wincon'].forEach(function(role){
     var key = ROLE_KEY[role];
     var have = deck.filter(function(d){ var c = poolCard(d.n); return d.role === role || (d.must && c && c.roles[key]); }).length;
     for(var i = 0; i < nonland.length && have < q[role] && spells() < spellSlots; i++){
@@ -1039,7 +1064,7 @@ function buildDeck(){
   save();
 }
 function primaryRole(c){
-  var order = ['ramp', 'draw', 'removal', 'wipes', 'protection', 'wincon'];
+  var order = ['ramp', 'tutor', 'draw', 'removal', 'wipes', 'protection', 'wincon'];
   for(var i = 0; i < order.length; i++){ if(c.roles[ROLE_KEY[order[i]]]) return order[i]; }
   return 'synergy';
 }
@@ -1098,9 +1123,9 @@ function viewTabs(mode){
     '<button data-v4="list"' + (mode === 'list' ? ' class="on"' : '') + '>The list <span class="n">' + S.deck.length + ' / ' + deckSlots() + '</span></button></div>';
 }
 function drawList(){
-  var groups = ['synergy', 'ramp', 'draw', 'removal', 'wipes', 'protection', 'wincon', 'lands'];
+  var groups = ['synergy', 'ramp', 'tutor', 'draw', 'removal', 'wipes', 'protection', 'wincon', 'lands'];
   var total = S.deck.length + (S.partner ? 2 : 1);
-  var h = '<h1>The 99</h1>' + viewTabs('list') + '<p class="note">' + total + ' cards with the commander' + (S.partner ? 's' : '') + '. Tap &times; to cut a card and pick a replacement for the same job.</p>';
+  var h = '<h1>The 99</h1>' + viewTabs('list') + '<p class="note">' + total + ' cards with the commander' + (S.partner ? 's' : '') + '. Tap any card to swap it: pick a replacement and it goes straight in. Undo is one tap.</p>';
   h += '<div class="row"><span class="chip">' + esc(S.cmd.n) + '</span>' + (S.partner ? '<span class="chip">' + esc(S.partner.n) + '</span>' : '') +
     '<span class="chip">Bracket ' + S.bracket + (houseLines().length ? ' + house rules' : '') + '</span><span class="chip">Game Changers ' + S.deck.filter(function(d){ return d.gc; }).length + ' / ' + (gcLimit() === Infinity ? 'no limit' : gcLimit()) + '</span>' +
     '<button class="btn small" id="rebuild">Build the 99 for me</button></div>';
@@ -1146,21 +1171,17 @@ function cardRow(d){
   var combo = (S.comboNames || {})[d.n];
   return '<div class="card" data-row="' + esc(d.n) + '"><span class="mv">' + d.mv + '</span><div><div class="nm">' + esc(d.n) +
     (d.gc ? '<span class="tag gc">Game Changer</span>' : d.gc0 ? '<span class="tag must">Game Changer, free pass</span>' : '') + (combo ? '<span class="tag combo">Combo piece</span>' : '') + (d.must ? '<span class="tag must">Must</span>' : '') +
-    '</div><div class="why">' + esc(d.why) + '</div></div><button class="x" data-cut="' + esc(d.n) + '" aria-label="Cut ' + esc(d.n) + '">&times;</button></div>';
+    '</div><div class="why">' + esc(d.why) + '</div></div><button class="x sw" data-cut="' + esc(d.n) + '" aria-label="Swap ' + esc(d.n) + '">Swap</button></div>';
 }
 function onBuildClick(e){
   var t = e.target;
   var v4 = t.closest('[data-v4]');
   if(v4){ S.v4 = v4.dataset.v4; save(); VIEW[4](); return; }
   if(t.id === 'rebuild'){ if(confirm('Throw away this list and let the builder pick all 99?')){ buildDeck(); S.draft = newDraft(); S.v4 = 'list'; save(); VIEW[4](); } return; }
-  var cut = t.closest('[data-cut]');
-  if(cut){ showReplacements(cut.dataset.cut); return; }
-  var rep = t.closest('[data-rep]');
-  if(rep){ replaceCard(rep.dataset.old, rep.dataset.rep); return; }
+  var cut = t.closest('[data-cut]') || t.closest('[data-row]');
+  if(cut){ openSwap(cut.dataset.cut || cut.dataset.row); return; }
   var unc = t.closest('[data-uncons]');
   if(unc){ S.considerAdd = (S.considerAdd || []).filter(function(n){ return n !== unc.dataset.uncons; }); save(); VIEW[4](); return; }
-  var only = t.closest('[data-only]');
-  if(only){ S.deck = S.deck.filter(function(d){ return d.n !== only.dataset.only; }); S.side = null; save(); VIEW[4](); return; }
   var bas = t.closest('[data-basic]');
   if(bas){
     var n = bas.dataset.basic;
@@ -1180,22 +1201,97 @@ function candidatesFor(role, exclude){
     return role === 'synergy' ? true : !!c.roles[ROLE_KEY[role]];
   }).sort(function(a, b){ return score(b) - score(a); });
 }
-function showReplacements(name){
-  var row = main.querySelector('[data-row="' + CSS.escape(name) + '"]');
-  var old = main.querySelector('.repl'); if(old){ var was = old.dataset.for; old.remove(); if(was === name) return; }
-  var d = S.deck.filter(function(x){ return x.n === name; })[0];
-  var list = candidatesFor(d.role, name).slice(0, 6);
-  var box = document.createElement('div'); box.className = 'repl'; box.dataset.for = name;
-  box.innerHTML = '<div class="small" style="padding:4px 8px">Replace with another ' + ROLE_NAMES[d.role].toLowerCase() + ' card, best EDHREC fit first:</div>' +
-    list.map(function(c){ return '<button data-old="' + esc(name) + '" data-rep="' + esc(c.n) + '"><b>' + esc(c.n) + '</b> <span class="small">MV ' + c.mv + ' &middot; ' + esc(why(c, d.role).replace(/^[^.]+\. /, '')) + '</span></button>'; }).join('') +
-    '<button data-only="' + esc(name) + '" class="bad">Cut it and add nothing</button>';
-  row.appendChild(box);
+/* The swap sheet: tap a card, tap its replacement, it is in. The sheet stays open on the
+   new card so he can keep trying others, and Undo walks the swaps back one at a time. */
+var SW = null, SWUNDO = [];
+function openSwap(name){ SW = { n:name, mode:'job' }; drawSwap(); }
+function closeSwap(){ SW = null; var o = $('swapSheet'); if(o) o.remove(); var sc = $('swapScrim'); if(sc) sc.remove(); }
+function swapCandidates(d, mode){
+  var inDeck = {}; S.deck.forEach(function(x){ inDeck[x.n] = 1; });
+  var gcs = S.deck.filter(function(x){ return x.gc; }).length - (d.gc ? 1 : 0), key = ROLE_KEY[d.role];
+  return S.pool.filter(function(c){
+    if(inDeck[c.n] || !allowed(c) || unreleased(c)) return false;
+    if(isGC(c) && gcs >= gcLimit()) return false;
+    if(d.role === 'lands') return isLand(c) && !isBasic(c);
+    if(isLand(c)) return false;
+    return mode === 'any' || d.role === 'synergy' || !!c.roles[key];
+  }).map(function(c){ return { c:c, s:score(c) + fit(c).bonus }; }).sort(function(a, b){ return b.s - a.s; }).slice(0, 24).map(function(x){ return x.c; });
 }
-function replaceCard(oldN, newN){
-  var i = S.deck.findIndex(function(d){ return d.n === oldN; });
-  var role = S.deck[i].role, c = poolCard(newN);
-  S.deck[i] = entry(c, role); S.side = null; save(); VIEW[4]();
+function drawSwap(){
+  var d = S.deck.filter(function(x){ return x.n === SW.n; })[0];
+  if(!d){ closeSwap(); return; }
+  var cur = cardOf(d) || {}, list = swapCandidates(d, SW.mode);
+  if(!$('swapScrim')){ var sc = document.createElement('div'); sc.id = 'swapScrim'; sc.className = 'scrim'; sc.onclick = closeSwap; document.body.appendChild(sc); }
+  var sh = $('swapSheet');
+  if(!sh){ sh = document.createElement('div'); sh.id = 'swapSheet'; sh.className = 'sheet'; sh.setAttribute('role', 'dialog'); sh.setAttribute('aria-label', 'Swap a card'); document.body.appendChild(sh); sh.onclick = onSwapClick; }
+  var job = ROLE_NAMES[d.role].toLowerCase();
+  var h = '<div class="in"><div class="swhead"><h2 style="margin:0;flex:1">Swap ' + esc(d.n) + '</h2>' +
+    (SWUNDO.length ? '<button class="btn small" id="swUndo">Undo</button>' : '') + '<button class="btn small primary" id="swDone">Done</button></div>';
+  h += '<div class="swnow">' + (cur.img ? '<img src="' + esc(cur.img) + '" alt="">' : '') + '<div class="stack" style="gap:6px;flex:1">' +
+    '<span class="note" style="margin:0">' + esc(d.why) + '</span>' + (d.must ? '<span class="small">This is one of your must-includes or Game Changer picks.</span>' : '') +
+    '<div class="suggest"><input type="text" id="swIn" placeholder="Swap in any card by name" autocomplete="off"><ul id="swList" hidden></ul></div>' +
+    '<div class="row"><button class="btn small" id="swCut">Cut it, add nothing</button></div></div></div>';
+  if(d.role !== 'lands' && d.role !== 'synergy')
+    h += '<div class="seg"><button data-swmode="job"' + (SW.mode === 'job' ? ' class="on"' : '') + '>More ' + esc(job) + '</button><button data-swmode="any"' + (SW.mode === 'any' ? ' class="on"' : '') + '>Anything</button></div>';
+  else h += '<h3>Best ' + (d.role === 'lands' ? 'lands' : 'cards') + ' for this deck</h3>';
+  h += list.length ? '<div class="deal">' + list.map(function(c){
+    return '<div class="tile"><button class="tpick" data-swapin="' + esc(c.n) + '" aria-label="Swap in ' + esc(c.n) + '">' +
+      (c.img ? '<img loading="lazy" src="' + esc(c.img) + '" alt="">' : '<span class="noimg">' + esc(c.n) + '</span>') + '</button>' +
+      '<div class="tinfo"><b>' + esc(c.n) + (isGC(c) ? '<span class="tag gc">GC</span>' : '') + '</b><span class="tw">MV ' + c.mv + '. ' + esc(edhLine(c)) + '</span><span class="tw fit">' + esc(fitLine(c)) + '</span></div>' +
+      (c.img ? '<button class="zoom" data-zoom="' + esc(c.img) + '" aria-label="Read ' + esc(c.n) + '">Read</button>' : '') + '</div>';
+  }).join('') + '</div>' : '<p class="empty">Nothing else fits this job. Try Anything, or type a name.</p>';
+  sh.innerHTML = h + '</div>';
+  wireSwapSearch();
 }
+function swapIn(c, why){
+  var i = S.deck.findIndex(function(x){ return x.n === SW.n; }); if(i < 0) return;
+  var d = S.deck[i], role;
+  if(isLand(c)) role = 'lands';
+  else if(d.role !== 'lands' && (d.role === 'synergy' || c.roles[ROLE_KEY[d.role]])) role = d.role;
+  else role = primaryRole(c);
+  SWUNDO.push({ deck:S.deck.slice(), n:SW.n });
+  var e = entry(c, role); e.why = 'Swapped in by you. ' + (why || e.why);
+  S.deck[i] = e; S.side = null; SW.n = c.n; save();
+  drawList(); drawSwap();
+  msg('<span class="ok">' + esc(d.n) + ' out, ' + esc(c.n) + ' in.</span>');
+}
+function onSwapClick(e){
+  var t = e.target;
+  var z = t.closest('[data-zoom]'); if(z){ zoomCard(z.dataset.zoom); return; }
+  var m = t.closest('[data-swmode]'); if(m){ SW.mode = m.dataset.swmode; drawSwap(); return; }
+  var p = t.closest('[data-swapin]'); if(p){ var c = poolCard(p.dataset.swapin); if(c) swapIn(c); return; }
+  if(t.id === 'swDone'){ closeSwap(); return; }
+  if(t.id === 'swUndo'){ var u = SWUNDO.pop(); if(u){ S.deck = u.deck; S.side = null; SW.n = u.n; save(); drawList(); drawSwap(); msg('Undone.'); } return; }
+  if(t.id === 'swCut'){ SWUNDO.push({ deck:S.deck.slice(), n:SW.n }); var gone = SW.n; S.deck = S.deck.filter(function(x){ return x.n !== gone; }); S.side = null; save(); closeSwap(); drawList(); msg('Cut ' + esc(gone) + '. Add a card to get back to 100.'); }
+}
+function wireSwapSearch(){
+  var inp = $('swIn'), list = $('swList'), t = null;
+  inp.oninput = function(){
+    clearTimeout(t); var q = inp.value.trim(); if(q.length < 2){ list.hidden = true; return; }
+    t = setTimeout(async function(){
+      var j = await sf('/cards/autocomplete?q=' + encodeURIComponent(q)).catch(function(){ return null; });
+      var names = (j && j.data) || [];
+      list.innerHTML = names.slice(0, 10).map(function(n){ return '<li><button data-swname="' + esc(n) + '">' + esc(n) + '</button></li>'; }).join('');
+      list.hidden = !names.length;
+    }, 220);
+  };
+  list.onclick = async function(e){
+    var b = e.target.closest('[data-swname]'); if(!b) return; e.stopPropagation(); list.hidden = true;
+    var n = b.dataset.swname, c = poolCard(n);
+    if(!c){
+      var r = await sfCollection([{ n:n }]); c = r.cards[n.toLowerCase()];
+      if(!c){ msg('<span class="bad">Scryfall did not find ' + esc(n) + '.</span>'); return; }
+      c = inPool(Object.assign({}, c, { stats:{} }));
+    }
+    var d = S.deck.filter(function(x){ return x.n === SW.n; })[0];
+    var gcs = S.deck.filter(function(x){ return x.gc; }).length - (d && d.gc ? 1 : 0);
+    var no = !withinCI(c) ? 'is outside your colours' : unreleased(c) ? 'is not out yet; add it on the list to put it in Considering' : c.legal !== 'legal' ? 'is not legal in Commander' :
+      inDeckAlready(c) ? 'is already in the deck' : !allowed(c) ? 'breaks a rule you set' : isGC(c) && gcs >= gcLimit() ? 'is a Game Changer and the deck is at its limit' : '';
+    if(no){ msg('<span class="bad">' + esc(c.n) + ' ' + no + '.</span>'); return; }
+    swapIn(c);
+  };
+}
+document.addEventListener('keydown', function(e){ if(e.key === 'Escape' && SW) closeSwap(); });
 function wireAdd(){
   var inp = $('addIn'), list = $('addList'), t = null;
   inp.oninput = function(){
@@ -1233,8 +1329,9 @@ function roundMode(){ return (S.v4 || (deckFull() ? 'list' : 'rounds')) === 'rou
 // One job at a time: about twice as many cards as open slots, he ticks what he wants,
 // the rest are passed and never dealt again for that job. Suggestions come from EDHREC
 // (ranked by its numbers plus how well the card fits the picks so far) and from Claude.
-var JOBS = ['ramp', 'draw', 'removal', 'wipes', 'protection', 'wincon', 'synergy', 'lands'];
+var JOBS = ['ramp', 'tutor', 'draw', 'removal', 'wipes', 'protection', 'wincon', 'synergy', 'lands'];
 var JOB_DEF = {
+  tutor:'Tutors: cards that search the library for the card you need. Consistency: the same game plan every game.',
   ramp:'Mana rocks, mana creatures and land search: anything that gets you ahead on mana.',
   draw:'Card draw and card advantage.',
   removal:'Answers to one thing: destroy, exile, bounce, counter, fight.',
@@ -1250,7 +1347,7 @@ function jobHave(){ var h = {}; S.deck.forEach(function(d){ h[d.role] = (h[d.rol
 // Must-includes can overfill a job; then synergy shrinks, then lands.
 function jobTargets(){
   var q = S.quotas, have = jobHave(), t = {}, sum = 0, spellSlots = deckSlots() - q.lands;
-  JOBS.slice(0, 6).forEach(function(j){ t[j] = Math.max(q[j], have[j] || 0); sum += t[j]; });
+  JOBS.slice(0, 7).forEach(function(j){ t[j] = Math.max(q[j] || 0, have[j] || 0); sum += t[j]; });
   t.synergy = Math.max(have.synergy || 0, spellSlots - sum);
   t.lands = Math.max(have.lands || 0, deckSlots() - sum - t.synergy);
   return t;
@@ -1946,7 +2043,7 @@ function claudePrompt(){
   if(r.sim) L.push('- Simulation: ' + pct(r.sim.p3) + ' of opening hands have 3+ lands; goldfish win around turn ' + (r.sim.winTurn || '15+') + '. Average spell mana value ' + (r.avg || 0).toFixed(2) + '.');
   if((r.combos || []).length) L.push('- Combos in the deck: ' + r.combos.slice(0, 8).map(function(o){ return o.cards.join(' + ') + ' (' + o.res + ')'; }).join('; ') + '.');
   L.push('', 'The 99, by the job the builder gave each card:');
-  ['lands', 'ramp', 'draw', 'removal', 'wipes', 'protection', 'wincon', 'synergy'].forEach(function(role){
+  ['lands', 'ramp', 'tutor', 'draw', 'removal', 'wipes', 'protection', 'wincon', 'synergy'].forEach(function(role){
     var list = S.deck.filter(function(d){ return d.role === role; });
     if(!list.length) return;
     var counts = {}, order = [];
@@ -2043,7 +2140,7 @@ function drawClaude(){
       });
       if(R.swaps.some(function(sw){ return !sw.done; })) h += '<div class="row"><button class="btn" id="clAll"' + (CL.busy ? ' disabled' : '') + '>Make every swap</button><span class="note">Each card is checked for legality, colours and your bracket first.</span></div>';
     }
-    if(R.primer) h += '<p class="note" style="margin-top:12px">Claude\'s primer replaces primer.md on the Export step.</p>';
+    if(R.primer) h += '<p class="note" style="margin-top:12px">Claude\'s primer stands in as the piloting guide on Export until you write one there.</p>';
   }
   box.innerHTML = h;
   box.onclick = function(e){
@@ -2215,14 +2312,18 @@ VIEW[7] = function(){
   h += '<div class="panel stack"><h2 style="margin:0">Put it on Moxfield</h2><p class="note">One paste holds the commander, the 99' + (S.side && (S.side.up.length || S.side.down.length) ? ', the side deck' : '') + (nCons ? ' and ' + nCons + ' unreleased card' + (nCons > 1 ? 's' : '') + ' for Considering' : '') + '. On Moxfield: Create Deck, format Commander, paste it into the list box. ' +
     'If ' + esc(S.cmd.n) + ' lands in the 99, open it and press Set as Commander.</p>' +
     '<div class="row"><button class="btn primary" id="copyMox">Copy for Moxfield</button><a class="btn" href="https://moxfield.com/decks/new" target="_blank" rel="noopener">Open Moxfield</a></div></div>';
-  [['deck.txt', deckTxt(), 'Moxfield import format, commander under its own header.'], ['sideboard.txt', sideTxt() || '(Make the side deck on step 6 first.)', 'Swap pairs as comments, cards under Sideboard.'], ['primer.md', primerMd(), 'Game plan, mulligans, key lines, threats.' + (S.claude && S.claude.primer ? ' Written by Claude.' : '')]].forEach(function(f, i){
+  h += '<div class="panel stack" id="guideBox"></div>';
+  [['deck.txt', deckTxt(), 'Moxfield import format, commander under its own header.'], ['sideboard.txt', sideTxt() || '(Make the side deck on step 6 first.)', 'Swap pairs as comments, cards under Sideboard.']].forEach(function(f, i){
     h += '<h2>' + f[0] + '</h2><p class="note">' + f[2] + '</p><pre class="out">' + esc(f[1]) + '</pre>' +
       '<div class="row" style="margin-top:8px"><button class="btn small" data-copy="' + i + '">Copy</button><button class="btn small" data-dl="' + i + '">Download</button></div>';
   });
   main.innerHTML = h;
-  var files = [['deck.txt', deckTxt], ['sideboard.txt', sideTxt], ['primer.md', primerMd]];
+  drawGuide();
+  if(LOCAL && !CL.status) claudeReady().then(drawGuide);
+  var files = [['deck.txt', deckTxt], ['sideboard.txt', sideTxt], ['piloting-guide.md', guideMd]];
   main.onclick = function(e){
     var t = e.target;
+    if(t.closest('#guideBox') && onGuideClick(t)) return;
     if(t.dataset.copy) copy(files[+t.dataset.copy][1](), 'Copied.');
     if(t.dataset.dl){ var f = files[+t.dataset.dl]; download(f[0], f[1]()); }
     if(t.id === 'copyMox') copy(moxTxt(), 'Copied. Paste it into Moxfield.');
@@ -2230,6 +2331,88 @@ VIEW[7] = function(){
     if(t.id === 'copyLink') copy(new URL(tableLink(), location.href).href, 'Link copied. Open it on the iPad.');
   };
 };
+/* ============ piloting guide ============ */
+// A short guide for this exact list, written by Claude. Until one is written, the built-in primer stands in.
+var GD = { busy:false, err:'' };
+function guideCurrent(){ return S.guide && S.guide.key === deckKey() ? S.guide : null; }
+function guideMd(){
+  if(!S.guide) return primerMd();
+  return '# Piloting ' + S.cmd.n + (S.partner ? ' + ' + S.partner.n : '') + '\n\nWritten by Claude for this list on ' + new Date(S.guide.at).toLocaleDateString() + '.\n\n' + S.guide.text.trim() + '\n';
+}
+function guidePrompt(){
+  var r = S.lastCheck || {}, L = [];
+  L.push('Write a short piloting guide for Tom for the Magic: The Gathering Commander deck below. He reads it on his phone before and during games at a kitchen table with friends.', '');
+  L = L.concat(tableLines());
+  if(S.companion) L.push('Companion: ' + S.companion + '.');
+  if(r.sim) L.push('Simulation: ' + pct(r.sim.p3) + ' of opening hands have 3+ lands; goldfish win around turn ' + (r.sim.winTurn || '15+') + '.');
+  if((r.combos || []).length) L.push('Combos in the deck: ' + r.combos.slice(0, 8).map(function(o){ return o.cards.join(' + ') + ' (' + o.res + ')'; }).join('; ') + '.');
+  L.push('', 'The 99, by job:');
+  L = L.concat(deckByJob());
+  L.push('', 'Use these sections, each as a heading starting with ##:');
+  L.push('## The plan: two or three sentences on how this deck wins.');
+  L.push('## Mulligan: what to keep and what to send back, naming cards from this list.');
+  L.push('## Turns 1 to 3, ## Turns 4 to 6, ## Closing it out: what to do each stretch. For each combo or win line, the exact steps in order.');
+  L.push('## Tutor targets: what to fetch first in each situation, if the deck has tutors.');
+  L.push('## Play around: what beats this deck and how to dodge it.');
+  L.push('## Key cards: 5 to 8 cards, one line each on when to use them.');
+  L.push('', 'Short bullet points starting with "- ". Under 450 words. Only name cards that are in the list or are the commander. Plain English, short sentences, no em dashes. Answer with the guide only, no other words.');
+  return L.join('\n');
+}
+function readGuide(text){
+  var t = String(text || '').replace(/^\s*```(?:markdown|md)?\s*\n?/i, '').replace(/\n?```\s*$/, '').trim();
+  if(t.length < 80 || t.indexOf('##') < 0) throw new Error('That does not look like the guide. Paste Claude\'s whole answer.');
+  S.guide = { key:deckKey(), text:t, at:Date.now() }; save();
+}
+async function askGuide(){
+  GD.busy = true; GD.err = ''; drawGuide();
+  try{
+    var r = await fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:guidePrompt() }) });
+    var j = await r.json();
+    if(j.error) throw new Error(j.error);
+    readGuide(j.text);
+  }catch(e){ GD.err = e.message; }
+  GD.busy = false; drawGuide();
+}
+// Just enough Markdown for the guide: headings, bullets, bold.
+function mdHtml(md){
+  var out = [], inList = false;
+  function inline(x){ return esc(x).replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>'); }
+  md.split(/\r?\n/).forEach(function(line){
+    var li = line.match(/^\s*[-*] (.*)/);
+    if(li){ if(!inList){ out.push('<ul>'); inList = true; } out.push('<li>' + inline(li[1]) + '</li>'); return; }
+    if(inList){ out.push('</ul>'); inList = false; }
+    var hd = line.match(/^#{1,4} (.*)/);
+    if(hd) out.push('<h2>' + inline(hd[1]) + '</h2>');
+    else if(line.trim()) out.push('<p>' + inline(line) + '</p>');
+  });
+  if(inList) out.push('</ul>');
+  return out.join('');
+}
+function drawGuide(){
+  var box = $('guideBox'); if(!box) return;
+  var G = guideCurrent(), direct = LOCAL && CL.status && CL.status.available && CL.status.signed_in;
+  var h = '<div class="rhead"><h2>Piloting guide</h2><span class="spacer"></span>';
+  if(direct) h += '<button class="btn small primary" id="gdAsk"' + (GD.busy ? ' disabled' : '') + '>' + (S.guide ? 'Write it again' : 'Write my guide') + '</button>';
+  h += '<button class="btn small" id="gdCopy">Copy</button><button class="btn small" id="gdDl">Download</button></div>';
+  if(GD.busy) h += '<p class="note"><span class="busy"></span>Claude is writing the guide for this list. This takes a while.</p>';
+  if(GD.err) h += '<p class="bad">' + esc(GD.err) + '</p>';
+  if(S.guide && !G) h += '<p class="warn">The list has changed since this guide was written.' + (direct ? ' Write it again to catch up.' : '') + '</p>';
+  if(!S.guide) h += '<p class="note">' + (direct ? 'Claude writes a short guide for this exact list: mulligans, what to do each turn, the win lines step by step, tutor targets. Until then, here is the quick version.' : 'The quick version is below. For one written for this exact list, copy the prompt into the Claude app and paste its answer back.') + '</p>';
+  if(!direct && !GD.busy){
+    h += '<details class="clpaste"><summary>Write it with Claude by copy and paste</summary><div class="row"><button class="btn small" id="gdPrompt">Copy the prompt</button></div>' +
+      '<textarea id="gdPaste" placeholder="Paste Claude\'s whole answer" style="margin-top:8px"></textarea><div class="row" style="margin-top:8px"><button class="btn small" id="gdRead">Read the answer</button></div></details>';
+  }
+  h += '<div class="guide">' + mdHtml(S.guide ? S.guide.text : primerMd().replace(/^# .*\n/, '')) + '</div>';
+  box.innerHTML = h;
+}
+function onGuideClick(t){
+  if(t.id === 'gdAsk'){ askGuide(); return true; }
+  if(t.id === 'gdCopy'){ copy(guideMd(), 'Guide copied.'); return true; }
+  if(t.id === 'gdDl'){ download('piloting-guide.md', guideMd()); return true; }
+  if(t.id === 'gdPrompt'){ copy(guidePrompt(), 'Prompt copied. Paste it into Claude.'); return true; }
+  if(t.id === 'gdRead'){ try{ readGuide($('gdPaste').value); GD.err = ''; }catch(err){ GD.err = err.message; } drawGuide(); return true; }
+  return false;
+}
 function tableLink(){
   var name = S.cmd.n.split(',')[0] + (S.partner ? ' + ' + S.partner.n.split(',')[0] : '');
   var payload = JSON.stringify({ name:name, text:deckTxt() });
@@ -2249,6 +2432,21 @@ function download(name, text){
   a.download = name; document.body.appendChild(a); a.click();
   setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
 }
+
+/* ============ links open in Chrome ============ */
+// In the Windows app, outside sites (Moxfield, EDHREC, Spellbook) open in Chrome, where he is
+// signed in, instead of inside this window. The app itself stays where its saved decks live.
+document.addEventListener('click', function(e){
+  if(!LOCAL || e.defaultPrevented) return;
+  var a = e.target.closest && e.target.closest('a[href]'); if(!a) return;
+  var u = new URL(a.href, location.href);
+  if(u.origin === location.origin || !/^https?:$/.test(u.protocol)) return;
+  e.preventDefault();
+  fetch('/api/open', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ url:u.href }) })
+    .then(function(r){ return r.json(); })
+    .then(function(j){ if(j.error) throw new Error(j.error); msg('Opened in Chrome.'); })
+    .catch(function(){ window.open(u.href, '_blank', 'noopener'); });
+});
 
 /* ============ start ============ */
 if(S.step > 1 && !reachable(S.step)) S.step = 1;
