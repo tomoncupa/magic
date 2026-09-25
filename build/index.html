@@ -207,6 +207,12 @@ pre.out{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r
 .swhead{position:sticky;top:calc(-1 * var(--s4));background:var(--bg2);padding:var(--s2) 0;z-index:2;display:flex;gap:var(--s3);align-items:center;flex-wrap:wrap}
 .guide h2{font-size:var(--t4);margin:var(--s5) 0 var(--s2)} .guide h2:first-child{margin-top:0}
 .guide ul{margin:0 0 var(--s3);padding-left:20px} .guide li{margin:3px 0;max-width:68ch} .guide p{margin:0 0 var(--s3)}
+.shelf{display:flex;flex-direction:column;gap:var(--s2);margin-top:var(--s3)}
+.drow{display:grid;grid-template-columns:52px 1fr auto;gap:var(--s3);align-items:center;padding:var(--s2);border:1px solid var(--line);border-radius:var(--r-md);background:var(--bg3)}
+.drow.on{border-color:var(--brass)}
+.drow img,.drow .ph{width:52px;height:38px;object-fit:cover;border-radius:4px;background:var(--bg4)}
+.drow .open{text-align:left;min-height:var(--tap);display:flex;flex-direction:column;justify-content:center}
+.drow .open b{font-family:var(--disp);font-weight:600}
 .empty{padding:var(--s6);text-align:center;color:var(--ink3);border:1px dashed var(--line2);border-radius:var(--r-md)}
 </style>
 </head>
@@ -215,6 +221,7 @@ pre.out{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r
   <div class="toprow">
     <div class="brand">Brewing Station<small>Commander builder</small></div>
     <div class="spacer"></div>
+    <button class="back" id="decksBtn">Decks</button>
     <a class="back" href="../">Back to the table</a>
   </div>
   <nav class="steps" id="steps"></nav>
@@ -442,7 +449,21 @@ function themePitch(t){
 var SPEED_TURN = { fast:'around turn 6-7', medium:'around turn 8-9', slow:'turn 10 or later' };
 
 /* ============ state ============ */
+/* ============ decks in progress ============ */
+// Each deck is kept on its own; the shelf lists them. forge.state was the single deck before.
+var CUR = lsGet('forge.cur');
+function shelf(){ try{ return JSON.parse(lsGet('forge.decks') || '[]'); }catch(e){ return []; } }
+function putShelf(list){ lsSet('forge.decks', JSON.stringify(list)); }
+function newId(){ return 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+(function migrate(){
+  var old = lsGet('forge.state');
+  if(old && !shelf().length){
+    var id = newId(); lsSet('forge.deck.' + id, old); putShelf([{ id:id, at:Date.now() }]); CUR = id; lsSet('forge.cur', id); lsDel('forge.state');
+  }
+  if(!CUR || !lsGet('forge.deck.' + CUR)){ var l = shelf(); CUR = l.length ? l[0].id : newId(); lsSet('forge.cur', CUR); }
+})();
 var S = load() || fresh();
+save();   // the shelf shows this deck's commander and step from the start
 function fresh(){
   return { step:1, cmd:null, partner:null, partnerKind:'', companion:null, ci:[], slug:'', base:null,
     bracket:null, theme:null, wins:[], mustText:'', refuseText:'', meta:[], metaText:'',
@@ -451,9 +472,13 @@ function fresh(){
 function save(){
   // The pool is big and can always be rebuilt from cache, so it is not stored.
   var copy = Object.assign({}, S, { pool:null });
-  lsSet('forge.state', JSON.stringify(copy));
+  lsSet('forge.deck.' + CUR, JSON.stringify(copy));
+  var list = shelf().filter(function(x){ return x.id !== CUR; });
+  list.unshift({ id:CUR, at:Date.now(), name:S.name || '', cmd:S.cmd ? S.cmd.n : '', partner:S.partner ? S.partner.n : '', art:S.cmd ? (S.cmd.img || '').replace('/normal/', '/art_crop/') : '',
+    step:S.step, n:(S.deck || []).length + (S.cmd ? (S.partner ? 2 : 1) : 0), bracket:S.bracket, theme:S.theme });
+  putShelf(list);
 }
-function load(){ try{ var j = JSON.parse(lsGet('forge.state') || 'null'); return j && j.step ? j : null; }catch(e){ return null; } }
+function load(){ try{ var j = JSON.parse(lsGet('forge.deck.' + CUR) || 'null'); return j && j.step ? j : null; }catch(e){ return null; } }
 
 var $ = function(id){ return document.getElementById(id); };
 var main = $('main');
@@ -1534,8 +1559,9 @@ async function askRound(job){
   var box = S.step === 4 && main.querySelector('.clround');
   if(box && S.draft.round && S.draft.round.job === job) box.outerHTML = claudeRoundHtml(job);
   try{
-    var r = await fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:roundPrompt(job) }) });
+    var mine = CUR, r = await fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:roundPrompt(job) }) });
     var j = await r.json();
+    if(CUR !== mine) return;
     if(j.error) throw new Error(j.error);
     await readRound(job, j.text);
   }catch(e){ CLR.err[job] = e.message; }
@@ -2076,8 +2102,9 @@ async function claudeStatus(){
 async function askClaude(){
   CL.busy = true; CL.err = ''; drawClaude();
   try{
-    var r = await fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:claudePrompt() }) });
+    var mine = CUR, r = await fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:claudePrompt() }) });
     var j = await r.json();
+    if(CUR !== mine) return;
     if(j.error) throw new Error(j.error);
     readClaude(j.text);
   }catch(e){ CL.err = e.message; }
@@ -2366,8 +2393,9 @@ function readGuide(text){
 async function askGuide(){
   GD.busy = true; GD.err = ''; drawGuide();
   try{
-    var r = await fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:guidePrompt() }) });
+    var mine = CUR, r = await fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:guidePrompt() }) });
     var j = await r.json();
+    if(CUR !== mine) return;
     if(j.error) throw new Error(j.error);
     readGuide(j.text);
   }catch(e){ GD.err = e.message; }
@@ -2433,6 +2461,66 @@ function download(name, text){
   setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
 }
 
+/* ============ the deck shelf ============ */
+function deckTitle(x){ return x.name || (x.cmd ? x.cmd.split(',')[0] + (x.partner ? ' + ' + x.partner.split(',')[0] : '') : 'New deck'); }
+function ago(t){
+  var m = Math.round((Date.now() - t) / 60000);
+  return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago';
+}
+function openShelf(){
+  closeShelf(); closeSwap();
+  var sc = document.createElement('div'); sc.id = 'shelfScrim'; sc.className = 'scrim'; sc.onclick = closeShelf; document.body.appendChild(sc);
+  var sh = document.createElement('div'); sh.id = 'shelfSheet'; sh.className = 'sheet'; sh.setAttribute('role', 'dialog'); sh.setAttribute('aria-label', 'Your decks');
+  document.body.appendChild(sh); sh.onclick = onShelfClick; drawShelf();
+}
+function closeShelf(){ ['shelfSheet', 'shelfScrim'].forEach(function(id){ var o = $(id); if(o) o.remove(); }); }
+function drawShelf(){
+  var sh = $('shelfSheet'); if(!sh) return;
+  var list = shelf();
+  var h = '<div class="in"><div class="swhead"><h2 style="margin:0;flex:1">Your decks <span class="small">' + list.length + '</span></h2>' +
+    '<button class="btn small primary" id="shNew">Start a new deck</button><button class="btn small" id="shDone">Done</button></div>';
+  h += '<p class="note">Each deck keeps its own plan, picks, checks and guide. Tap one to carry on with it.</p><div class="shelf">';
+  list.forEach(function(x){
+    var sub = (x.cmd ? 'Step ' + x.step + ' ' + STEP_NAMES[x.step - 1] + ', ' + x.n + ' of 100' + (x.bracket ? ', bracket ' + x.bracket : '') + (x.theme ? ', ' + x.theme : '') : 'No commander yet') + '. ' + ago(x.at) + '.';
+    h += '<div class="drow' + (x.id === CUR ? ' on' : '') + '">' + (x.art ? '<img src="' + esc(x.art) + '" alt="">' : '<span class="ph"></span>') +
+      '<button class="open" data-deck="' + x.id + '"><b>' + esc(deckTitle(x)) + (x.id === CUR ? ' <span class="small">open now</span>' : '') + '</b><span class="small">' + esc(sub) + '</span></button>' +
+      '<span class="row" style="gap:2px"><button class="x sw" data-rename="' + x.id + '">Rename</button><button class="x" data-del="' + x.id + '" aria-label="Delete ' + esc(deckTitle(x)) + '">&times;</button></span></div>';
+  });
+  sh.innerHTML = h + '</div></div>';
+}
+// Everything held outside S belongs to the deck that was open, so it is cleared.
+function switchDeck(id){
+  CUR = id; lsSet('forge.cur', id);
+  S = load() || fresh();
+  SWUNDO = []; CLR = { busy:{}, err:{} }; CL.busy = false; CL.err = ''; GD = { busy:false, err:'' };
+  closeShelf(); render(); window.scrollTo(0, 0);
+}
+function onShelfClick(e){
+  var t = e.target;
+  if(t.id === 'shDone'){ closeShelf(); return; }
+  if(t.id === 'shNew'){ save(); switchDeck(newId()); save(); msg('New deck started. Your other decks are under Decks.'); return; }
+  var o = t.closest('[data-deck]');
+  if(o){ if(o.dataset.deck !== CUR){ save(); switchDeck(o.dataset.deck); msg('Opened ' + esc(S.name || (S.cmd ? S.cmd.n.split(',')[0] : 'a new deck')) + '.'); } else closeShelf(); return; }
+  var rn = t.closest('[data-rename]');
+  if(rn){
+    var id = rn.dataset.rename, x = shelf().filter(function(d){ return d.id === id; })[0];
+    var nm = prompt('Name this deck', deckTitle(x)); if(nm == null) return;
+    nm = nm.trim();
+    if(id === CUR){ S.name = nm; save(); }
+    else { try{ var st = JSON.parse(lsGet('forge.deck.' + id)); st.name = nm; lsSet('forge.deck.' + id, JSON.stringify(st)); }catch(err){} putShelf(shelf().map(function(d){ if(d.id === id) d.name = nm; return d; })); }
+    drawShelf(); return;
+  }
+  var dl = t.closest('[data-del]');
+  if(dl){
+    var did = dl.dataset.del, dx = shelf().filter(function(d){ return d.id === did; })[0];
+    if(!confirm('Delete ' + deckTitle(dx) + '? This cannot be undone.')) return;
+    lsDel('forge.deck.' + did);
+    var rest = shelf().filter(function(d){ return d.id !== did; }); putShelf(rest);
+    if(did === CUR){ switchDeck(rest.length ? rest[0].id : newId()); save(); openShelf(); }
+    else drawShelf();
+  }
+}
+$('decksBtn').onclick = openShelf;
 /* ============ links open in Chrome ============ */
 // In the Windows app, outside sites (Moxfield, EDHREC, Spellbook) open in Chrome, where he is
 // signed in, instead of inside this window. The app itself stays where its saved decks live.
