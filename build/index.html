@@ -441,6 +441,21 @@ var THEMES = {
   politics:['Deals and incentives steer the table.','slow'],
   'commander-matters':['Everything leans on the commander being out.','medium']
 };
+// Several themes can be picked, and more typed. S.theme stays the first one for the pages that take one.
+function typedWords(){ return (S.themeText || '').toLowerCase().split(/,|\band\b/).map(function(w){ return w.trim().replace(/s$/, ''); }).filter(function(w){ return w.length > 2; }); }
+function themeSlugs(){
+  var out = (S.themes || (S.theme ? [S.theme] : [])).slice();
+  (S.themeText || '').split(',').forEach(function(w){ var sl = slugify(w.trim()); if(sl && out.indexOf(sl) < 0) out.push(sl); });
+  return out;
+}
+function themeStr(){ return themeSlugs().join(' ') + ' ' + (S.themeText || '').toLowerCase(); }
+function themeWord(){ return themeSlugs().length > 1 ? 'your theme' : S.theme || 'theme'; }
+function themeLabel(){
+  var tags = (S.base && S.base.tags) || [];
+  var names = (S.themes || (S.theme ? [S.theme] : [])).map(function(sl){ return (tags.filter(function(t){ return t.slug === sl; })[0] || { value:sl }).value; });
+  if(S.themeText) names.push(S.themeText);
+  return names.length ? names.join(', ') : 'No theme';
+}
 function themePitch(t){
   var hit = THEMES[t.slug];
   if(hit) return hit;
@@ -475,7 +490,7 @@ function save(){
   lsSet('forge.deck.' + CUR, JSON.stringify(copy));
   var list = shelf().filter(function(x){ return x.id !== CUR; });
   list.unshift({ id:CUR, at:Date.now(), name:S.name || '', cmd:S.cmd ? S.cmd.n : '', partner:S.partner ? S.partner.n : '', art:S.cmd ? (S.cmd.img || '').replace('/normal/', '/art_crop/') : '',
-    step:S.step, n:(S.deck || []).length + (S.cmd ? (S.partner ? 2 : 1) : 0), bracket:S.bracket, theme:S.theme });
+    step:S.step, n:(S.deck || []).length + (S.cmd ? (S.partner ? 2 : 1) : 0), bracket:S.bracket, theme:themeLabel() === 'No theme' ? '' : themeLabel() });
   putShelf(list);
 }
 function load(){ try{ var j = JSON.parse(lsGet('forge.deck.' + CUR) || 'null'); return j && j.step ? j : null; }catch(e){ return null; } }
@@ -667,11 +682,12 @@ function drawPlan(b, err){
   h += '<h2>3. Strategy</h2><div class="stack">';
   tags.forEach(function(t){
     var p = themePitch(t);
-    h += '<button class="opt' + (S.theme === t.slug ? ' on' : '') + '" data-th="' + esc(t.slug) + '"><span class="tick"></span><span><b>' + esc(t.value) + '</b>' +
+    h += '<button class="opt multi' + (themeSlugs().indexOf(t.slug) >= 0 && (S.themes || [S.theme]).indexOf(t.slug) >= 0 ? ' on' : '') + '" data-th="' + esc(t.slug) + '"><span class="tick"></span><span><b>' + esc(t.value) + '</b>' +
       '<span class="note">' + esc(p[0]) + ' Speed: ' + p[1] + ', wins ' + SPEED_TURN[p[1]] + ' (estimate).</span><span class="src" style="display:block">EDHREC: ' + t.count.toLocaleString() + ' decks tagged</span></span></button>';
   });
-  h += '<button class="opt' + (S.theme === '' ? ' on' : '') + '" data-th=""><span class="tick"></span><span><b>No theme</b><span class="note">Build from the commander\'s overall EDHREC data.</span></span></button>';
-  h += '</div>';
+  h += '<button class="opt' + (S.theme === '' && !themeSlugs().length ? ' on' : '') + '" data-th=""><span class="tick"></span><span><b>No theme</b><span class="note">Build from the commander\'s overall EDHREC data.</span></span></button>';
+  h += '</div><div style="margin-top:10px"><label class="lab" for="themeIn">Or type your own, separated by commas</label><input type="text" id="themeIn" value="' + esc(S.themeText || '') + '" placeholder="treasure, sacrifice, haste"></div>' +
+    '<p class="small" style="margin-top:6px">Pick as many as you like. Each one EDHREC has a page for adds its cards; typed words also favour cards that say them, and Claude hears all of it.</p>';
 
   h += '<h2>4. How you like to win</h2><div class="stack">';
   WINS.forEach(function(w){
@@ -696,7 +712,12 @@ function drawPlan(b, err){
     if(e.target.id === 'houseReset'){ S.house = {}; save(); drawPlan(b); return; }
     var t = e.target.closest('[data-br],[data-th],[data-win],[data-meta]'); if(!t) return;
     if(t.dataset.br) S.bracket = +t.dataset.br;
-    else if(t.dataset.th != null && t.hasAttribute('data-th')) S.theme = t.dataset.th;
+    else if(t.hasAttribute('data-th')){
+      S.themes = S.themes || (S.theme ? [S.theme] : []);
+      if(t.dataset.th === ''){ S.themes = []; S.themeText = ''; S.theme = ''; }
+      else { toggle(S.themes, t.dataset.th); S.theme = S.themes[0] || (S.themeText ? '' : null); }
+      S.pool = null; S.base && (fitCache.key = '');
+    }
     else if(t.dataset.win) toggle(S.wins, t.dataset.win);
     else if(t.dataset.meta) toggle(S.meta, t.dataset.meta);
     S.quotas = null; save(); drawPlan(b);
@@ -704,7 +725,12 @@ function drawPlan(b, err){
   $('mustIn').onchange = function(e){ S.mustText = e.target.value; S.quotas = null; save(); };
   $('refIn').onchange = function(e){ S.refuseText = e.target.value; S.quotas = null; save(); };
   $('metaIn').onchange = function(e){ S.metaText = e.target.value; save(); };
+  $('themeIn').onchange = function(e){
+    S.themeText = e.target.value.trim(); S.themes = S.themes || (S.theme ? [S.theme] : []);
+    S.theme = S.themes[0] || (S.themeText || S.theme === '' ? '' : null); S.pool = null; S.quotas = null; save(); drawPlan(b);
+  };
   main.onchange = function(e){
+    if(e.target.id === 'themeIn') return;
     var id = e.target.id, v = e.target.value;
     if(id === 'hGc'){ house().gc = v === '' ? null : Math.max(0, Math.min(99, +v || 0)); }
     else if(id === 'hFree') house().gcFree = v;
@@ -814,7 +840,9 @@ async function loadPool(onStep){
   var b = S.base, pages = [];
   if(b) pages.push(['base', b]);
   if(S.slug){
-    if(S.theme){ onStep && onStep('Reading the ' + S.theme + ' page on EDHREC'); var t = await edh('/commanders/' + S.slug + '/' + S.theme); if(t) pages.push(['theme', t]); }
+    // Every theme he picked or typed that EDHREC has a page for. The best number per card wins.
+    var slugs = themeSlugs();
+    for(var ti = 0; ti < slugs.length; ti++){ onStep && onStep('Reading the ' + slugs[ti] + ' page on EDHREC'); var t = await edh('/commanders/' + S.slug + '/' + slugs[ti]); if(t) pages.push(['theme', t]); }
     onStep && onStep('Reading the ' + BRACKETS[S.bracket].name + ' bracket page on EDHREC');
     var br = await edh('/commanders/' + S.slug + '/' + BRACKETS[S.bracket].page); if(br) pages.push(['bracket', br]);
     // Budget is no object: EDHREC's Expensive decks show the pricey cards cheaper decks leave out.
@@ -885,6 +913,7 @@ function score(c){
   if(S.wins.indexOf('cmdr') >= 0 && /equipped creature|enchanted creature|equip \{/.test(o)) s += 0.1;
   if(S.wins.indexOf('drain') >= 0 && /each opponent loses|damage to each opponent/.test(o)) s += 0.1;
   if(S.wins.indexOf('alt') >= 0 && /you win the game/.test(o)) s += 0.2;
+  if(typedWords().some(function(w){ return o.indexOf(w) >= 0 || c.type.toLowerCase().indexOf(w) >= 0; })) s += 0.1;
   return s;
 }
 function makeSkeleton(){
@@ -892,7 +921,7 @@ function makeSkeleton(){
   var q = { lands:37, ramp:10, tutor:tb, draw:10, removal:10, wipes:3, protection:3, wincon:3 };
   var why = { lands:['Baseline 37.'], ramp:['Baseline 10.'], tutor:['Baseline ' + tb + ' at bracket ' + S.bracket + ': tutors find the cards the deck is built around.'], draw:['Baseline 10.'], removal:['Baseline 10.'], wipes:['Baseline 3.'], protection:['Baseline 3.'], wincon:['Baseline 3.'] };
   function mv(k, d, reason){ q[k] += d; why[k].push((d > 0 ? '+' : '') + d + ' ' + reason); }
-  var b = S.base, br = S.bracket, th = S.theme || '';
+  var b = S.base, br = S.bracket, th = themeStr();
   var edhLands = b && b.pie && b.pie.Land;
   if(edhLands && edhLands <= 34) mv('lands', -1, 'EDHREC\'s average deck runs ' + edhLands + ' lands.');
   if(edhLands && edhLands >= 39) mv('lands', 1, 'EDHREC\'s average deck runs ' + edhLands + ' lands.');
@@ -977,7 +1006,7 @@ function drawSkeleton(){
   $('nextBtn').disabled = false;
 }
 // What the 99 was built from. A different plan means the list is out of date.
-function planKey(){ return JSON.stringify([S.cmd && S.cmd.n, S.partner && S.partner.n, S.bracket, S.theme, S.wins, S.mustText, S.refuseText, S.quotas, S.sources, S.house || {}, gcMode(), S.gcPick || []]); }
+function planKey(){ return JSON.stringify([S.cmd && S.cmd.n, S.partner && S.partner.n, S.bracket, S.theme, S.themes || [], S.themeText || '', S.wins, S.mustText, S.refuseText, S.quotas, S.sources, S.house || {}, gcMode(), S.gcPick || []]); }
 // An empty deck starts the picking rounds. A changed plan is flagged on step 4, where he
 // chooses to keep his picks or start again; nothing he picked is thrown away here.
 NEXT[3] = function(){ if(!S.deck.length) startDraft(); go(4); };
@@ -1022,7 +1051,7 @@ function bestInc(c){ var m = 0; Object.keys(c.stats || {}).forEach(function(k){ 
 function why(c, role){
   var b = c.stats.base, t = c.stats.theme, x = c.stats.exp, parts = [];
   if(b && b.pd) parts.push('EDHREC: in ' + pct(b.inc) + ' of ' + b.pd.toLocaleString() + ' decks, synergy ' + (b.syn >= 0 ? '+' : '') + pct(b.syn));
-  if(t && t.pd) parts.push(S.theme + ' decks: ' + pct(t.inc));
+  if(t && t.pd) parts.push(themeWord() + ' decks: ' + pct(t.inc));
   if(x && x.pd && (!b || x.inc > (b.inc || 0) + 0.1)) parts.push('no-budget decks: ' + pct(x.inc));
   if(!parts.length) parts.push('Not on this commander\'s EDHREC page');
   return ROLE_NAMES[role] + '. ' + parts.join('; ') + '.';
@@ -1464,7 +1493,7 @@ function fitLine(c){
 function edhLine(c){
   var b = c.stats && c.stats.base, t = c.stats && c.stats.theme, x = c.stats && c.stats.exp;
   if(x && x.pd && (!b || !b.pd || x.inc > (b.inc || 0) + 0.1)) return 'In ' + pct(x.inc) + ' of no-budget ' + S.cmd.n.split(',')[0] + ' decks' + (b && b.pd ? ', ' + pct(b.inc) + ' of all' : '') + '.';
-  if(b && b.pd) return 'In ' + pct(b.inc) + ' of ' + S.cmd.n.split(',')[0] + ' decks, synergy ' + (b.syn >= 0 ? '+' : '') + pct(b.syn) + (t && t.pd ? '; ' + pct(t.inc) + ' of ' + S.theme + ' decks' : '') + '.';
+  if(b && b.pd) return 'In ' + pct(b.inc) + ' of ' + S.cmd.n.split(',')[0] + ' decks, synergy ' + (b.syn >= 0 ? '+' : '') + pct(b.syn) + (t && t.pd ? '; ' + pct(t.inc) + ' of ' + themeWord() + ' decks' : '') + '.';
   return 'Not on this commander\'s EDHREC page.';
 }
 function draftGcs(extra){ return S.deck.filter(function(d){ return d.gc; }).length + (extra || 0); }
@@ -1522,12 +1551,13 @@ function deckByJob(){
 }
 function tableLines(){
   var B = BRACKETS[S.bracket], lim = gcLimit(), L = [];
-  var th = S.theme && S.base ? (S.base.tags.filter(function(t){ return t.slug === S.theme; })[0] || { value:S.theme }).value : 'No theme';
+  var th = themeLabel();
   L.push('Commander: ' + S.cmd.n + (S.partner ? ' + ' + S.partner.n : '') + '. Colour identity: ' + (S.ci.join('') || 'colourless') + '.');
   L.push('Bracket ' + S.bracket + ' (' + B.name + '): ' + B.desc + ' Game Changer limit: ' + (lim === Infinity ? 'none' : lim) + '.');
   L = L.concat(budgetLines());
   L.push('Strategy: ' + th + '.' + (S.wins.length ? ' Likes to win by: ' + S.wins.map(function(w){ return WINS.filter(function(x){ return x[0] === w; })[0][1].toLowerCase(); }).join(', ') + '.' : ''));
   if(lines(S.refuseText).length) L.push('Never add: ' + lines(S.refuseText).join(', ') + '.');
+  if(rejectLine()) L.push(rejectLine());
   if(S.meta.length || S.metaText) L.push('About the table: ' + S.meta.concat(S.metaText ? [S.metaText] : []).join('; ') + '.');
   return L;
 }
@@ -1867,7 +1897,7 @@ function simulate(cards, N, combos){
   var comboSets = (combos || []).filter(function(o){ return o.cards.length <= 3; }).map(function(o){ return o.cards; });
   // The commander counts as a win piece when the plan rides on it or it is part of a combo in the deck.
   var inCombo = comboSets.some(function(cs){ return cs.some(function(n){ return sameName(n, S.cmd.n); }); });
-  var cmdMv = S.cmd.mv, commanderWins = /voltron|equipment|auras|commander-matters/.test(S.theme || '') || S.wins.indexOf('cmdr') >= 0 || !!rolesOf(S.cmd).wincon || inCombo;
+  var cmdMv = S.cmd.mv, commanderWins = /voltron|equipment|auras|commander-matters/.test(themeStr()) || S.wins.indexOf('cmdr') >= 0 || !!rolesOf(S.cmd).wincon || inCombo;
   var p3 = 0, t3 = 0, access = 0, turns = [], T = BRACKETS[S.bracket].turn;
   var a = deck.slice();
   for(var g = 0; g < N; g++){
@@ -1930,6 +1960,7 @@ function drawChecks(r){
     stat(pct(r.sim.t3), 'Land drops or cheap ramp through turn 3 (on the play)') +
     stat(pct(r.sim.access), 'A win condition or tutor seen by turn ' + r.sim.T + (r.sim.cmdWins ? ' (the commander counts, so this is 100%)' : '')) +
     stat(r.sim.winTurn ? 'T' + r.sim.winTurn : 'T15+', 'Estimated goldfish win turn') + '</div>' +
+    '<h2>Test hands</h2><div class="panel" id="handBox"></div>' +
     '<p class="src" style="margin-top:8px">Monte Carlo over 20,000 shuffles, run in your browser (JavaScript, standing in for the Python simulation). Goldfish means no opponents interfering, so real games run longer. All four are estimates.</p>';
 
   h += '<h2>Mana curve</h2><div class="panel"><div class="hist">';
@@ -1962,13 +1993,41 @@ function drawChecks(r){
   if(S.base && S.base.salt != null) h += '<p class="src" style="margin-top:8px">EDHREC salt for ' + esc(S.cmd.n) + ': ' + S.base.salt.toFixed(2) + ' out of 4.</p>';
   h += '<h2>Claude\'s review</h2><div id="claudeBox"></div>';
   main.innerHTML = h;
-  drawClaude();
+  drawClaude(); newHand();
   main.onclick = function(e){
+    if(e.target.closest('#handBox')){ onHandClick(e.target); return; }
     if(e.target.id === 'fixBtn') autoFix(r);
     if(e.target.id === 'copyList') copy(deckTxt(), 'List copied.');
   };
   $('nextBtn').disabled = false;
   msg(r.fails.length ? '<span class="warn">' + r.fails.length + ' check' + (r.fails.length > 1 ? 's' : '') + ' failed.</span>' : '<span class="ok">Every check passed.</span>');
+}
+// Test hands: shuffle the 99, deal 7, draw a card a turn. On the play, so turn 1 draws nothing.
+var HT = { order:[], seen:7, turn:1 };
+function newHand(){
+  var a = S.deck.slice();
+  for(var i = a.length - 1; i > 0; i--){ var j = Math.floor(Math.random() * (i + 1)); var x = a[i]; a[i] = a[j]; a[j] = x; }
+  HT = { order:a, seen:7, turn:1 }; drawHand();
+}
+function drawHand(){
+  var box = $('handBox'); if(!box) return;
+  var cards = HT.order.slice(0, HT.seen), lands = cards.filter(function(d){ return d.role === 'lands'; }).length;
+  var ramp = cards.filter(function(d){ var c = cardOf(d); return d.role !== 'lands' && c && c.roles && c.roles.ramp && c.mv <= 2; }).length;
+  var h = '<div class="rhead"><span class="note" style="margin:0">Turn ' + HT.turn + ' on the play. ' + cards.length + ' cards seen: ' + lands + ' land' + (lands === 1 ? '' : 's') + (ramp ? ', ' + ramp + ' cheap ramp' : '') + '.</span><span class="spacer"></span>' +
+    '<button class="btn small" id="handNew">New hand</button><button class="btn small primary" id="handDraw"' + (HT.seen >= HT.order.length ? ' disabled' : '') + '>Next turn</button></div>';
+  h += '<div class="deal">' + cards.map(function(d, i){
+    var c = cardOf(d) || {};
+    return '<div class="tile"><div class="tpick" style="cursor:default' + (i >= 7 ? ';border-color:var(--line2)' : '') + '">' +
+      (c.img ? '<img loading="lazy" src="' + esc(c.img) + '" alt="' + esc(d.n) + '">' : '<span class="noimg">' + esc(d.n) + '</span>') + '</div>' +
+      '<div class="tinfo"><span class="tw">' + (i < 7 ? 'Opening hand' : 'Drawn turn ' + (i - 5)) + '</span></div>' +
+      (c.img ? '<button class="zoom" data-zoom="' + esc(c.img) + '" aria-label="Read ' + esc(d.n) + '">Read</button>' : '') + '</div>';
+  }).join('') + '</div>';
+  box.innerHTML = h;
+}
+function onHandClick(t){
+  var z = t.closest('[data-zoom]'); if(z){ zoomCard(z.dataset.zoom); return; }
+  if(t.id === 'handNew') newHand();
+  if(t.id === 'handDraw'){ HT.turn++; HT.seen++; drawHand(); }
 }
 function tagName(t){ return { R:'Ruthless', S:'Spicy', P:'Powerful', O:'Oddball', C:'Core', E:'Exhibition', B:'Banned' }[t] || t || 'n/a'; }
 function stat(v, k){ return '<div class="stat"><span class="v">' + v + '</span><span class="k">' + k + '</span></div>'; }
@@ -2049,7 +2108,7 @@ var CL = { status:null, busy:false, err:'' };
 function deckKey(){ return S.deck.map(function(d){ return d.n; }).sort().join('|'); }
 function claudePrompt(){
   var r = S.lastCheck || {}, B = BRACKETS[S.bracket], lim = gcLimit();
-  var th = S.theme && S.base ? (S.base.tags.filter(function(t){ return t.slug === S.theme; })[0] || { value:S.theme }).value : 'No theme';
+  var th = themeLabel();
   var L = [];
   L.push('You are reviewing a Magic: The Gathering Commander deck for Tom, who plays it at a kitchen table with friends.', '');
   L.push('Commander: ' + S.cmd.n + (S.partner ? ' + ' + S.partner.n : '') + '. Colour identity: ' + (S.ci.join('') || 'colourless') + '.');
@@ -2061,6 +2120,7 @@ function claudePrompt(){
   if(mustIn.length) L.push('Must stay in the deck: ' + mustIn.join(', ') + '.');
   if(cons.length) L.push('Not released yet, kept out of the 99, do not suggest them: ' + cons.join(', ') + '.');
   if(lines(S.refuseText).length) L.push('Never add: ' + lines(S.refuseText).join(', ') + '.');
+  if(rejectLine()) L.push(rejectLine());
   if(S.meta.length || S.metaText) L.push('About the table: ' + S.meta.concat(S.metaText ? [S.metaText] : []).join('; ') + '.');
   L.push('', 'What the builder\'s own checks found:');
   (r.fails || []).forEach(function(f){ L.push('- FAILED: ' + f.t); });
@@ -2090,9 +2150,17 @@ function readClaude(text){
   var j;
   try{ j = JSON.parse(text.slice(a, b + 1)); }catch(e){ throw new Error('Claude\'s answer could not be read. Ask it again for JSON only.'); }
   var swaps = (Array.isArray(j.swaps) ? j.swaps : []).filter(function(s){ return s && s.out && s.in; }).slice(0, 12)
-    .map(function(s){ return { out:String(s.out), inn:String(s.in), why:String(s.why || '') }; });
-  S.claude = { key:deckKey(), verdict:String(j.verdict || ''), swaps:swaps, primer:String(j.primer || ''), at:Date.now() };
+    .map(function(s){ return { out:String(s.out), inn:String(s.in), why:String(s.why || '') }; })
+    .filter(function(s){ return !wasRejected(s.inn); });   // a card he turned down never comes back
+  var round = (S.claude && S.claude.round || 0) + 1;
+  S.claude = { key:deckKey(), verdict:String(j.verdict || ''), swaps:swaps, primer:String(j.primer || ''), at:Date.now(), round:round };
   save();
+}
+// Polish: every swap Claude offers is kept or rejected; rejected cards are never suggested again.
+function wasRejected(n){ return (S.rejects || []).some(function(x){ return sameName(n, x.inn) || sameName(x.inn, n); }); }
+function rejectLine(){
+  var r = S.rejects || [];
+  return r.length ? 'He turned these cards down before, never suggest them again: ' + r.map(function(x){ return x.inn; }).join(', ') + '.' : '';
 }
 async function claudeStatus(){
   try{ var r = await fetch('/api/claude/status'); CL.status = r.ok ? await r.json() : { available:false }; }
@@ -2146,7 +2214,7 @@ function drawClaude(){
   if(LOCAL && !CL.status){ box.innerHTML = '<p class="note"><span class="busy"></span>Checking Claude on this PC</p>'; claudeStatus(); return; }
   var direct = LOCAL && CL.status.available && CL.status.signed_in;
   if(CL.busy) h += '<p class="note"><span class="busy"></span>' + (R && !direct ? 'Working' : 'Claude is reading the deck. This takes a while.') + '</p>';
-  else if(direct) h += '<p class="note">Claude reads the list and the checks above, then suggests swaps with reasons and writes a primer. Uses your Claude account on this PC.</p><div class="row"><button class="btn primary" id="clAsk">' + (R ? 'Ask Claude again' : 'Ask Claude to review') + '</button></div>';
+  else if(direct) h += '<p class="note">Claude reads the list and the checks above, then suggests swaps with reasons and writes a primer. Uses your Claude account on this PC.</p><div class="row"><button class="btn primary" id="clAsk">' + (R ? 'Polish again' : 'Ask Claude to review') + '</button>' + (R ? '<span class="note">Round ' + (R.round || 1) + ' done. Claude looks at the list as it is now and skips everything you rejected.</span>' : '') + '</div>';
   else {
     if(LOCAL && CL.status.available) h += '<div class="panel stack" style="margin-bottom:12px"><p class="note" style="margin:0">Claude needs signing in once on this PC. A window opens and sends you to the Claude website.</p><div class="row"><button class="btn primary" id="clLogin">Sign in to Claude</button><button class="btn" id="clRecheck">I have signed in</button></div></div>';
     h += '<p class="note">Copy the prompt, paste it into the Claude app, then paste Claude\'s whole answer here.</p>' +
@@ -2163,9 +2231,12 @@ function drawClaude(){
       R.swaps.forEach(function(sw, i){
         h += '<div class="swap"><span class="outc">' + esc(sw.out) + '</span><span class="arrow">&rarr;</span><span class="in">' + esc(sw.inn) +
           ' <span class="small">' + esc(sw.why) + '</span>' + (sw.err ? '<br><span class="bad small">' + esc(sw.err) + '</span>' : '') + '</span></div>' +
-          '<div class="row" style="justify-content:flex-end;margin:4px 0 8px">' + (sw.done ? '<span class="ok small">Swapped</span>' : '<button class="btn small" data-sw="' + i + '"' + (CL.busy ? ' disabled' : '') + '>Make this swap</button>') + '</div>';
+          '<div class="row" style="justify-content:flex-end;margin:4px 0 8px">' + (sw.done ? '<span class="ok small">Kept</span>' : sw.rejected ? '<span class="small">Rejected. Never suggested again.</span> <button class="linkbtn" data-unrej="' + i + '">Undo</button>' :
+            '<button class="btn small" data-rej="' + i + '"' + (CL.busy ? ' disabled' : '') + '>Reject</button><button class="btn small primary" data-sw="' + i + '"' + (CL.busy ? ' disabled' : '') + '>Keep</button>') + '</div>';
       });
-      if(R.swaps.some(function(sw){ return !sw.done; })) h += '<div class="row"><button class="btn" id="clAll"' + (CL.busy ? ' disabled' : '') + '>Make every swap</button><span class="note">Each card is checked for legality, colours and your bracket first.</span></div>';
+      var open = R.swaps.filter(function(sw){ return !sw.done && !sw.rejected; }).length;
+      if(open) h += '<div class="row"><button class="btn" id="clAll"' + (CL.busy ? ' disabled' : '') + '>Keep the ' + open + ' left</button><button class="btn" id="clRejAll"' + (CL.busy ? ' disabled' : '') + '>Reject the ' + open + ' left</button><span class="note">Each card is checked for legality, colours and your bracket before it goes in.</span></div>';
+      else if(direct && !CL.busy) h += '<p class="note">Every swap is decided. Polish again for another round.</p>';
     }
     if(R.primer) h += '<p class="note" style="margin-top:12px">Claude\'s primer stands in as the piloting guide on Export until you write one there.</p>';
   }
@@ -2178,7 +2249,11 @@ function drawClaude(){
     if(t.id === 'clCopy') copy(claudePrompt(), 'Prompt copied. Paste it into Claude.');
     if(t.id === 'clRead'){ try{ readClaude($('clPaste').value); CL.err = ''; }catch(err){ CL.err = err.message; } drawClaude(); }
     if(t.dataset.sw) applySwaps([S.claude.swaps[+t.dataset.sw]]);
-    if(t.id === 'clAll') applySwaps(S.claude.swaps);
+    if(t.id === 'clAll') applySwaps(S.claude.swaps.filter(function(sw){ return !sw.rejected; }));
+    function reject(sw){ if(sw.done || sw.rejected) return; sw.rejected = true; S.rejects = S.rejects || []; if(!wasRejected(sw.inn)) S.rejects.push({ out:sw.out, inn:sw.inn }); }
+    if(t.dataset.rej){ reject(S.claude.swaps[+t.dataset.rej]); save(); drawClaude(); }
+    if(t.id === 'clRejAll'){ S.claude.swaps.forEach(reject); save(); drawClaude(); }
+    if(t.dataset.unrej){ var sw = S.claude.swaps[+t.dataset.unrej]; sw.rejected = false; S.rejects = (S.rejects || []).filter(function(x){ return !sameName(x.inn, sw.inn); }); save(); drawClaude(); }
   };
 }
 NEXT[5] = function(){ go(6); };
@@ -2293,7 +2368,7 @@ function primerMd(){
   if(S.claude && S.claude.primer){
     return '# ' + S.cmd.n + (S.partner ? ' + ' + S.partner.n : '') + ' primer\n\nWritten by Claude from the list on ' + new Date(S.claude.at).toLocaleDateString() + '.\n\n' + S.claude.primer.trim() + '\n';
   }
-  var r = S.lastCheck || {}, th = S.theme && S.base ? (S.base.tags.filter(function(t){ return t.slug === S.theme; })[0] || { value:S.theme }).value : 'No theme';
+  var r = S.lastCheck || {}, th = themeLabel();
   var pitch = S.theme ? themePitch({ slug:S.theme, value:th })[0] : 'Play the best cards this commander runs.';
   var wins = S.deck.filter(function(d){ return d.role === 'wincon'; }).map(function(d){ return d.n; });
   var ramp = S.deck.filter(function(d){ return d.role === 'ramp'; }).sort(function(a, b){ return a.mv - b.mv; }).slice(0, 6).map(function(d){ return d.n; });
@@ -2317,8 +2392,8 @@ function primerMd(){
   if(prot.length) L.push('- Hold protection for the turn you commit: ' + prot.join(', ') + '.');
   L.push('', '## Threats to watch', '');
   L.push('- Board wipes: keep back a threat or protection; do not overextend.');
-  if(/tokens|aggro|goblins|go-wide/.test(S.theme || '') || isTribe(S.theme || '')) L.push('- Pyroclasm-style sweepers and Ensnaring Bridge style locks shut down a wide board.');
-  if(S.wins.indexOf('cmdr') >= 0 || /voltron/.test(S.theme || '')) L.push('- Edict effects and tuck removal get around indestructible and hexproof.');
+  if(/tokens|aggro|goblins|go-wide/.test(themeStr()) || isTribe(S.theme || '')) L.push('- Pyroclasm-style sweepers and Ensnaring Bridge style locks shut down a wide board.');
+  if(S.wins.indexOf('cmdr') >= 0 || /voltron/.test(themeStr())) L.push('- Edict effects and tuck removal get around indestructible and hexproof.');
   if(S.meta.indexOf('fast') >= 0) L.push('- Fast combo decks at your table: save removal and counters for their pieces.');
   if(S.meta.indexOf('stax') >= 0) L.push('- Stax pieces: remove them early, before they lock you out.');
   if(S.metaText) L.push('- Table notes: ' + S.metaText);
