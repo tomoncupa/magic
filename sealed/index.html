@@ -1,0 +1,721 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sealed Helper</title>
+<meta name="description" content="Reality Fracture sealed: enter your pool, get your best colours and a 40-card deck, see the tricks your opponent could have.">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080B10">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sealed">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Block, Motherbase's default theme: flat plates, hairlines do the separating,
+   6px corners, Chakra Petch for headings, labels and numbers. */
+:root{
+  --bg:#080B10; --bg2:#0E141D; --bg3:#131B26; --bg4:#1B2634;
+  --line:#1E2A38; --line2:#2B3A4D;
+  --ink:#DBE7F0; --ink2:#B8C9D8; --ink3:#7F93A8;
+  --brass:#F0B323; --brass-fg:#1A1206; --brass-soft:rgba(240,179,35,.10);
+  --danger:#FF6B81; --good:#6EE7A8; --warn:#FFB347; --info:#7EE8FA;
+  --mW:#f4ecd6; --mU:#4a8fd6; --mB:#8a7598; --mR:#d4543c; --mG:#4a9d5c; --mC:#a9b4b0;
+  --s1:4px; --s2:6px; --s3:8px; --s4:12px; --s5:16px; --s6:22px;
+  --t1:11px; --t2:13px; --t3:15px; --t4:19px; --t5:25px;
+  --tap:44px; --r:6px; --cap:.08em;
+  --disp:'Chakra Petch',system-ui,sans-serif;
+  --ui:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);font-size:14px;line-height:1.45;min-height:100vh}
+button,input{font:inherit;color:inherit}
+button{background:none;border:0;cursor:pointer;touch-action:manipulation;padding:0;text-align:inherit}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px;border-radius:4px}
+[hidden]{display:none!important}
+
+.top{position:sticky;top:0;z-index:5;background:var(--bg2);border-bottom:1px solid var(--line);
+  padding:calc(8px + env(safe-area-inset-top,0px)) 16px 0}
+.toprow{display:flex;align-items:center;gap:var(--s4);max-width:760px;margin:0 auto}
+.brand{font-family:var(--disp);font-weight:700;font-size:19px;color:var(--brass);line-height:1;letter-spacing:var(--cap);text-transform:uppercase}
+.brand small{display:block;font-weight:500;font-size:10px;letter-spacing:.14em;color:var(--ink3);margin-top:4px}
+.spacer{flex:1}
+.count{font-family:var(--disp);font-weight:600;font-size:var(--t2);color:var(--ink2);font-variant-numeric:tabular-nums}
+.steps{display:flex;gap:2px;max-width:760px;margin:var(--s3) auto 0}
+.stepbtn{flex:1;min-height:var(--tap);font-family:var(--disp);font-weight:600;font-size:var(--t2);letter-spacing:var(--cap);text-transform:uppercase;color:var(--ink3);border-bottom:2px solid transparent;text-align:center}
+.stepbtn.on{color:var(--brass);border-bottom-color:var(--brass)}
+
+main{max-width:760px;margin:0 auto;padding:var(--s5) 16px calc(90px + env(safe-area-inset-bottom,0px))}
+h2{font-family:var(--disp);font-weight:600;font-size:var(--t4);margin:var(--s6) 0 var(--s3)}
+h2:first-child{margin-top:0}
+h3{font-family:var(--disp);font-size:var(--t1);letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);font-weight:600;margin:var(--s5) 0 var(--s2);display:flex;gap:var(--s3);align-items:baseline}
+h3 .ct{font-family:var(--disp);color:var(--ink2);letter-spacing:0}
+p{margin:0 0 var(--s3)}
+.note{color:var(--ink2);font-size:var(--t2)}
+.small{font-size:var(--t1);color:var(--ink3)}
+.panel{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);padding:var(--s5)}
+.row{display:flex;gap:var(--s3);flex-wrap:wrap;align-items:center}
+.warn{color:var(--warn)} .good{color:var(--good)}
+
+.btn{min-height:var(--tap);padding:0 var(--s5);border-radius:var(--r);background:var(--bg3);border:1px solid var(--line);color:var(--ink2);
+  font-family:var(--disp);font-weight:600;letter-spacing:var(--cap);text-transform:uppercase;font-size:var(--t2);display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn:hover{border-color:var(--line2);color:var(--ink)}
+.btn.primary{border-color:var(--brass);color:var(--brass)}
+.btn.fill{background:var(--brass);color:var(--brass-fg);border-color:var(--brass)}
+.btn.bad{border-color:var(--danger);color:var(--danger)}
+.btn:disabled{opacity:.4;cursor:default}
+
+.search{position:relative}
+.search input{width:100%;background:var(--bg3);border:1px solid var(--line2);border-radius:var(--r);padding:10px 12px;min-height:48px;font-size:17px}
+.search input:focus{outline:none;border-color:var(--brass)}
+.results{margin-top:var(--s2);border:1px solid var(--line2);border-radius:var(--r);background:var(--bg2);overflow:hidden}
+.results:empty{display:none}
+.res{display:grid;grid-template-columns:1fr auto auto;gap:var(--s3);align-items:center;width:100%;min-height:50px;padding:6px 12px;border-bottom:1px solid var(--line)}
+.res:last-child{border-bottom:0}
+.res:hover,.res.first{background:var(--bg3)}
+.res .nm{font-weight:500}
+.res .have{font-family:var(--disp);font-size:var(--t1);color:var(--brass);letter-spacing:var(--cap);text-transform:uppercase}
+.res .plus{font-family:var(--disp);font-weight:700;font-size:20px;color:var(--brass);width:28px;text-align:center}
+.nores{padding:12px;color:var(--ink3);font-size:var(--t2)}
+
+.crow{display:grid;grid-template-columns:30px 1fr auto;gap:var(--s3);align-items:center;width:100%;min-height:var(--tap);padding:7px 0;border-bottom:1px solid var(--line)}
+.crow .mv{font-family:var(--disp);font-weight:600;font-size:var(--t2);color:var(--ink2);text-align:center;background:var(--bg3);border:1px solid var(--line);border-radius:var(--r);padding:2px 0}
+.crow .nm{font-weight:500;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.crow .sub{font-size:var(--t1);color:var(--ink3);line-height:1.35}
+.crow .right{display:flex;align-items:center;gap:var(--s3)}
+.crow .n{font-family:var(--disp);font-weight:600;color:var(--ink2);min-width:22px;text-align:right}
+.crow.dim{opacity:.55}
+
+.sc{display:inline-grid;place-items:center;min-width:34px;height:24px;padding:0 5px;border-radius:4px;font-family:var(--disp);font-weight:700;font-size:12px;border:1px solid var(--line2);color:var(--ink3);font-variant-numeric:tabular-nums}
+.sc.s4{background:var(--brass);border-color:var(--brass);color:var(--brass-fg)}
+.sc.s3{border-color:var(--brass);color:var(--brass)}
+.sc.s2{color:var(--ink2)}
+.rar{font-family:var(--disp);font-size:10px;font-weight:700;letter-spacing:.06em;padding:0 5px;border-radius:3px;border:1px solid var(--line2);color:var(--ink3)}
+.rar.U{color:#c6d3de;border-color:#5d7285}.rar.R{color:var(--brass);border-color:rgba(240,179,35,.5)}.rar.M{color:#ff8a5c;border-color:rgba(255,138,92,.5)}
+.tag{font-family:var(--disp);font-size:10px;font-weight:600;letter-spacing:var(--cap);text-transform:uppercase;padding:0 5px;border-radius:3px;border:1px solid rgba(126,232,250,.4);color:var(--info)}
+.tag.rm{border-color:rgba(255,107,129,.45);color:var(--danger)}
+
+.cost{display:inline-flex;gap:2px;vertical-align:middle}
+.pip{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;font-family:var(--disp);font-weight:700;font-size:10px;color:#10160f;line-height:1}
+.pip.W{background:var(--mW)}.pip.U{background:var(--mU)}.pip.B{background:var(--mB)}.pip.R{background:var(--mR)}.pip.G{background:var(--mG)}.pip.C{background:var(--mC)}
+
+.pairs{display:flex;flex-direction:column;gap:var(--s3)}
+.pair{display:grid;grid-template-columns:auto 1fr auto;gap:var(--s4);align-items:center;width:100%;padding:var(--s4);border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);text-align:left}
+.pair.on{border-color:var(--brass);background:var(--brass-soft)}
+.pair .pp{display:flex;gap:3px}
+.pair .pp .pip{width:22px;height:22px;font-size:12px}
+.pair b{font-family:var(--disp);font-weight:600;display:block}
+.pair .sub{font-size:var(--t1);color:var(--ink3)}
+.pair .big{font-family:var(--disp);font-weight:700;font-size:22px;color:var(--brass);text-align:right;line-height:1}
+.pair .big small{display:block;font-size:10px;font-weight:600;letter-spacing:var(--cap);color:var(--ink3);text-transform:uppercase;margin-top:3px}
+.rank{font-family:var(--disp);font-size:10px;letter-spacing:var(--cap);text-transform:uppercase;color:var(--brass);font-weight:600}
+
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s2)}
+.stat{padding:var(--s3);background:var(--bg3);border:1px solid var(--line);border-radius:var(--r);text-align:center}
+.stat .v{font-family:var(--disp);font-size:22px;font-weight:700;color:var(--brass);line-height:1.1}
+.stat .l{font-family:var(--disp);font-size:10px;letter-spacing:var(--cap);text-transform:uppercase;color:var(--ink3)}
+.stat.off .v{color:var(--warn)}
+.hist{display:flex;align-items:flex-end;gap:6px;height:96px;padding-top:16px;margin-top:var(--s4)}
+.hist .col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:3px}
+.hist .b{width:100%;background:var(--brass);border-radius:3px 3px 0 0;min-height:1px;position:relative}
+.hist .b span{position:absolute;top:-16px;left:0;right:0;text-align:center;font-family:var(--disp);font-size:11px;color:var(--ink2)}
+.hist .l{font-family:var(--disp);font-size:11px;color:var(--ink3)}
+.lands{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s4);align-items:center}
+.lands .li{display:inline-flex;gap:6px;align-items:center;font-weight:500}
+.lands .li b{font-family:var(--disp)}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.stepper button{width:var(--tap);height:var(--tap);font-family:var(--disp);font-size:20px;color:var(--ink2);background:var(--bg3)}
+.stepper span{min-width:40px;text-align:center;font-family:var(--disp);font-weight:700;font-size:17px}
+
+.opp{display:flex;gap:var(--s3);flex-wrap:wrap}
+.cbtn{width:52px;height:52px;border-radius:50%;border:2px solid var(--line2);display:grid;place-items:center;font-family:var(--disp);font-weight:700;font-size:18px;color:var(--ink3);background:var(--bg3)}
+.cbtn.on{color:#10160f;border-color:var(--ink)}
+.cbtn.on.W{background:var(--mW)}.cbtn.on.U{background:var(--mU)}.cbtn.on.B{background:var(--mB)}.cbtn.on.R{background:var(--mR)}.cbtn.on.G{background:var(--mG)}
+.mana{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.mbtn{min-height:48px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg3);font-family:var(--disp);font-weight:700;font-size:18px;color:var(--ink2)}
+.mbtn.on{border-color:var(--brass);background:var(--brass);color:var(--brass-fg)}
+
+.rule{padding:var(--s4) 0;border-bottom:1px solid var(--line)}
+.rule b{font-family:var(--disp);font-weight:600;font-size:var(--t3);color:var(--brass);display:block;margin-bottom:2px}
+.rule p{margin:0;color:var(--ink2)}
+.rule p+p{margin-top:6px}
+.empty{padding:var(--s6) var(--s5);text-align:center;color:var(--ink2);border:1px dashed var(--line2);border-radius:var(--r)}
+
+/* The card sheet: a bottom sheet on a phone, a centred card on a wide screen,
+   same as Motherbase's shared dialogs. */
+.veil{position:fixed;inset:0;z-index:50;background:rgba(4,7,11,.72);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:51;margin:0 auto;width:100%;max-width:560px;max-height:92vh;max-height:92svh;display:flex;flex-direction:column;
+  background:var(--bg2);border-top:1px solid var(--line2);border-radius:var(--r) var(--r) 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (min-width:700px){.sheet{top:50%;bottom:auto;left:50%;right:auto;transform:translate(-50%,-50%);width:min(560px,94vw);border:1px solid var(--line2);border-radius:var(--r)}}
+.sheet-head{display:flex;align-items:center;gap:var(--s3);padding:var(--s4) var(--s5) var(--s3)}
+.sheet-head h3{margin:0;flex:1;min-width:0;font-size:var(--t1);color:var(--ink3)}
+.x{position:relative;width:32px;height:32px;border-radius:50%;background:var(--bg3);color:var(--ink2);font-size:14px;display:grid;place-items:center}
+.x::after{content:'';position:absolute;left:50%;top:50%;width:var(--tap);height:var(--tap);transform:translate(-50%,-50%)}
+.sheet-body{padding:0 var(--s5);overflow:auto;flex:1;min-height:0}
+.sheet-foot{display:flex;gap:var(--s3);padding:var(--s4) var(--s5) var(--s5);border-top:1px solid var(--line);margin-top:var(--s4);flex-wrap:wrap}
+.sheet-foot .btn{flex:1}
+.cardview{display:grid;grid-template-columns:132px 1fr;gap:var(--s4);align-items:start}
+.cardview img{width:132px;border-radius:7px;background:var(--bg3);aspect-ratio:488/680;display:block}
+.cardview .nm{font-family:var(--disp);font-weight:700;font-size:var(--t4);line-height:1.15}
+.cardview .ty{font-size:var(--t1);color:var(--ink3);margin:4px 0 8px}
+.oracle{white-space:pre-line;font-size:var(--t2);color:var(--ink2);margin-top:var(--s4);line-height:1.5}
+.verdict{display:flex;gap:var(--s3);align-items:center;margin-top:var(--s2)}
+.verdict span:last-child{font-size:var(--t2);color:var(--ink)}
+.zoom{display:block;width:100%;max-width:340px;margin:var(--s3) auto 0;border-radius:12px}
+
+.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;
+  display:flex;gap:var(--s4);align-items:center;background:var(--bg4);border:1px solid var(--line2);border-radius:var(--r);padding:4px 4px 4px 14px;
+  max-width:calc(100vw - 32px);font-size:var(--t2);box-shadow:0 10px 30px rgba(0,0,0,.5)}
+.toast span{flex:1;min-width:0}
+.toast .btn{min-height:40px}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="toprow">
+    <div class="brand">Sealed<small>Reality Fracture</small></div>
+    <div class="spacer"></div>
+    <span class="count" id="count"></span>
+  </div>
+  <nav class="steps">
+    <button class="stepbtn" data-act="tab" data-v="pool">Pool</button>
+    <button class="stepbtn" data-act="tab" data-v="build">Build</button>
+    <button class="stepbtn" data-act="tab" data-v="tricks">Tricks</button>
+    <button class="stepbtn" data-act="tab" data-v="rules">Rules</button>
+  </nav>
+</header>
+
+<main>
+  <section id="pool">
+    <div class="search">
+      <input id="q" type="search" placeholder="Type a card name" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" aria-label="Card name">
+      <div class="results" id="results"></div>
+    </div>
+    <div id="poollist"></div>
+  </section>
+  <section id="build" hidden></section>
+  <section id="tricks" hidden></section>
+  <section id="rules" hidden></section>
+</main>
+
+<div id="toast" class="toast" hidden><span id="toastmsg"></span><button class="btn" data-act="undo">Undo</button></div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+
+const KEY = 'sealed.fra.v1';
+const PAIRS = ['WU','UB','BR','RG','GW','WB','UR','BG','RW','GU'];
+const CNAME = {W:'White',U:'Blue',B:'Black',R:'Red',G:'Green'};
+const THEME = {
+  WU:['Fatehold','Surveil to grow your flyers, then attack.'],
+  UB:['Theorix','Fill your graveyard to seven cards and turn on threshold.'],
+  BR:['Stingerquill','Burn your opponent directly; creatures reward it.'],
+  RG:['Konstrari','Heartwood tokens ramp you into big creatures.'],
+  GW:['Vigorbloom','Gain life and turn it into counters and cards.'],
+  WB:['','Removal, sacrifices and creatures that come back.'],
+  UR:['','Cast noncreature spells; prowess and thopters pay off.'],
+  BG:['','Good creatures, removal and graveyard value.'],
+  RW:['','Go wide with tokens and counters and attack early.'],
+  GU:['','Build up Jace tokens and planeswalkers for cards.'],
+};
+
+let CARDS = [], BY = {}, NAMES = [];
+let S = load();
+let undoFn = null, toastT = null, showAllPairs = false, sheetId = null;
+
+function load() {
+  try {
+    const v = JSON.parse(localStorage.getItem(KEY));
+    if (v && v.pool) return Object.assign(fresh(), v);
+  } catch (e) {}
+  return fresh();
+}
+function fresh() { return {pool:{}, tab:'pool', pair:null, decks:{}, lands:{}, opp:{cols:'', mana:3}}; }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+
+/* ---------- mana ---------- */
+const pipList = cost => ((cost || '').match(/\{[^}]+\}/g) || []).map(s => s.slice(1, -1));
+function mvOf(cost) {
+  let v = 0;
+  for (const p of pipList(cost)) {
+    if (/^\d+$/.test(p)) v += +p;
+    else if (p === 'X') continue;
+    else if (p.startsWith('2/')) v += 2;
+    else v += 1;
+  }
+  return v;
+}
+// Each coloured pip as the string of colours that can pay it: 'W', or 'WU' for a hybrid.
+function needs(cost) {
+  const out = [];
+  for (const p of pipList(cost)) {
+    if (/^[WUBRG]$/.test(p)) out.push(p);
+    else if (/^[WUBRG]\/[WUBRG]$/.test(p)) out.push(p[0] + p[2]);
+  }
+  return out;
+}
+const payable = (n, cols) => [...n].some(ch => cols.includes(ch));
+const fits = (cost, cols) => needs(cost).every(n => payable(n, cols));
+const offNeeds = (cost, cols) => needs(cost).filter(n => !payable(n, cols));
+function costHTML(cost) {
+  return '<span class="cost">' + pipList(cost).map(p => {
+    if (/^[WUBRG]$/.test(p)) return `<span class="pip ${p}">${p}</span>`;
+    if (/^[WUBRG]\/[WUBRG]$/.test(p)) return `<span class="pip" style="background:linear-gradient(135deg,var(--m${p[0]}) 50%,var(--m${p[2]}) 50%)"></span>`;
+    if (p.startsWith('2/')) return `<span class="pip" style="background:linear-gradient(135deg,var(--mC) 50%,var(--m${p[2]}) 50%)">2</span>`;
+    return `<span class="pip C">${esc(p)}</span>`;
+  }).join('') + '</span>';
+}
+const isCreature = c => /Creature/.test(c.t);
+const scClass = s => s >= 4 ? 's4' : s >= 3 ? 's3' : s >= 2 ? 's2' : '';
+const scHTML = c => `<span class="sc ${scClass(c.s)}">${c.s.toFixed(1)}</span>`;
+
+/* ---------- search ---------- */
+const norm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/['’]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+function search(q) {
+  const nq = norm(q);
+  if (!nq) return [];
+  const toks = nq.split(' '), flat = nq.replace(/ /g, '');
+  const hits = [];
+  for (const e of NAMES) {
+    let rank = -1;
+    if (e.front.startsWith(nq)) rank = 0;
+    else if (toks.every(t => e.words.some(w => w.startsWith(t)))) rank = 1;
+    else if (e.flat.includes(flat)) rank = 2;
+    if (rank >= 0) hits.push([rank, e.c]);
+  }
+  hits.sort((a, b) => a[0] - b[0] || a[1].n.length - b[1].n.length || a[1].n.localeCompare(b[1].n));
+  return hits.slice(0, 6).map(h => h[1]);
+}
+
+/* ---------- pool ---------- */
+const have = id => S.pool[id] || 0;
+function poolCards() { return Object.keys(S.pool).filter(id => S.pool[id] > 0 && BY[id]).map(id => BY[id]); }
+function poolSize() { return poolCards().reduce((a, c) => a + have(c.id), 0); }
+function addCard(id, n) {
+  const before = have(id);
+  const after = Math.max(0, before + n);
+  if (after) S.pool[id] = after; else delete S.pool[id];
+  save();
+  return [before, after];
+}
+
+function renderResults() {
+  const q = $('#q').value;
+  const box = $('#results');
+  if (!q.trim()) { box.innerHTML = ''; return; }
+  const hits = search(q);
+  if (!hits.length) { box.innerHTML = '<div class="nores">No Reality Fracture card by that name.</div>'; return; }
+  box.innerHTML = hits.map((c, i) => `
+    <button class="res${i ? '' : ' first'}" data-act="add" data-id="${c.id}">
+      <span><span class="nm">${esc(c.n)}</span> ${costHTML(c.m)}<br><span class="small">${esc(c.t)}</span></span>
+      <span>${have(c.id) ? `<span class="have">${have(c.id)} in pool</span>` : ''}</span>
+      <span class="plus">+</span>
+    </button>`).join('');
+}
+
+function groupOf(c) {
+  if (c.land) return 'Lands';
+  if (c.col.length > 1) return 'Multicolour';
+  if (c.col.length === 0) return 'Colourless';
+  return CNAME[c.col];
+}
+const GROUPS = ['White','Blue','Black','Red','Green','Multicolour','Colourless','Lands'];
+function crowHTML(c, n, extra) {
+  const tags = (c.rm ? '<span class="tag rm">Removal</span>' : '') + (extra || '');
+  return `<button class="crow" data-act="card" data-id="${c.id}">
+    <span class="mv">${c.land ? '–' : c.v}</span>
+    <span><span class="nm">${esc(c.n)} ${costHTML(c.m)} ${tags}</span><span class="sub">${esc(c.note)}</span></span>
+    <span class="right">${scHTML(c)}${n != null ? `<span class="n">×${n}</span>` : ''}</span>
+  </button>`;
+}
+function renderPool() {
+  const cards = poolCards();
+  const el = $('#poollist');
+  if (!cards.length) {
+    el.innerHTML = `<h2 style="margin-top:var(--s6)">Enter your pool</h2>
+      <p class="note">Open your six packs, then type the first letters of each card and tap it. Enter adds the top match. Skip basic lands.</p>
+      <p class="small">Scores are Claude's read of each card for sealed, from 0 to 5. No win-rate data exists yet; the set releases 2 October.</p>`;
+    return;
+  }
+  const by = {};
+  for (const c of cards) (by[groupOf(c)] = by[groupOf(c)] || []).push(c);
+  let h = `<h2 style="margin-top:var(--s6)">Your pool</h2>
+    <p class="small">Tap a card to see it or change how many you have. Scores are Claude's read, 0 to 5; no win-rate data exists yet.</p>`;
+  for (const g of GROUPS) {
+    const list = by[g];
+    if (!list) continue;
+    list.sort((a, b) => b.s - a.s || a.v - b.v || a.n.localeCompare(b.n));
+    h += `<h3>${g} <span class="ct">${list.reduce((a, c) => a + have(c.id), 0)}</span></h3>` + list.map(c => crowHTML(c, have(c.id))).join('');
+  }
+  h += `<div style="margin-top:var(--s6)"><button class="btn bad" data-act="clear">Clear pool</button></div>`;
+  el.innerHTML = h;
+}
+
+/* ---------- deck building ---------- */
+function pickDeck(cols) {
+  const cands = [];
+  for (const c of poolCards()) {
+    if (c.land || !fits(c.m, cols)) continue;
+    for (let i = 0; i < have(c.id); i++) cands.push(c);
+  }
+  const picked = [];
+  while (picked.length < 23 && cands.length) {
+    const cr = picked.filter(isCreature).length;
+    const big = picked.filter(c => c.v >= 6).length;
+    const five = picked.filter(c => c.v === 5).length;
+    const left = 23 - picked.length;
+    let best = 0, bv = -1e9;
+    cands.forEach((c, i) => {
+      let v = c.s;
+      if (isCreature(c) && cr < 15) v += 0.3;
+      if (!isCreature(c) && 13 - cr >= left) v -= 1;   // keep room for at least 13 creatures
+      if (c.v >= 6 && big >= 2) v -= 0.6;
+      if (c.v === 5 && five >= 4) v -= 0.4;
+      if (v > bv || (v === bv && c.v < cands[best].v)) { bv = v; best = i; }
+    });
+    picked.push(cands.splice(best, 1)[0]);
+  }
+  return picked;
+}
+function rate(pair) {
+  const picked = pickDeck(pair);
+  const total = picked.reduce((a, c) => a + c.s, 0);
+  const cr = picked.filter(isCreature).length;
+  const adj = total - Math.max(0, 12 - cr) * 0.5;
+  const best = [...new Set(picked.filter(c => c.s >= 3.5).sort((a, b) => b.s - a.s).map(c => c.n))].slice(0, 3);
+  return {pair, picked, avg: adj / 23, n: picked.length, bombs: picked.filter(c => c.s >= 4).length,
+          rm: picked.filter(c => c.rm).length, cr, best};
+}
+function deckFor(pair) {
+  if (!S.decks[pair]) {
+    const d = {};
+    for (const c of pickDeck(pair)) d[c.id] = (d[c.id] || 0) + 1;
+    S.decks[pair] = d;
+    save();
+  }
+  const d = S.decks[pair];
+  for (const id of Object.keys(d)) { d[id] = Math.min(d[id], have(id)); if (!d[id]) delete d[id]; }
+  return d;
+}
+function deckCards(d) { return Object.keys(d).filter(id => BY[id]).map(id => BY[id]); }
+function splashCols(pair, d) {
+  const s = new Set();
+  for (const c of deckCards(d)) for (const n of offNeeds(c.m, pair)) for (const ch of n) s.add(ch);
+  return s;
+}
+function landPlan(pair, d) {
+  const L = S.lands[pair] || 17;
+  const splash = splashCols(pair, d);
+  const non = [];
+  for (const c of poolCards()) {
+    if (!c.land || c.prod.length < 2) continue;
+    const inPair = [...c.prod].filter(x => pair.includes(x)).length;
+    const inSplash = [...c.prod].some(x => splash.has(x));
+    const ok = (c.prod.length === 2 && inPair === 2) || (splash.size && inSplash && inPair >= 1);
+    if (ok) for (let i = 0; i < have(c.id); i++) non.push(c);
+  }
+  non.splice(L);
+  let basics = L - non.length;
+  const counts = {};
+  for (const x of splash) {
+    const src = non.filter(l => l.prod.includes(x)).length;
+    const b = Math.max(0, Math.min(3 - src, basics));
+    if (b) counts[x] = b;
+    basics -= b;
+  }
+  const w = {[pair[0]]: 0, [pair[1]]: 0};
+  for (const c of deckCards(d)) for (const n of needs(c.m)) {
+    const k = [...n].filter(ch => pair.includes(ch));
+    for (const ch of k) w[ch] += d[c.id] / k.length;
+  }
+  const tot = w[pair[0]] + w[pair[1]] || 2;
+  const a = Math.round(basics * (w[pair[0]] || (tot === 2 ? 1 : 0)) / tot);
+  counts[pair[0]] = (counts[pair[0]] || 0) + a;
+  counts[pair[1]] = (counts[pair[1]] || 0) + basics - a;
+  return {L, non, counts, splash};
+}
+const BASIC = {W:'Plains',U:'Island',B:'Swamp',R:'Mountain',G:'Forest'};
+
+function renderBuild() {
+  const el = $('#build');
+  const spells = poolCards().filter(c => !c.land).reduce((a, c) => a + have(c.id), 0);
+  if (spells < 23) {
+    el.innerHTML = `<div class="empty">Enter your pool first. ${spells ? `You have ${spells} spells so far; a deck needs 23.` : ''}</div>`;
+    return;
+  }
+  // Scores come in half points, so pairs often tie; more great cards, then more removal, breaks it.
+  const rated = PAIRS.map(rate).sort((a, b) => b.avg - a.avg || b.bombs - a.bombs || b.rm - a.rm);
+  const tied = rated[1].avg.toFixed(2) === rated[0].avg.toFixed(2);
+  if (!S.pair) { S.pair = rated[0].pair; save(); }
+  const shown = showAllPairs ? rated : rated.slice(0, 3);
+  let h = `<h2>Best colours</h2><p class="small">Each pair's best 23 cards, average score. Tap a pair to build it.</p><div class="pairs">`;
+  shown.forEach((r, i) => {
+    const [name, plan] = THEME[r.pair];
+    h += `<button class="pair${S.pair === r.pair ? ' on' : ''}" data-act="pair" data-v="${r.pair}">
+      <span class="pp"><span class="pip ${r.pair[0]}">${r.pair[0]}</span><span class="pip ${r.pair[1]}">${r.pair[1]}</span></span>
+      <span>${i === 0 ? '<span class="rank">Best</span>' : ''}<b>${CNAME[r.pair[0]]}-${CNAME[r.pair[1]]}${name ? ' · ' + esc(name) : ''}</b>
+        <span class="sub">${r.bombs} great · ${r.rm} removal · ${r.cr} creatures${r.n < 23 ? ` · <span class="warn">only ${r.n} cards</span>` : ''}</span>
+        ${r.best.length ? `<span class="sub" style="display:block;color:var(--ink2)">${r.best.map(esc).join(', ')}</span>` : ''}</span>
+      <span class="big">${r.avg.toFixed(2)}<small>avg</small></span>
+    </button>`;
+  });
+  h += `</div>${tied ? '<p class="small" style="margin-top:var(--s3)">The top pairs score the same. Best is the one with more great cards; pick whichever deck you would rather play.</p>' : ''}<div style="margin-top:var(--s3)"><button class="btn" data-act="allpairs">${showAllPairs ? 'Show top 3' : 'Show all 10 pairs'}</button></div>`;
+
+  const pair = S.pair, d = deckFor(pair), cards = deckCards(d);
+  const nSpells = cards.reduce((a, c) => a + d[c.id], 0);
+  const plan = landPlan(pair, d);
+  const nCr = cards.filter(isCreature).reduce((a, c) => a + d[c.id], 0);
+  const nRm = cards.filter(c => c.rm).reduce((a, c) => a + d[c.id], 0);
+  const total = nSpells + plan.L;
+  h += `<h2>${CNAME[pair[0]]}-${CNAME[pair[1]]} deck</h2><p class="note">${esc(THEME[pair][1])}</p>
+    <div class="stats">
+      <div class="stat${total !== 40 ? ' off' : ''}"><div class="v">${total}</div><div class="l">Cards</div></div>
+      <div class="stat${nCr < 13 ? ' off' : ''}"><div class="v">${nCr}</div><div class="l">Creatures</div></div>
+      <div class="stat"><div class="v">${nRm}</div><div class="l">Removal</div></div>
+      <div class="stat"><div class="v">${plan.L}</div><div class="l">Lands</div></div>
+    </div>`;
+  if (total !== 40) h += `<p class="warn" style="margin-top:var(--s3)">${total > 40 ? `${total - 40} over 40: take ${total - 40 === 1 ? 'a card' : 'some cards'} out.` : `${40 - total} short of 40: put more in.`}</p>`;
+  if (nCr < 13) h += `<p class="warn">Under 13 creatures. Sealed decks usually want 14 to 17.</p>`;
+  const buckets = [0, 0, 0, 0, 0, 0];
+  for (const c of cards) buckets[Math.min(Math.max(c.v, 1), 6) - 1] += d[c.id];
+  const mx = Math.max(...buckets, 1);
+  h += `<div class="hist">${buckets.map((b, i) => `<div class="col"><div class="b" style="height:${b / mx * 100}%"><span>${b || ''}</span></div><div class="l">${i === 5 ? '6+' : i + 1}</div></div>`).join('')}</div>`;
+
+  const byMv = (a, b) => a.v - b.v || b.s - a.s || a.n.localeCompare(b.n);
+  const crs = cards.filter(isCreature).sort(byMv), sps = cards.filter(c => !isCreature(c)).sort(byMv);
+  h += `<h3>Creatures <span class="ct">${nCr}</span></h3>` + crs.map(c => crowHTML(c, d[c.id])).join('');
+  h += `<h3>Spells <span class="ct">${nSpells - nCr}</span></h3>` + sps.map(c => crowHTML(c, d[c.id])).join('');
+  h += `<h3>Lands <span class="ct">${plan.L}</span></h3><div class="lands">`;
+  for (const x of 'WUBRG') if (plan.counts[x]) h += `<span class="li"><span class="pip ${x}">${x}</span><b>${plan.counts[x]}</b> ${BASIC[x]}</span>`;
+  const nonCount = {};
+  for (const l of plan.non) nonCount[l.id] = (nonCount[l.id] || 0) + 1;
+  for (const id of Object.keys(nonCount)) h += `<span class="li"><b>${nonCount[id]}</b> ${esc(BY[id].n)}</span>`;
+  h += `</div><div class="row" style="margin-top:var(--s3)"><span class="small">Land count</span>
+      <span class="stepper"><button data-act="lands" data-v="-1" aria-label="One land fewer">−</button><span>${plan.L}</span><button data-act="lands" data-v="1" aria-label="One land more">+</button></span></div>`;
+  if (plan.splash.size) h += `<p class="small" style="margin-top:var(--s3)">Splashing ${[...plan.splash].map(x => CNAME[x]).join(' and ')}: the lands above give it at least three sources where the pool allows.</p>`;
+
+  // The sideboard: on-colour cards not in the deck, then splash candidates.
+  const side = [];
+  for (const c of poolCards()) {
+    if (c.land) continue;
+    const spare = have(c.id) - (d[c.id] || 0);
+    if (spare > 0 && fits(c.m, pair)) side.push([c, spare]);
+  }
+  side.sort((a, b) => b[0].s - a[0].s || a[0].v - b[0].v);
+  h += `<h3>Sideboard, ${CNAME[pair[0]]} and ${CNAME[pair[1]]} <span class="ct">${side.reduce((a, x) => a + x[1], 0)}</span></h3>`;
+  h += side.length ? side.map(([c, n]) => crowHTML(c, n)).join('') : '<p class="small">Everything on-colour is in the deck.</p>';
+
+  const fixers = x => poolCards().filter(c => c.land && c.prod.includes(x) && [...c.prod].some(p => pair.includes(p))).reduce((a, c) => a + have(c.id), 0);
+  const splashy = poolCards().filter(c => {
+    if (c.land || c.s < 3.5 || fits(c.m, pair) || (d[c.id] || 0) >= have(c.id)) return false;
+    const off = offNeeds(c.m, pair);
+    return off.length === 1;
+  }).sort((a, b) => b.s - a.s);
+  if (splashy.length) {
+    h += `<h3>Splash options</h3><p class="small">Strong cards needing one pip of a third colour. Worth it with two or more fixing lands; tap one to put it in.</p>`;
+    h += splashy.map(c => {
+      const x = offNeeds(c.m, pair)[0];
+      const f = [...x].map(fixers).reduce((a, b) => Math.max(a, b), 0);
+      return crowHTML(c, null, `<span class="tag">${f} fixing land${f === 1 ? '' : 's'}</span>`);
+    }).join('');
+  }
+  h += `<div style="margin-top:var(--s6)"><button class="btn" data-act="rebuild">Rebuild this deck</button></div>`;
+  el.innerHTML = h;
+}
+
+/* ---------- tricks ---------- */
+function renderTricks() {
+  const el = $('#tricks');
+  const {cols, mana} = S.opp;
+  let h = `<h2>What could they have?</h2><h3>Their colours</h3><div class="opp">` +
+    'WUBRG'.split('').map(x => `<button class="cbtn ${x}${cols.includes(x) ? ' on' : ''}" data-act="oppcol" data-v="${x}" aria-pressed="${cols.includes(x)}" aria-label="${CNAME[x]}">${x}</button>`).join('') +
+    `</div><h3>Mana they left open</h3><div class="mana">` +
+    [1, 2, 3, 4, 5, 6, 7].map(n => `<button class="mbtn${mana === n ? ' on' : ''}" data-act="oppmana" data-v="${n}">${n === 7 ? '7+' : n}</button>`).join('') + `</div>`;
+  if (!cols) { el.innerHTML = h + `<div class="empty" style="margin-top:var(--s5)">Tap their colours.</div>`; return; }
+  const list = [];
+  for (const c of CARDS) {
+    if (c.land) continue;
+    if (c.ins && fits(c.m, cols) && (c.v <= mana || mana === 7)) list.push([c, c.m, c.v, null]);
+    if (c.hand && fits(c.hand.m, cols) && (mvOf(c.hand.m) <= mana || mana === 7)) list.push([c, c.hand.m, mvOf(c.hand.m), c.hand.x]);
+  }
+  const ro = {C: 0, U: 1, R: 2, M: 3};
+  list.sort((a, b) => a[2] - b[2] || ro[a[0].r] - ro[b[0].r] || b[0].s - a[0].s);
+  h += `<p class="small" style="margin-top:var(--s5)">${list.length} instant-speed card${list.length === 1 ? '' : 's'} in ${[...cols].map(x => CNAME[x]).join(', ')} for ${mana === 7 ? 'any amount of' : mana + ' or less'} mana. Commons first: they are the likeliest.</p>`;
+  let mvNow = -1;
+  for (const [c, cost, v, handText] of list) {
+    if (v !== mvNow) { mvNow = v; h += `<h3>${v} mana</h3>`; }
+    const flash = !/Instant/.test(c.t) && !handText;
+    const extra = `<span class="rar ${c.r}">${c.r}</span>` + (flash ? '<span class="tag">Flash</span>' : '') + (handText ? '<span class="tag">From hand</span>' : '');
+    h += `<button class="crow" data-act="card" data-id="${c.id}">
+      <span class="mv">${v}</span>
+      <span><span class="nm">${esc(c.n)} ${costHTML(cost)} ${extra}</span>
+        <span class="sub">${esc(handText || c.note)}${c.costnote ? ` · <span class="warn">${esc(c.costnote)}</span>` : ''}</span></span>
+      <span class="right">${c.rm ? '<span class="tag rm">Removal</span>' : ''}</span>
+    </button>`;
+  }
+  el.innerHTML = h;
+}
+
+/* ---------- rules ---------- */
+const RULES = [
+  ['Prepared', 'Some creatures carry a second, small spell printed beside them. When the creature is prepared, you may cast a copy of that spell once, paying its cost at its normal speed. Casting it unprepares the creature.',
+    'Most say "enters prepared". A few prepare again at the start of your turn, so you get the spell every turn. If the creature leaves the battlefield, the spell is gone.'],
+  ['Empower Jace', '"Empower Jace 2" puts two loyalty on your Jace token. No Jace yet? First you create one: a blue planeswalker token with −1: Surveil 1 and −3: Draw a card, and no plus ability.',
+    'Every empower adds to the same token. It is not legendary. Opponents can attack it, and it counts as a planeswalker for everything that asks.'],
+  ['Behold a Jace', 'Choose a Jace you control, or reveal a Jace card from your hand. A Jace token counts.'],
+  ['Heartwood token', 'A red and green artifact. Tap: add R or G. It is not sacrificed, so it is permanent ramp.'],
+  ['Commons and Annex lands', 'The common dual lands enter tapped unless you control a planeswalker. A Jace token turns them on.'],
+  ['Surveil', 'Look at the top cards of your library. Put any of them into your graveyard, the rest back on top in any order.'],
+  ['Threshold', 'Turns on while you have seven or more cards in your graveyard.'],
+  ['Cadet', 'The set\'s 2/2 colourless Wizard Soldier token.'],
+  ['Finality counter', 'If a creature with one would die, exile it instead.'],
+  ['Exhaust', 'An ability you can activate only once per game.'],
+  ['Stun counter', 'If a stunned permanent would untap, remove a stun counter instead.'],
+  ['Landcycling', 'Pay the cost and discard the card to search your library for a basic land. Big spells with it are never dead draws.'],
+  ['Legendary matters', 'Some cards reward a legendary creature, such as Wrath of the Bloodmane costing 1 less.'],
+  ['Sealed basics', 'Six packs, a 40-card deck: usually 23 spells and 17 lands, two colours, 14 to 17 creatures and every removal spell you can play. You may swap cards with your sideboard between games.'],
+];
+function renderRules() {
+  $('#rules').innerHTML = `<h2>This set's rules</h2>` + RULES.map(([t, ...ps]) => `<div class="rule"><b>${esc(t)}</b>${ps.map(p => `<p>${esc(p)}</p>`).join('')}</div>`).join('');
+}
+
+/* ---------- card sheet ---------- */
+function openCard(id) {
+  sheetId = id;
+  let veil = $('.veil'), sh = $('.sheet');
+  if (!sh) {
+    veil = document.createElement('div'); veil.className = 'veil'; veil.dataset.act = 'close';
+    sh = document.createElement('div'); sh.className = 'sheet'; sh.setAttribute('role', 'dialog'); sh.setAttribute('aria-modal', 'true');
+    document.body.append(veil, sh);
+    document.body.style.overflow = 'hidden';
+  }
+  const c = BY[id];
+  const inDeck = S.tab === 'build' && S.pair && (deckFor(S.pair)[id] || 0);
+  const spare = have(id) - (inDeck || 0);
+  let foot = `<span class="stepper"><button data-act="dec" data-id="${id}" aria-label="One fewer">−</button><span>${have(id)}</span><button data-act="inc" data-id="${id}" aria-label="One more">+</button></span>
+    <span class="small" style="align-self:center">in your pool</span>`;
+  if (S.tab === 'build' && S.pair && have(id) && !c.land) {
+    foot += `<div style="flex-basis:100%;display:flex;gap:var(--s3)">`;
+    if (inDeck) foot += `<button class="btn" data-act="deckout" data-id="${id}">Take out of deck</button>`;
+    if (spare > 0) foot += `<button class="btn primary" data-act="deckin" data-id="${id}">Put in deck</button>`;
+    foot += `</div>`;
+  }
+  const prep = c.prep ? `\n\nPrepared spell: ${c.prep.n} ${c.prep.m}\n${c.prep.x}` : '';
+  const text = c.prep ? c.x.split('\n\n')[0].replace(/ ?\([^)]*\)/g, '') + prep : c.x;
+  sh.innerHTML = `
+    <div class="sheet-head"><h3>${c.r === 'C' ? 'Common' : c.r === 'U' ? 'Uncommon' : c.r === 'R' ? 'Rare' : 'Mythic'} · #${c.id}</h3><button class="x" data-act="close" aria-label="Close">✕</button></div>
+    <div class="sheet-body">
+      <div class="cardview">
+        <button data-act="zoom" aria-label="Show the card bigger"><img src="${esc(c.img)}" alt="${esc(c.n)}"></button>
+        <div><div class="nm">${esc(c.n)}</div><div>${costHTML(c.m)}</div>
+          <div class="ty">${esc(c.t)}${c.pt ? ' · ' + c.pt : ''}${c.loy ? ' · loyalty ' + c.loy : ''}</div>
+          <div class="verdict">${scHTML(c)}<span>${esc(c.note)}</span></div>
+          ${c.rm ? '<div style="margin-top:6px"><span class="tag rm">Removal</span></div>' : ''}
+        </div>
+      </div>
+      <div class="oracle">${esc(text)}</div>
+      <div id="zoomed"></div>
+    </div>
+    <div class="sheet-foot">${foot}</div>`;
+}
+function closeCard() {
+  sheetId = null;
+  $('.veil')?.remove(); $('.sheet')?.remove();
+  document.body.style.overflow = '';
+}
+
+/* ---------- toast ---------- */
+function toast(msg, undo) {
+  undoFn = undo || null;
+  $('#toastmsg').textContent = msg;
+  $('#toast').querySelector('button').hidden = !undo;
+  $('#toast').hidden = false;
+  clearTimeout(toastT);
+  toastT = setTimeout(() => { $('#toast').hidden = true; undoFn = null; }, 4000);
+}
+
+/* ---------- render ---------- */
+function render() {
+  const n = poolSize();
+  $('#count').textContent = n ? `${n} card${n === 1 ? '' : 's'}` : '';
+  document.querySelectorAll('.stepbtn').forEach(b => b.classList.toggle('on', b.dataset.v === S.tab));
+  for (const t of ['pool', 'build', 'tricks', 'rules']) $('#' + t).hidden = S.tab !== t;
+  if (S.tab === 'pool') { renderResults(); renderPool(); }
+  if (S.tab === 'build') renderBuild();
+  if (S.tab === 'tricks') renderTricks();
+  if (S.tab === 'rules') renderRules();
+  if (sheetId) openCard(sheetId);
+}
+
+function doAdd(id) {
+  addCard(id, 1);
+  const c = BY[id];
+  toast(`Added ${c.n} · ${have(id)} in pool`, () => { addCard(id, -1); render(); });
+  $('#q').value = '';
+  render();
+  $('#q').focus();
+}
+
+// Tapping a search result must not take focus from the box, or the phone's
+// keyboard drops after every card.
+document.addEventListener('mousedown', e => { if (e.target.closest('.res')) e.preventDefault(); });
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]');
+  if (!b) return;
+  const act = b.dataset.act, id = b.dataset.id, v = b.dataset.v;
+  if (act === 'tab') { S.tab = v; save(); closeCard(); render(); window.scrollTo(0, 0); return; }
+  if (act === 'add') return doAdd(id);
+  if (act === 'card') return openCard(id);
+  if (act === 'close') return closeCard();
+  if (act === 'zoom') { const z = $('#zoomed'); z.innerHTML = z.innerHTML ? '' : `<img class="zoom" src="${esc(BY[sheetId].img)}" alt="">`; return; }
+  if (act === 'inc' || act === 'dec') { addCard(id, act === 'inc' ? 1 : -1); return render(); }
+  if (act === 'deckin' || act === 'deckout') {
+    const d = deckFor(S.pair);
+    d[id] = (d[id] || 0) + (act === 'deckin' ? 1 : -1);
+    if (d[id] <= 0) delete d[id];
+    save(); return render();
+  }
+  if (act === 'pair') { S.pair = v; save(); return render(); }
+  if (act === 'allpairs') { showAllPairs = !showAllPairs; return render(); }
+  if (act === 'rebuild') {
+    const old = S.decks[S.pair];
+    delete S.decks[S.pair]; delete S.lands[S.pair]; save(); render();
+    return toast('Deck rebuilt from the scores', () => { S.decks[S.pair] = old; save(); render(); });
+  }
+  if (act === 'lands') { S.lands[S.pair] = Math.min(19, Math.max(14, (S.lands[S.pair] || 17) + +v)); save(); return render(); }
+  if (act === 'oppcol') { S.opp.cols = S.opp.cols.includes(v) ? S.opp.cols.replace(v, '') : S.opp.cols + v; save(); return render(); }
+  if (act === 'oppmana') { S.opp.mana = +v; save(); return render(); }
+  if (act === 'undo') { const f = undoFn; $('#toast').hidden = true; undoFn = null; if (f) f(); return; }
+  if (act === 'clear') {
+    const old = S.pool;
+    S.pool = {}; S.decks = {}; S.pair = null; save(); render();
+    return toast('Pool cleared', () => { S.pool = old; save(); render(); });
+  }
+});
+
+$('#q').addEventListener('input', renderResults);
+$('#q').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); const top = search($('#q').value)[0]; if (top) doAdd(top.id); }
+  if (e.key === 'Escape') { $('#q').value = ''; renderResults(); }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && sheetId) closeCard(); });
+
+fetch('fra.json').then(r => r.json()).then(list => {
+  CARDS = list;
+  for (const c of CARDS) {
+    c.v = mvOf(c.m);
+    BY[c.id] = c;
+    NAMES.push({c, front: norm(c.n), words: norm(c.full).split(' '), flat: norm(c.full).replace(/ /g, '')});
+  }
+  render();
+}).catch(() => { $('main').innerHTML = '<div class="empty">Could not load the card list. Check the connection and reload.</div>'; });
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('../sw.js').catch(() => {});
+</script>
+</body>
+</html>

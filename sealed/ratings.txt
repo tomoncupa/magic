@@ -1,0 +1,285 @@
+# Reality Fracture (FRA) sealed scores, by Claude, 2026-09-25, written before any
+# win-rate data existed. Scale: 5 bomb, 4 great, 3.5 very good, 3 good playable,
+# 2.5 fine filler, 2 last cuts, 1.5 or less sideboard. Tag rm = deals with a creature.
+# Format: collector number | score | tags | note
+1|3|| Wins if cast; ten mana is a long way
+2|3|| Trick that leaves a Jace behind
+3|3|| Flying body plus a counter later
+4|2.5|| Aggressive two-drop, Jace from graveyard
+5|3|| Lifelink two-drop, can draw cards
+6|2.5|| Big body, protects another creature
+7|2.5|| Re-uses enter effects each creature
+8|2.5|| Two creatures back over the game
+9|2|| Needs a life-gain turn
+10|2.5|| Three-power three-drop, counters move on
+11|3.5|| Grows your whole team every combat
+12|3|| Three bodies late, a land early
+13|2.5|| Seven-mana wipe you can steer
+14|0.5|| Only finds planeswalkers
+15|3.5|rm| Removes any nonland permanent
+16|2|| Two counters, twice
+17|3.5|rm| Two-mana kill, best on attackers
+18|2|rm| Only hits green or blue
+19|3|| Makes Jace grow every attack
+20|1.5|| Nine mana, needs a full graveyard
+21|3|| Flyer with a late team pump
+22|3|rm| Kills big creatures or draws a card
+23|2.5|| Grows in life-gain decks
+24|3.5|rm| Instant kill, three mana and up
+25|2|| Counterspell, three mana without Jace
+26|1.5|| Needs mill on the same turn
+27|2.5|| Two-drop, taps a blocker later
+28|3|| One-drop that bounces a creature
+29|3|| Flash three-drop that taps a blocker
+30|2.5|| Soft counter or blunts an attacker
+31|3|rm| Aura that shuts a creature off
+32|3|| Jace 8: two cards plus surveils
+33|3|| Body plus a Jace that draws
+34|2.5|| Shrinks a threat or wins a fight
+35|2.5|rm| Removes anything for a turn or more
+36|1|| Sideboard against white or black
+37|3|| Jace 6: three cards over time
+38|3.5|| Card filtering that stuns blockers
+39|3|| Solid body, a Cadet later
+40|4|| Flash flyer that comes back once
+41|2.5|| Instant draw two
+42|2.5|| Flying wall that can attack
+43|4.5|| Draws every turn, makes blockers
+44|3|| Flash wall with a Jace 3
+45|3|| Big flyer or a land
+46|2|| Tempo, saves your creature
+47|3|| Flying prowess three-drop
+48|3|| Six-power menace or a land
+49|2|| Mostly a plain two-drop
+50|3.5|rm| Instant edict, takes their best
+51|2.5|| Draw two at a price
+52|2|| Needs a full graveyard
+53|3.5|| Flying haste that keeps returning
+54|4|rm| Instant exile, any creature
+55|1.5|| Picks from your sideboard
+56|3.5|rm| Instant -3/-3
+57|4|rm| Three-mana kill plus a weapon
+58|3.5|rm| Instant kill most creatures
+59|3|| Wipe that hands you a Jace
+60|3|| Deathtouch body, deathtouch trick on arrival
+61|1.5|| Small body, one discard
+62|2.5|| Returns your best creature
+63|3.5|| Draws a pile or wipes small creatures
+64|3.5|| Jace tokens never die and drain
+65|2.5|| Flying wall that drains
+66|3.5|rm| Kill; sacrifice a Jace token to pay
+67|1.5|| Discard for your opponent
+68|2|rm| Only hits blue or red
+69|2.5|| Four power early, recursion later
+70|2.5|| Mills itself, grows to 3/3
+71|4|rm| Two-mana kill, or a big Jace
+72|4|rm| Kills anything or goes face
+73|1.5|| Cantrip first strike
+74|3.5|rm| Six damage or a land
+75|3|| Pump trick that draws
+76|2.5|| Grows on every spell
+77|2.5|| Cadet that keeps coming back
+78|3|| Big finisher, three red pips
+79|4|| Flying 4/4 that fetches a card
+80|4|| Flying 5/5, turns artifact tokens into dragons
+81|2|| Makes small attackers unblockable
+82|2|rm| Only hits black or green
+83|3|| Steals their board for a turn
+84|3.5|rm| Five damage or sweeps tokens
+85|2|| Card filtering, a point of damage
+86|3|| Two bodies for four
+87|1.5|| Random swap, rarely worth it
+88|2.5|| Pumps the team on burn
+89|3.5|rm| Three damage anywhere, plus Jace
+90|1.5|| Small, filtering only
+91|3|| Three-power three-drop
+92|2.5|| Aggressive two-drop
+93|3|| Hasty two-drop, recasts a spell
+94|3|| Big reach body, two damage
+95|3.5|rm| Six damage instant
+96|3.5|rm| Four damage instant
+97|3|| Deathtouch plus Jace 2
+98|3.5|| Two 4/4 tramplers over the game
+99|3|| Solid three-drop, kills artifacts
+100|3|| Deathtouch two-drop
+101|3.5|rm| Instant bite
+102|2|rm| Only hits red or white
+103|1|| Ramp that needs deaths
+104|2.5|| Ramp body, gains life
+105|2|| Makes mana, then a Heartwood
+106|3.5|| Huge, needs GGGG
+107|4|| 5/5 plus mana, grows
+108|2.5|| Good equipment for green
+109|2.5|| Grows with Jace
+110|1|| Eight mana, needs a board
+111|2|| Needs an artifact to animate
+112|2|| Returns a card, gains life
+113|3|| Ramp, draws when it dies
+114|2|| Digs for a permanent
+115|3|| Two-drop that kills a flyer later
+116|3|| Usually a 3/4 or bigger for two
+117|2.5|| Pump trick, surprise blocker
+118|4.5|| Makes a 3/3 every turn
+119|3|| Three counters where you want them
+120|3|| 5/5 ward for five
+121|4.5|| Flying 5/4 for four plus mana
+122|4|| Every land drop grows Jace
+123|1.5|| Small recursive lifelinker
+124|3.5|| 4/4 that draws on life gain
+125|2.5|| Team pump or first-strike trick
+126|3|rm| Removes any permanent for a while
+127|4|| 7/5 trample with two bonuses
+128|4.5|| Flash flyer that grows the team
+129|3.5|| Flyer that pumps every combat
+130|1.5|| One-drop with a counter
+131|0.5|| Needs planeswalker cards
+132|3|| Flexible instant
+133|3|| Flyer now, a Cadet later
+134|2.5|| Deathtouch that returns the creature
+135|2|| One big hit then gone
+136|2.5|| Returns after burn
+137|4|| Every attacker pings, makes Cadets
+138|3|| Kills a flyer or grows a creature
+139|2.5|| Two-drop plus a Heartwood
+140|5|| Six-power flying lifelinker
+141|4|rm| Flyer that fights on arrival
+142|3|| Takes their best card
+143|2.5|| Mills three every turn
+144|2.5|| Menace plus a land back
+145|3|| Surveils a lot, comes back
+146|3|| Wall that makes a Cadet
+147|3|| Two Cadets twice
+148|3|| 3/3 for two
+149|3|rm| Removes a cheap permanent
+150|3.5|rm| Three damage or a hasty Cadet
+151|2.5|| Pings every turn
+152|1.5|| Small damage, one discard
+153|3|| Counter plus Jace 4
+154|3|| Mana boost that grows
+155|3|rm| Kills small creatures or draws
+156|2.5|| Becomes a flyer with a full graveyard
+157|2|| Card draw over two casts
+158|4|rm| Kills anything, grows your team
+159|4.5|| 5/5 flyer that recasts spells
+160|3.5|rm| Fight, protect or draw
+161|2.5|| Two-drop with a counter
+162|4|rm| Instant exile, borrows small ones
+163|3.5|rm| Three damage plus a weapon
+164|3|| Flying haste after a ping
+165|3|| A Heartwood every turn
+166|2|| Colourless filler
+167|2.5|| Six-mana flyer
+168|2|| Needs many prepared creatures
+169|2.5|| Loot now, wipe later
+170|1.5|| Slow surveil engine
+171|2.5|| Colourless body plus Jace 2
+172|2|rm| Slow removal at six mana
+173|2|| Gives flying
+174|1.5|| Fixing rock
+175|2|| Dual land, red-white
+176|2.5|| Dual land, white-blue
+177|2|| Dual land, white-blue
+178|2|| Dual land, black-green
+179|1|| Colourless utility land
+180|2.5|| Dual land, black-red
+181|1|| Colourless utility land
+182|2|| Dual land, blue-red
+183|2|| Dual land, red-green
+184|2|| Dual land, white-black
+185|2.5|| Dual land, green-white
+186|2.5|| Dual land, red-green
+187|0.5|| Enters tapped, green only
+188|2|| Makes any one colour, splash help
+189|2.5|| Dual land, blue-black
+190|2|| Dual land, black-red
+191|1|| Island that makes Jace
+192|2|| Dual land, blue-black
+193|2|| Dual land, green-blue
+194|2|| Dual land, green-white
+195|2.5|| Slow walker, makes a Pridemate
+196|2.5|| First strike, draws on tricks
+197|1.5|| Needs big-toughness creatures
+198|3|| Four damage to a fighter from hand
+199|3|| Grows a creature each Plains
+200|1.5|| One-drop, gains life
+201|3.5|| Flying 3/3 for three, grows
+202|2.5|| Flyer that re-uses enter effects
+203|4|| Flying 4/4 that makes flyers
+204|2.5|| Flash protection plus a counter
+205|3|| Lifelink 3/4, taxes their spells
+206|2.5|| Two-power flyer for two
+207|3|| Jace 5 that makes Cadets
+208|2.5|| Jace 5, grows on life gain
+209|2.5|| Extra counters every time
+210|2.5|| No combat tricks for anyone
+211|2.5|| Looter body
+212|3.5|| Card advantage and stuns
+213|2|| Draws two on a hit
+214|2|| Flyer, spell discount
+215|3|| Stuns a blocker on arrival
+216|3.5|| Grows a Jace every turn
+217|4|| Flying 3/3 for three
+218|3|| Draws on every surveil
+219|3.5|| Big flyer, hard to remove
+220|1.5|| Two-drop, little else
+221|1.5|| Only small creatures
+222|2.5|| Flying wall, cheap after spells
+223|2.5|| Jace 5 that copies a spell
+224|3|| Jace 5 that draws extra
+225|2|| Big wall, no text
+226|2|| Flash surveil or blunts an attacker
+227|2.5|| Grows with removal
+228|2.5|| Menace two-drop that returns
+229|4.5|| Removal every turn, makes beasts
+230|3|| 3/3 that pings
+231|3|| Returns creatures from graveyard
+232|2|| Odd, hits for two
+233|2.5|| Deathtouch, strips Jace or counters
+234|3|| 4/4 that drains
+235|2.5|| 5/5 late, or a trick from hand
+236|2.5|| Flash deathtouch trick
+237|2|| Discard plus pings
+238|2.5|| Jace 5, turns creatures into beasts
+239|2|| Small Jace, grows on deaths
+240|3|rm| Edict; sacrifice a Jace token
+241|2|| Big hitter, dies easily
+242|4.5|| One-sided wipe, makes Cadets
+243|2|| Wall that hits on arrivals
+244|4.5|| Kills, draws, ramps
+245|2|| Haste two-drop
+246|3|| Menace 4/4 that loots
+247|4|| Flying 5/5 dragon plus a body
+248|2.5|| Reach three-drop, pings
+249|1.5|| Card draw at a cost
+250|3|| Two bodies, one flying
+251|2.5|| Haste for the team
+252|3.5|| Double strike 2/4
+253|2|| Burn does one more
+254|1.5|| Small Jace, mana
+255|3|rm| Jace 5 that shoots a creature
+256|2|| Team pump on spells
+257|3.5|| Flash 4/4 that grows
+258|1.5|| Finds lands, small body
+259|4.5|| Makes 4/4s, draws cards
+260|3|| 8/8 trample, often cheap
+261|3|| Two bodies for four
+262|2|| Mana creature
+263|2.5|| 3/2 for two
+264|1.5|| Finds an enchantment
+265|4|| 7/7 that is hard to answer
+266|3|| Reach 4/3, grows on life gain
+267|2|| Jace 5, gains life
+268|3.5|| Jace 7 that makes 4/4s
+269|3|rm| Two-drop that fights
+270|2.5|| Sacrifice outlet, gains life
+271|3|rm| Shrinks or kills a creature
+272|1.5|| Eight mana in two colours
+273|2.5|| Solid body, needs Jace
+274|3|| Counters on every arrival
+275|3.5|| Thopters on every spell
+276|2|| Needs several walkers
+277|3|| Three colours, makes mana bodies
+278|4|| Deathtouch 4/4, kills late
+279|1|| Stops enter effects, yours too
+280|2.5|| 5/4 trample that stays tapped
+291|2.5|| Slow walker, makes a Pridemate
