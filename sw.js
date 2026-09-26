@@ -1,8 +1,11 @@
 // Offline support. The app shell is cached up front; card pictures are cached
 // as they are seen. A shop with no wifi can still deal a game, though the two
 // devices will not sync until there is a connection again.
-const SHELL = 'ktm-shell-v22';
+const SHELL = 'ktm-shell-v23';
 const CARDS = 'ktm-cards-v2';
+// Libraries from the CDN, such as the Sealed helper's card-name reader. Their
+// addresses carry a version, so a cached copy never goes stale.
+const LIB = 'ktm-lib-v1';
 const SHELL_FILES = ['./', './index.html', './decks.js', './config.js'];
 
 self.addEventListener('install', e => {
@@ -12,7 +15,7 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== SHELL && k !== CARDS).map(k => caches.delete(k))))
+      .then(keys => Promise.all(keys.filter(k => k !== SHELL && k !== CARDS && k !== LIB).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -38,6 +41,18 @@ self.addEventListener('fetch', e => {
             return res;
           });
         })
+      )
+    );
+    return;
+  }
+
+  if (url.hostname === 'cdn.jsdelivr.net' || url.hostname === 'tessdata.projectnaptha.com') {
+    e.respondWith(
+      caches.open(LIB).then(c =>
+        c.match(e.request).then(hit => hit || fetch(e.request).then(res => {
+          if (res.ok) { try { c.put(e.request, res.clone()); } catch (err) { /* over quota */ } }
+          return res;
+        }))
       )
     );
     return;

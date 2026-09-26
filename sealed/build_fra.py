@@ -44,6 +44,42 @@ def ratings():
     return r
 
 
+def published(rate):
+    """Grades from three sites (collected 2026-09-26 into published.json), put on
+    Claude's 0-5 scale. Draftsim scores out of 10 and harsher, so its spread is
+    matched to the others'; MTG Picker's letter tiers take the average of the other
+    scores for cards in that tier, and count half because they are coarse."""
+    pub = json.loads((HERE / 'published.json').read_text(encoding='utf-8'))['cards']
+    ids = [i for i in pub if i in rate]
+    ds = {i: float(pub[i]['draftsim'].split('/')[0]) for i in ids if 'draftsim' in pub[i]}
+    az = {i: float(pub[i]['zone'].split('/')[0]) for i in ids if 'zone' in pub[i]}
+    base = [rate[i][0] for i in ids] + list(az.values())
+    mean = lambda v: sum(v) / len(v)
+    sd = lambda v: (sum((x - mean(v)) ** 2 for x in v) / len(v)) ** 0.5
+    k = sd(base) / sd(list(ds.values()))
+    dcal = {i: max(0, min(5, mean(base) + (v - mean(list(ds.values()))) * k)) for i, v in ds.items()}
+    tiers = {}
+    for i in ids:
+        t = pub[i].get('picker', '').strip()
+        if t:
+            others = [rate[i][0]] + ([az[i]] if i in az else []) + ([dcal[i]] if i in dcal else [])
+            tiers.setdefault(t, []).append(mean(others))
+    tier = {t: mean(v) for t, v in tiers.items()}
+    out = {}
+    for i in ids:
+        p = pub[i]
+        parts = [(rate[i][0], 1)]
+        if i in dcal: parts.append((dcal[i], 1))
+        if i in az: parts.append((az[i], 1))
+        if p.get('picker', '').strip() in tier: parts.append((tier[p['picker'].strip()], 0.5))
+        blend = sum(v * w for v, w in parts) / sum(w for _, w in parts)
+        theirs = [v for v, _ in parts[1:]]
+        out[i] = {'s': round(blend, 1), 'cl': rate[i][0], 'ds': p.get('draftsim'), 'az': p.get('zone'), 'mp': p.get('picker'),
+                  'gap': bool(theirs) and abs(rate[i][0] - mean(theirs)) >= 1.0}
+    print('draftsim scale x%.2f; picker tiers %s' % (k, {t: round(v, 2) for t, v in sorted(tier.items())}))
+    return out
+
+
 def strip_reminders(t):
     return re.sub(r' ?\([^)]*\)', '', t or '').strip()
 
@@ -51,6 +87,7 @@ def strip_reminders(t):
 def main():
     cards = fetch_set()
     rate = ratings()
+    pub = published(rate)
     seen, out = set(), []
     for c in cards:
         num = c['collector_number']
@@ -82,6 +119,10 @@ def main():
             's': score,
             'note': note,
         }
+        if num in pub:
+            row.update(pub[num])
+            if not row['gap']:
+                del row['gap']
         if 'power' in front:
             row['pt'] = f"{front['power']}/{front['toughness']}"
         if 'loyalty' in front:

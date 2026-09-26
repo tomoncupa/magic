@@ -96,6 +96,7 @@ p{margin:0 0 var(--s3)}
 .rar.U{color:#c6d3de;border-color:#5d7285}.rar.R{color:var(--brass);border-color:rgba(240,179,35,.5)}.rar.M{color:#ff8a5c;border-color:rgba(255,138,92,.5)}
 .tag{font-family:var(--disp);font-size:10px;font-weight:600;letter-spacing:var(--cap);text-transform:uppercase;padding:0 5px;border-radius:3px;border:1px solid rgba(126,232,250,.4);color:var(--info)}
 .tag.rm{border-color:rgba(255,107,129,.45);color:var(--danger)}
+.tag.split{border-color:rgba(255,179,71,.45);color:var(--warn)}
 .syn{font-family:var(--disp);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums}
 .syn.up{color:var(--good)}.syn.down{color:var(--warn)}
 .themes{display:flex;flex-direction:column;gap:2px;margin-top:var(--s3);font-size:var(--t2);color:var(--ink2)}
@@ -169,6 +170,23 @@ p{margin:0 0 var(--s3)}
 .verdict span:last-child{font-size:var(--t2);color:var(--ink)}
 .zoom{display:block;width:100%;max-width:340px;margin:var(--s3) auto 0;border-radius:12px}
 
+.scanrow{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3);margin-top:var(--s3)}
+.scanner{position:fixed;inset:0;z-index:70;background:#000}
+.scanner video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.guide{position:absolute;left:8%;right:8%;top:24%;height:56px;border:2px solid var(--brass);border-radius:var(--r);box-shadow:0 0 0 9999px rgba(0,0,0,.45);transition:border-color .15s}
+.guide span{position:absolute;top:-24px;left:0;font-family:var(--disp);font-size:12px;font-weight:600;color:var(--brass);letter-spacing:var(--cap);text-transform:uppercase}
+.guide.hit{border-color:var(--good);box-shadow:0 0 0 9999px rgba(0,0,0,.45),inset 0 0 0 3px var(--good)}
+.scanbar{position:absolute;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));background:rgba(8,11,16,.94);border-top:1px solid var(--line2)}
+#scanmsg{font-size:15px;min-height:44px;margin-bottom:8px}
+#scanmsg b{font-family:var(--disp);color:var(--good)}
+.scanbtns{display:flex;gap:var(--s3)}
+.scanbtns .btn{flex:1}
+.found{display:grid;grid-template-columns:28px 1fr auto;gap:var(--s3);align-items:center;width:100%;min-height:var(--tap);padding:6px 0;border-bottom:1px solid var(--line)}
+.found .box{width:22px;height:22px;border-radius:4px;border:2px solid var(--line2)}
+.found.on .box{background:var(--brass);border-color:var(--brass)}
+.found .read{font-size:var(--t1);color:var(--ink3)}
+.bar2{height:6px;border-radius:3px;background:var(--bg3);overflow:hidden;margin-top:var(--s3)}
+.bar2 i{display:block;height:100%;background:var(--brass);width:0}
 .toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;
   display:flex;gap:var(--s4);align-items:center;background:var(--bg4);border:1px solid var(--line2);border-radius:var(--r);padding:4px 4px 4px 14px;
   max-width:calc(100vw - 32px);font-size:var(--t2);box-shadow:0 10px 30px rgba(0,0,0,.5)}
@@ -197,12 +215,26 @@ p{margin:0 0 var(--s3)}
       <input id="q" type="search" placeholder="Type a card name" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" aria-label="Card name">
       <div class="results" id="results"></div>
     </div>
+    <div class="scanrow">
+      <button class="btn primary" data-act="scan">Scan with camera</button>
+      <button class="btn" data-act="photo">Photo of a pack</button>
+      <input id="photoin" type="file" accept="image/*" hidden>
+    </div>
     <div id="poollist"></div>
   </section>
   <section id="build" hidden></section>
   <section id="tricks" hidden></section>
   <section id="rules" hidden></section>
 </main>
+
+<div id="scanner" class="scanner" hidden>
+  <video id="cam" playsinline muted autoplay></video>
+  <div class="guide" id="guide"><span>Card name here</span></div>
+  <div class="scanbar">
+    <div id="scanmsg" aria-live="polite">Starting the camera…</div>
+    <div class="scanbtns"><button class="btn" data-act="scanundo" id="scanundo" hidden>Undo last</button><button class="btn fill" data-act="scanstop">Done</button></div>
+  </div>
+</div>
 
 <div id="toast" class="toast" hidden><span id="toastmsg"></span><button class="btn" data-act="undo">Undo</button></div>
 
@@ -211,6 +243,8 @@ p{margin:0 0 var(--s3)}
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 
+// Bump when fra.json changes, so no phone keeps an old copy from its cache.
+const DATA_V = '2026-09-26';
 const KEY = 'sealed.fra.v1';
 const PAIRS = ['WU','UB','BR','RG','GW','WB','UR','BG','RW','GU'];
 const CNAME = {W:'White',U:'Blue',B:'Black',R:'Red',G:'Green'};
@@ -330,7 +364,7 @@ function groupOf(c) {
 }
 const GROUPS = ['White','Blue','Black','Red','Green','Multicolour','Colourless','Lands'];
 function crowHTML(c, n, extra, bonus) {
-  const tags = (c.rm ? '<span class="tag rm">Removal</span>' : '') + (extra || '');
+  const tags = (c.rm ? '<span class="tag rm">Removal</span>' : '') + (c.gap ? '<span class="tag split">Split</span>' : '') + (extra || '');
   return `<button class="crow" data-act="card" data-id="${c.id}">
     <span class="mv">${c.land ? '–' : c.v}</span>
     <span><span class="nm">${esc(c.n)} ${costHTML(c.m)} ${tags}</span><span class="sub">${esc(c.note)}</span></span>
@@ -343,13 +377,13 @@ function renderPool() {
   if (!cards.length) {
     el.innerHTML = `<h2 style="margin-top:var(--s6)">Enter your pool</h2>
       <p class="note">Open your six packs, then type the first letters of each card and tap it. Enter adds the top match. Skip basic lands.</p>
-      <p class="small">Scores are Claude's read of each card for sealed, from 0 to 5. No win-rate data exists yet; the set releases 2 October.</p>`;
+      <p class="small">Scores, 0 to 5, blend Claude's read with three published reviews: Draftsim, MTG Arena Zone and MTG Picker. No win-rate data exists yet; the set releases 2 October.</p>`;
     return;
   }
   const by = {};
   for (const c of cards) (by[groupOf(c)] = by[groupOf(c)] || []).push(c);
   let h = `<h2 style="margin-top:var(--s6)">Your pool</h2>
-    <p class="small">Tap a card to see it or change how many you have. Scores are Claude's read, 0 to 5; no win-rate data exists yet.</p>`;
+    <p class="small">Tap a card to see it or change how many you have. Scores blend Claude's read with three published reviews; Split marks cards where Claude and the reviews disagree by a point or more.</p>`;
   for (const g of GROUPS) {
     const list = by[g];
     if (!list) continue;
@@ -522,8 +556,14 @@ function splashCols(pair, d) {
   for (const c of deckCards(d)) for (const n of offNeeds(c.m, pair)) for (const ch of n) s.add(ch);
   return s;
 }
+// Two cards that can cycle for a basic land stand in for one land.
+const isCycler = c => /landcycling/i.test(c.x);
+function defaultLands(d) {
+  const cyc = deckCards(d).filter(isCycler).reduce((a, c) => a + d[c.id], 0);
+  return cyc >= 2 ? 16 : 17;
+}
 function landPlan(pair, d) {
-  const L = S.lands[pair] || 17;
+  const L = S.lands[pair] || defaultLands(d);
   const splash = splashCols(pair, d);
   const non = [];
   for (const c of poolCards()) {
@@ -602,6 +642,12 @@ function renderBuild() {
     <span class="small">Green and orange numbers beside a score are each card's synergy in this deck. Tap a card to see why.</span></div>`;
   if (total !== 40) h += `<p class="warn" style="margin-top:var(--s3)">${total > 40 ? `${total - 40} over 40: take ${total - 40 === 1 ? 'a card' : 'some cards'} out.` : `${40 - total} short of 40: put more in.`}</p>`;
   if (nCr < 13) h += `<p class="warn">Under 13 creatures. Sealed decks usually want 14 to 17.</p>`;
+  const twos = cards.filter(c => c.v === 2).reduce((a, c) => a + d[c.id], 0);
+  const tops = cards.filter(c => c.v >= 6).reduce((a, c) => a + d[c.id], 0);
+  const cycs = cards.filter(isCycler).reduce((a, c) => a + d[c.id], 0);
+  if (twos < 4) h += `<p class="warn">Only ${twos} two-drop${twos === 1 ? '' : 's'}. Sealed decks want 4 or more, or you fall behind early.</p>`;
+  if (tops > 3) h += `<p class="warn">${tops} cards cost 6 or more. More than 3 and your hand clogs.</p>`;
+  if (cycs >= 2 && !S.lands[pair]) h += `<p class="small">${cycs} cards can cycle for a land, so the deck plays 16 lands instead of 17.</p>`;
   const buckets = [0, 0, 0, 0, 0, 0];
   for (const c of cards) buckets[Math.min(Math.max(c.v, 1), 6) - 1] += d[c.id];
   const mx = Math.max(...buckets, 1);
@@ -650,6 +696,34 @@ function renderBuild() {
 }
 
 /* ---------- tricks ---------- */
+// Between games: cards in your sideboard that only hit certain colours, when
+// the opponent plays one of them. Found by the wording, not a list of names.
+const COLWORD = {white:'W', blue:'U', black:'B', red:'R', green:'G'};
+function hates(c) {
+  const m = (c.x || '').match(/\b(white|blue|black|red|green) or (white|blue|black|red|green)\b/i);
+  return m ? COLWORD[m[1].toLowerCase()] + COLWORD[m[2].toLowerCase()] : '';
+}
+function sideboardAgainst(cols) {
+  if (!S.pair || !poolCards().length) return '';
+  const pair = S.pair, d = deckFor(pair);
+  const ins = [], already = [];
+  for (const c of poolCards()) {
+    const h = hates(c);
+    if (!h || ![...h].some(x => cols.includes(x)) || !fits(c.m, pair) || c.land) continue;
+    if (have(c.id) > (d[c.id] || 0)) ins.push(c);
+    if (d[c.id]) already.push(c);
+  }
+  if (!ins.length && !already.length) return '';
+  const counts = synCounts(expand(d));
+  const out = deckCards(d).filter(c => !isCreature(c) && !hates(c)).sort((a, b) => eff(a, counts) - eff(b, counts));
+  let h = `<h3>Sideboard against them</h3>`;
+  ins.forEach((c, i) => {
+    const o = out[i];
+    h += crowHTML(c, null, '<span class="tag">Bring in</span>') + (o ? `<p class="small" style="margin:4px 0 0 38px">Take out ${esc(o.n)} (${o.s.toFixed(1)}), your weakest spell.</p>` : '');
+  });
+  if (already.length) h += `<p class="small" style="margin-top:6px">Already in your deck: ${already.map(c => esc(c.n)).join(', ')}.</p>`;
+  return h;
+}
 function renderTricks() {
   const el = $('#tricks');
   const {cols, mana} = S.opp;
@@ -658,6 +732,7 @@ function renderTricks() {
     `</div><h3>Mana they left open</h3><div class="mana">` +
     [1, 2, 3, 4, 5, 6, 7].map(n => `<button class="mbtn${mana === n ? ' on' : ''}" data-act="oppmana" data-v="${n}">${n === 7 ? '7+' : n}</button>`).join('') + `</div>`;
   if (!cols) { el.innerHTML = h + `<div class="empty" style="margin-top:var(--s5)">Tap their colours.</div>`; return; }
+  h += sideboardAgainst(cols);
   const list = [];
   for (const c of CARDS) {
     if (c.land) continue;
@@ -749,6 +824,7 @@ function openCard(id) {
           <div class="ty">${esc(c.t)}${c.pt ? ' · ' + c.pt : ''}${c.loy ? ' · loyalty ' + c.loy : ''}</div>
           <div class="verdict">${scHTML(c)}<span>${esc(c.note)}</span></div>
           ${c.rm ? '<div style="margin-top:6px"><span class="tag rm">Removal</span></div>' : ''}
+          ${c.cl != null ? `<div class="small" style="margin-top:6px">Claude ${c.cl.toFixed(1)} · Draftsim ${esc(c.ds || '–')} · Arena Zone ${esc(c.az || '–')} · MTG Picker ${esc(c.mp || '–')}${c.gap ? ' · <span class="warn">Claude and the reviews split</span>' : ''}</div>` : ''}
         </div>
       </div>
       ${synBox}
@@ -757,6 +833,247 @@ function openCard(id) {
     </div>
     <div class="sheet-foot">${foot}</div>`;
 }
+/* ---------- scanning ----------
+   Tesseract reads the text in the browser; nothing leaves the phone. Its read
+   is only ever matched against this set's 280 names, so a read with a few
+   wrong letters still lands on the right card. The reader (about 4 MB) loads
+   the first time and is kept for offline use after that. */
+const TESS = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz,'- —";
+let ocr = null, ocrLoading = null, ocrLog = null, SCAN = null;
+function loadOCR() {
+  if (ocr) return Promise.resolve(ocr);
+  if (!ocrLoading) {
+    ocrLoading = new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = TESS; s.onload = res; s.onerror = () => rej(new Error('no reader'));
+      document.head.append(s);
+    }).then(() => Tesseract.createWorker('eng', 1, {logger: m => ocrLog && ocrLog(m)}))
+      .then(w => (ocr = w))
+      .catch(e => { ocrLoading = null; throw e; });
+  }
+  return ocrLoading;
+}
+const lettersOf = s => norm(s).replace(/[^a-z]/g, '');
+const trigrams = s => { const o = new Set(); for (let i = 0; i + 3 <= s.length; i++) o.add(s.substr(i, 3)); return o; };
+function lev(a, b) {
+  let prev = Array.from({length: b.length + 1}, (_, i) => i), cur = new Array(b.length + 1);
+  for (let i = 1; i <= a.length; i++) {
+    cur[0] = i;
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    [prev, cur] = [cur, prev];
+  }
+  return prev[b.length];
+}
+// How closely name f appears somewhere inside the read t, 0 to 1.
+function simIn(f, t) {
+  const n = f.length;
+  if (t.length <= n + 2) return 1 - lev(f, t) / Math.max(n, t.length);
+  let best = n;
+  for (let L = n - 2; L <= n + 2; L++) for (let i = 0; i + L <= t.length; i++) {
+    const d = lev(f, t.substr(i, L));
+    if (d < best) best = d;
+  }
+  return 1 - best / n;
+}
+function bestMatch(line) {
+  // Flavour text credits a speaker after a dash, sometimes by a card's name.
+  if (/^\s*[-—]/.test(line)) return null;
+  if (!SCAN) SCAN = CARDS.map(c => { const f = lettersOf(c.n); return {c, f, tri: trigrams(f)}; });
+  const t = lettersOf(line);
+  if (t.length < 4) return null;
+  const tt = trigrams(t);
+  let a = null, b = null;
+  for (const e of SCAN) {
+    if (t.length < e.f.length * 0.6) continue;
+    let k = 0;
+    for (const g of e.tri) if (tt.has(g)) k++;
+    if (k < Math.max(1, e.tri.size * 0.25)) continue;
+    const s = simIn(e.f, t);
+    if (!a || s > a.sim) { b = a; a = {c: e.c, sim: s}; } else if (!b || s > b.sim) b = {c: e.c, sim: s};
+  }
+  if (a) a.margin = a.sim - (b ? b.sim : 0);
+  return a;
+}
+function bestInText(text) {
+  let best = null;
+  for (const line of text.split('\n')) {
+    const m = bestMatch(line);
+    if (m && (!best || m.sim > best.sim)) best = m;
+  }
+  return best;
+}
+// Grey, stretch the contrast, and flip light-on-dark name bars to dark-on-light.
+function prepCanvas(cv) {
+  const x = cv.getContext('2d', {willReadFrequently: true});
+  const im = x.getImageData(0, 0, cv.width, cv.height), p = im.data;
+  let lo = 255, hi = 0, sum = 0;
+  for (let i = 0; i < p.length; i += 4) {
+    const g = (p[i] * 0.3 + p[i + 1] * 0.59 + p[i + 2] * 0.11) | 0;
+    p[i] = g; if (g < lo) lo = g; if (g > hi) hi = g; sum += g;
+  }
+  const inv = sum / (p.length / 4) < 100, span = Math.max(1, hi - lo);
+  for (let i = 0; i < p.length; i += 4) {
+    let g = ((p[i] - lo) * 255 / span) | 0;
+    if (inv) g = 255 - g;
+    p[i] = p[i + 1] = p[i + 2] = g;
+  }
+  x.putImageData(im, 0, 0);
+  return cv;
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function scanMsg(h) { $('#scanmsg').innerHTML = h; }
+let beepCtx = null;
+function beep() {
+  try {
+    beepCtx = beepCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = beepCtx.createOscillator(), g = beepCtx.createGain();
+    o.frequency.value = 1320; g.gain.value = 0.08;
+    o.connect(g); g.connect(beepCtx.destination); o.start(); o.stop(beepCtx.currentTime + 0.08);
+  } catch (e) {}
+}
+let scan = null;
+async function startScan() {
+  closeCard();
+  beep();   // unlocks sound on iPhone while the tap still counts as a gesture
+  $('#scanner').hidden = false;
+  document.body.style.overflow = 'hidden';
+  $('#scanundo').hidden = true;
+  scan = {on: true, block: null, cand: null, hits: 0, last: null, n: 0, pauseUntil: 0, stream: null};
+  const me = scan;
+  scanMsg('Starting the camera…');
+  try {
+    me.stream = await navigator.mediaDevices.getUserMedia({audio: false, video: {facingMode: {ideal: 'environment'}, width: {ideal: 1920}, height: {ideal: 1080}}});
+  } catch (e) {
+    scanMsg('The camera is blocked. Allow it for this site (Settings › Apps › Safari › Camera), or use Photo of a pack.');
+    return;
+  }
+  if (!me.on) return me.stream.getTracks().forEach(t => t.stop());
+  const v = $('#cam');
+  v.srcObject = me.stream;
+  try { await v.play(); } catch (e) {}
+  ocrLog = m => { if (me.on && /load/.test(m.status || '') && m.progress != null) scanMsg(`Loading the name reader, first time only… ${Math.round(m.progress * 100)}%`); };
+  scanMsg('Loading the name reader…');
+  try { await loadOCR(); } catch (e) { scanMsg('Could not load the name reader. It needs a connection the first time.'); return; }
+  await ocr.setParameters({tessedit_pageseg_mode: '6', tessedit_char_whitelist: LETTERS});
+  if (!me.on) return;
+  scanMsg('Hold a card so its <b>name</b> sits in the box.');
+  while (me.on) {
+    if (Date.now() < me.pauseUntil || v.readyState < 2 || !v.videoWidth) { await sleep(120); continue; }
+    let text = '';
+    try { text = (await ocr.recognize(cropGuide(v))).data.text; } catch (e) { await sleep(300); continue; }
+    if (!me.on) break;
+    const m = bestInText(text);
+    if (!m || m.sim < 0.5) { me.block = null; me.cand = null; me.hits = 0; continue; }
+    if (m.sim < 0.78 || m.margin < 0.06) { me.cand = null; me.hits = 0; continue; }
+    if (m.c.id === me.block) continue;   // the same card is still in the box
+    if (me.cand === m.c.id) me.hits++; else { me.cand = m.c.id; me.hits = 1; }
+    if (me.hits >= 2 || m.sim >= 0.92) {
+      addCard(m.c.id, 1);
+      me.block = m.c.id; me.last = m.c.id; me.cand = null; me.hits = 0; me.n++;
+      me.pauseUntil = Date.now() + 900;
+      beep();
+      const g = $('#guide'); g.classList.add('hit'); setTimeout(() => g.classList.remove('hit'), 500);
+      scanMsg(`<b>${esc(m.c.n)}</b> added · ${have(m.c.id)} in pool · ${me.n} scanned<br><span class="small">Next card. For a second copy, take this one out of view first.</span>`);
+      $('#scanundo').hidden = false;
+      render();
+    }
+  }
+}
+function cropGuide(v) {
+  const g = $('#guide').getBoundingClientRect(), r = v.getBoundingClientRect();
+  const vw = v.videoWidth, vh = v.videoHeight;
+  const sc = Math.max(r.width / vw, r.height / vh);   // the video is drawn with object-fit: cover
+  const ox = (r.width - vw * sc) / 2, oy = (r.height - vh * sc) / 2;
+  const sx = Math.max(0, (g.left - r.left - ox) / sc), sy = Math.max(0, (g.top - r.top - oy) / sc);
+  const sw = Math.min(vw - sx, g.width / sc), sh = Math.min(vh - sy, g.height / sc);
+  const k = Math.min(1, 1200 / sw);
+  const cv = document.createElement('canvas');
+  cv.width = Math.round(sw * k); cv.height = Math.round(sh * k);
+  cv.getContext('2d', {willReadFrequently: true}).drawImage(v, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+  return prepCanvas(cv);
+}
+function stopScan() {
+  if (scan) { scan.on = false; if (scan.stream) scan.stream.getTracks().forEach(t => t.stop()); }
+  scan = null;
+  $('#cam').srcObject = null;
+  $('#scanner').hidden = true;
+  document.body.style.overflow = '';
+  render();
+}
+
+// A photo of several cards laid upright: read every line, keep the ones that are
+// clearly a card name, and let him tick what goes in.
+let photo = null;
+function openPanel(title, body, foot) {
+  closeCard();
+  const veil = document.createElement('div'); veil.className = 'veil'; veil.dataset.act = 'close';
+  const sh = document.createElement('div'); sh.className = 'sheet'; sh.setAttribute('role', 'dialog'); sh.setAttribute('aria-modal', 'true');
+  sh.innerHTML = `<div class="sheet-head"><h3>${esc(title)}</h3><button class="x" data-act="close" aria-label="Close">✕</button></div>
+    <div class="sheet-body" id="panelbody">${body}</div><div class="sheet-foot" id="panelfoot"${foot ? '' : ' hidden'}>${foot || ''}</div>`;
+  document.body.append(veil, sh);
+  document.body.style.overflow = 'hidden';
+}
+async function readPhoto(file) {
+  photo = {found: [], busy: true};
+  const me = photo;
+  openPanel('Photo of a pack', `<p class="note" id="phmsg">Reading the photo…</p><div class="bar2"><i id="phbar"></i></div>`);
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  try { await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; }); }
+  catch (e) { $('#phmsg').textContent = 'That file is not a picture the phone can read.'; return; }
+  const k = Math.min(1, 2600 / Math.max(img.naturalWidth, img.naturalHeight));
+  const cv = document.createElement('canvas');
+  cv.width = Math.round(img.naturalWidth * k); cv.height = Math.round(img.naturalHeight * k);
+  cv.getContext('2d', {willReadFrequently: true}).drawImage(img, 0, 0, cv.width, cv.height);
+  URL.revokeObjectURL(url);
+  prepCanvas(cv);
+  ocrLog = m => {
+    if (photo !== me || !$('#phbar')) return;
+    const loading = /load/.test(m.status || '');
+    $('#phmsg').textContent = loading ? 'Loading the name reader, first time only…' : 'Reading the card names…';
+    if (m.progress != null) $('#phbar').style.width = Math.round(m.progress * 100) + '%';
+  };
+  try { await loadOCR(); } catch (e) { $('#phmsg').textContent = 'Could not load the name reader. It needs a connection the first time.'; return; }
+  await ocr.setParameters({tessedit_pageseg_mode: '11', tessedit_char_whitelist: LETTERS});
+  // Two reads: as shot, then colour-flipped, because some frames (the legendary
+  // ones in this set) print the name in white on a dark bar. A card found by both
+  // reads in the same spot counts once.
+  const flipped = document.createElement('canvas');
+  flipped.width = cv.width; flipped.height = cv.height;
+  const fx = flipped.getContext('2d', {willReadFrequently: true});
+  fx.filter = 'invert(1)'; fx.drawImage(cv, 0, 0);
+  const passes = [cv, flipped];
+  for (let p = 0; p < passes.length; p++) {
+    let data;
+    try { data = (await ocr.recognize(passes[p])).data; } catch (e) { $('#phmsg') && ($('#phmsg').textContent = 'The reader failed on that photo. Try again with more light.'); return; }
+    if (photo !== me) return;
+    const lines = data.lines && data.lines.length ? data.lines : data.text.split('\n').map(text => ({text}));
+    for (const line of lines) {
+      const m = bestMatch(line.text);
+      if (!m || m.sim < 0.8 || m.margin < 0.06) continue;
+      const b = line.bbox, cx = b ? (b.x0 + b.x1) / 2 : null, cy = b ? (b.y0 + b.y1) / 2 : null;
+      const dup = b && me.found.some(f => f.c.id === m.c.id && f.cx != null && Math.abs(f.cx - cx) < 80 && Math.abs(f.cy - cy) < 60);
+      if (!dup) me.found.push({c: m.c, read: line.text.trim(), on: true, cx, cy});
+    }
+    if (p === 0 && $('#phmsg')) $('#phmsg').textContent = 'Second read for white-on-dark names…';
+  }
+  me.busy = false;
+  showPhoto();
+}
+function showPhoto() {
+  if (!$('#panelbody')) return;   // closed while it was reading
+  const f = photo.found, n = f.filter(x => x.on).length;
+  $('#panelbody').innerHTML = f.length
+    ? `<p class="note">Found ${f.length} card${f.length === 1 ? '' : 's'}. Untick any that are wrong; type in any it missed.</p>` +
+      f.map((x, i) => `<button class="found${x.on ? ' on' : ''}" data-act="phtoggle" data-i="${i}"><span class="box"></span>
+        <span><span class="nm">${esc(x.c.n)}</span> ${costHTML(x.c.m)}<br><span class="read">read as “${esc(x.read.slice(0, 40))}”</span></span>${scHTML(x.c)}</button>`).join('')
+    : `<p class="note">No card names found. Lay the cards upright in rows with their names showing, fill the frame, and use good light.</p>`;
+  const foot = $('#panelfoot');
+  foot.hidden = !f.length;
+  foot.innerHTML = `<button class="btn fill" data-act="phadd"${n ? '' : ' disabled'}>Add ${n} to pool</button>`;
+}
+
 function closeCard() {
   sheetId = null;
   $('.veil')?.remove(); $('.sheet')?.remove();
@@ -822,10 +1139,30 @@ document.addEventListener('click', e => {
     delete S.decks[S.pair]; delete S.lands[S.pair]; save(); render();
     return toast('Deck rebuilt from the scores', () => { S.decks[S.pair] = old; save(); render(); });
   }
-  if (act === 'lands') { S.lands[S.pair] = Math.min(19, Math.max(14, (S.lands[S.pair] || 17) + +v)); save(); return render(); }
+  if (act === 'lands') { S.lands[S.pair] = Math.min(19, Math.max(14, (S.lands[S.pair] || defaultLands(deckFor(S.pair))) + +v)); save(); return render(); }
   if (act === 'oppcol') { S.opp.cols = S.opp.cols.includes(v) ? S.opp.cols.replace(v, '') : S.opp.cols + v; save(); return render(); }
   if (act === 'oppmana') { S.opp.mana = +v; save(); return render(); }
   if (act === 'undo') { const f = undoFn; $('#toast').hidden = true; undoFn = null; if (f) f(); return; }
+  if (act === 'scan') { startScan(); return; }
+  if (act === 'scanstop') return stopScan();
+  if (act === 'scanundo') {
+    if (scan && scan.last) {
+      addCard(scan.last, -1);
+      scanMsg(`Took out <b>${esc(BY[scan.last].n)}</b>. ${have(scan.last)} left in pool.`);
+      scan.last = null; scan.block = null; scan.n = Math.max(0, scan.n - 1);
+      $('#scanundo').hidden = true;
+      render();
+    }
+    return;
+  }
+  if (act === 'photo') { $('#photoin').click(); return; }
+  if (act === 'phtoggle') { const x = photo && photo.found[+b.dataset.i]; if (x) { x.on = !x.on; showPhoto(); } return; }
+  if (act === 'phadd') {
+    const list = photo ? photo.found.filter(x => x.on) : [];
+    for (const x of list) addCard(x.c.id, 1);
+    closeCard(); render();
+    return toast(`Added ${list.length} card${list.length === 1 ? '' : 's'} from the photo`, () => { for (const x of list) addCard(x.c.id, -1); render(); });
+  }
   if (act === 'clear') {
     const old = S.pool;
     S.pool = {}; S.decks = {}; S.pair = null; save(); render();
@@ -834,13 +1171,14 @@ document.addEventListener('click', e => {
 });
 
 $('#q').addEventListener('input', renderResults);
+$('#photoin').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) readPhoto(f); });
 $('#q').addEventListener('keydown', e => {
   if (e.key === 'Enter') { e.preventDefault(); const top = search($('#q').value)[0]; if (top) doAdd(top.id); }
   if (e.key === 'Escape') { $('#q').value = ''; renderResults(); }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && sheetId) closeCard(); });
 
-fetch('fra.json').then(r => r.json()).then(list => {
+fetch('fra.json?v=' + DATA_V).then(r => r.json()).then(list => {
   CARDS = list;
   for (const c of CARDS) {
     c.v = mvOf(c.m);

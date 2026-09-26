@@ -1,0 +1,1419 @@
+{
+ "sources": {
+  "draftsim": {
+   "url": "https://draftsim.com/mtg-fra-limited-set-review/",
+   "scale": "numeric 0-10 (whole numbers; written as \"Rating: N/10\"; 10 = best of the best, 2-4 = average Limited card, 0 = unplayable)"
+  },
+  "zone": {
+   "url": "https://mtgazone.com/reality-fracture-fra-limited-set-review-{white,blue,black,red,green,multicolor,artifacts-and-lands}/",
+   "scale": "numeric 0.0-5.0 in 0.5 steps (written as \"Rating: N/5\"; 0.0 = unplayable)"
+  },
+  "picker": {
+   "url": "https://mtgpicker.com/tier-list/fra-draft-tier-list/",
+   "scale": "tiers S (Bomb / First Pick), A (Premium / High Pick), B (Solid Playable), C (Filler / Average), D (Below Average), F (Unplayable in Limited)",
+   "data_endpoint": "https://api.mtgpicker.com/tier-overrides/fra"
+  }
+ },
+ "cards": {
+  "1": {
+   "draftsim": "0/10",
+   "zone": "1.5/5",
+   "picker": "A"
+  },
+  "2": {
+   "draftsim": "2/10",
+   "zone": "1.5/5",
+   "picker": "D"
+  },
+  "3": {
+   "draftsim": "3/10",
+   "zone": "2.0/5",
+   "picker": "C"
+  },
+  "4": {
+   "draftsim": "3/10",
+   "zone": "2.0/5",
+   "picker": "C"
+  },
+  "5": {
+   "draftsim": "6/10",
+   "zone": "3.5/5",
+   "picker": "B"
+  },
+  "6": {
+   "draftsim": "3/10",
+   "zone": "1.5/5",
+   "picker": "C"
+  },
+  "7": {
+   "draftsim": "5/10",
+   "zone": "3.5/5",
+   "picker": "A"
+  },
+  "8": {
+   "draftsim": "2/10",
+   "zone": "2.5/5",
+   "picker": "C"
+  },
+  "9": {
+   "draftsim": "1/10",
+   "zone": "1.0/5",
+   "picker": "B"
+  },
+  "10": {
+   "draftsim": "3/10",
+   "zone": "1.5/5",
+   "picker": "C"
+  },
+  "11": {
+   "draftsim": "9/10",
+   "zone": "4.0/5",
+   "picker": "A"
+  },
+  "12": {
+   "draftsim": "6/10",
+   "zone": "3.5/5",
+   "picker": "B"
+  },
+  "13": {
+   "draftsim": "7/10",
+   "zone": "3.5/5",
+   "picker": "C"
+  },
+  "14": {
+   "draftsim": "0/10",
+   "zone": "1.0/5",
+   "picker": "F"
+  },
+  "15": {
+   "draftsim": "6/10",
+   "zone": "3.0/5",
+   "picker": "B"
+  },
+  "16": {
+   "draftsim": "3/10",
+   "zone": "1.5/5",
+   "picker": "D"
+  },
+  "17": {
+   "draftsim": "5/10",
+   "zone": "2.0/5",
+   "picker": "A"
+  },
+  "18": {
+   "draftsim": "5/10",
+   "zone": "0.5/5",
+   "picker": "C"
+  },
+  "19": {
+   "draftsim": "5/10",
+   "zone": "3.5/5",
+   "picker": "S"
+  },
+  "20": {
+   "draftsim": "0/10",
+   "zone": "1.0/5",
+   "picker": "F"
+  },
+  "21": {
+   "draftsim": "3/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "22": {
+   "draftsim": "4/10",
+   "zone": "2.5/5",
+   "picker": "A"
+  },
+  "23": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "24": {
+   "draftsim": "6/10",
+   "zone": "3.5/5",
+   "picker": "A"
+  },
+  "25": {
+   "draftsim": "4/10",
+   "zone": "3.0/5",
+   "picker": "C"
+  },
+  "26": {
+   "draftsim": "6/10",
+   "zone": "0.5/5",
+   "picker": "F"
+  },
+  "27": {
+   "draftsim": "3/10",
+   "zone": "1.5/5",
+   "picker": "B"
+  },
+  "28": {
+   "draftsim": "6/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "29": {
+   "draftsim": "3/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "30": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "31": {
+   "draftsim": "5/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "32": {
+   "draftsim": "5/10",
+   "zone": "2.5/5",
+   "picker": "A"
+  },
+  "33": {
+   "draftsim": "6/10",
+   "zone": "3.0/5",
+   "picker": "B"
+  },
+  "34": {
+   "draftsim": "1/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "35": {
+   "draftsim": "6/10",
+   "zone": "3.0/5",
+   "picker": "C"
+  },
+  "36": {
+   "draftsim": "3/10",
+   "zone": "0.5/5",
+   "picker": "D"
+  },
+  "37": {
+   "draftsim": "3/10",
+   "zone": "2.0/5",
+   "picker": "C"
+  },
+  "38": {
+   "draftsim": "8/10",
+   "zone": "4.0/5",
+   "picker": "B"
+  },
+  "39": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "40": {
+   "draftsim": "8/10",
+   "zone": "4.0/5",
+   "picker": "S"
+  },
+  "41": {
+   "draftsim": "2/10",
+   "zone": "1.5/5",
+   "picker": "D"
+  },
+  "42": {
+   "draftsim": "2/10",
+   "zone": "2.0/5",
+   "picker": "C"
+  },
+  "43": {
+   "draftsim": "10/10",
+   "zone": "5.0/5",
+   "picker": "S"
+  },
+  "44": {
+   "draftsim": "4/10",
+   "zone": "2.5/5",
+   "picker": "D"
+  },
+  "45": {
+   "draftsim": "3/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "46": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "47": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "48": {
+   "draftsim": "3/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "49": {
+   "draftsim": "2/10",
+   "zone": "3.5/5",
+   "picker": "A"
+  },
+  "50": {
+   "draftsim": "5/10",
+   "zone": "3.0/5",
+   "picker": "A"
+  },
+  "51": {
+   "draftsim": "2/10",
+   "zone": "1.5/5",
+   "picker": "C"
+  },
+  "52": {
+   "draftsim": "6/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "53": {
+   "draftsim": "6/10",
+   "zone": "2.5/5",
+   "picker": "A"
+  },
+  "54": {
+   "draftsim": "4/10",
+   "zone": "3.5/5",
+   "picker": "A"
+  },
+  "55": {
+   "draftsim": "0/10",
+   "zone": "0.5/5",
+   "picker": "D"
+  },
+  "56": {
+   "draftsim": "6/10",
+   "zone": "3.0/5",
+   "picker": "A"
+  },
+  "57": {
+   "draftsim": "7/10",
+   "zone": "4.0/5",
+   "picker": "A"
+  },
+  "58": {
+   "draftsim": "6/10",
+   "zone": "3.5/5",
+   "picker": "A"
+  },
+  "59": {
+   "draftsim": "9/10",
+   "zone": "4.0/5",
+   "picker": "S"
+  },
+  "60": {
+   "draftsim": "2/10",
+   "zone": "1.5/5",
+   "picker": "C"
+  },
+  "61": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "C"
+  },
+  "62": {
+   "draftsim": "3/10",
+   "zone": "2.5/5",
+   "picker": "C"
+  },
+  "63": {
+   "draftsim": "7/10",
+   "zone": "4.0/5",
+   "picker": "B"
+  },
+  "64": {
+   "draftsim": "5/10",
+   "zone": "4.0/5",
+   "picker": "A"
+  },
+  "65": {
+   "draftsim": "3/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "66": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "67": {
+   "draftsim": "3/10",
+   "zone": "1.5/5",
+   "picker": "D"
+  },
+  "68": {
+   "draftsim": "5/10",
+   "zone": "0.5/5",
+   "picker": "C"
+  },
+  "69": {
+   "draftsim": "4/10",
+   "zone": "1.5/5",
+   "picker": "D"
+  },
+  "70": {
+   "draftsim": "4/10",
+   "zone": "1.5/5",
+   "picker": "C"
+  },
+  "71": {
+   "draftsim": "6/10",
+   "zone": "3.0/5",
+   "picker": "B"
+  },
+  "72": {
+   "draftsim": "4/10",
+   "zone": "4.0/5",
+   "picker": "S"
+  },
+  "73": {
+   "draftsim": "3/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "74": {
+   "draftsim": "4/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "75": {
+   "draftsim": "3/10",
+   "zone": "1.5/5",
+   "picker": "B"
+  },
+  "76": {
+   "draftsim": "2/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "77": {
+   "draftsim": "6/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "78": {
+   "draftsim": "10/10",
+   "zone": "3.5/5",
+   "picker": "B"
+  },
+  "79": {
+   "draftsim": "8/10",
+   "zone": "4.0/5",
+   "picker": "S"
+  },
+  "80": {
+   "draftsim": "9/10",
+   "zone": "4.0/5",
+   "picker": "A"
+  },
+  "81": {
+   "draftsim": "3/10",
+   "zone": "1.5/5",
+   "picker": "C"
+  },
+  "82": {
+   "draftsim": "2/10",
+   "zone": "0.5/5",
+   "picker": "D"
+  },
+  "83": {
+   "draftsim": "0/10",
+   "zone": "3.0/5",
+   "picker": "D"
+  },
+  "84": {
+   "draftsim": "7/10",
+   "zone": "3.5/5",
+   "picker": "B"
+  },
+  "85": {
+   "draftsim": "2/10",
+   "zone": "1.5/5",
+   "picker": "C"
+  },
+  "86": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "87": {
+   "draftsim": "0/10",
+   "zone": "0.5/5",
+   "picker": "D"
+  },
+  "88": {
+   "draftsim": "7/10",
+   "zone": "2.5/5",
+   "picker": "A"
+  },
+  "89": {
+   "draftsim": "5/10",
+   "zone": "3.5/5",
+   "picker": "B"
+  },
+  "90": {
+   "draftsim": "3/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "91": {
+   "draftsim": "4/10",
+   "zone": "2.5/5",
+   "picker": "A"
+  },
+  "92": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "93": {
+   "draftsim": "8/10",
+   "zone": "4.0/5",
+   "picker": "A"
+  },
+  "94": {
+   "draftsim": "3/10",
+   "zone": "1.5/5",
+   "picker": "B"
+  },
+  "95": {
+   "draftsim": "6/10",
+   "zone": "3.5/5",
+   "picker": "B"
+  },
+  "96": {
+   "draftsim": "5/10",
+   "zone": "3.0/5",
+   "picker": "B"
+  },
+  "97": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "C"
+  },
+  "98": {
+   "draftsim": "4/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "99": {
+   "draftsim": "2/10",
+   "zone": "2.0/5",
+   "picker": "D"
+  },
+  "100": {
+   "draftsim": "5/10",
+   "zone": "3.0/5",
+   "picker": "A"
+  },
+  "101": {
+   "draftsim": "5/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "102": {
+   "draftsim": "2/10",
+   "zone": "0.5/5",
+   "picker": "D"
+  },
+  "103": {
+   "draftsim": "0/10",
+   "zone": "0.0/5",
+   "picker": "D"
+  },
+  "104": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "105": {
+   "draftsim": "6/10",
+   "zone": "2.0/5",
+   "picker": "A"
+  },
+  "106": {
+   "draftsim": "1/10",
+   "zone": "3.5/5",
+   "picker": "A"
+  },
+  "107": {
+   "draftsim": "9/10",
+   "zone": "4.0/5",
+   "picker": "A"
+  },
+  "108": {
+   "draftsim": "4/10",
+   "zone": "2.5/5",
+   "picker": "C"
+  },
+  "109": {
+   "draftsim": "2/10",
+   "zone": "1.5/5",
+   "picker": "C"
+  },
+  "110": {
+   "draftsim": "0/10",
+   "zone": "0.0/5",
+   "picker": "F"
+  },
+  "111": {
+   "draftsim": "6/10",
+   "zone": "3.5/5",
+   "picker": "A"
+  },
+  "112": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "C"
+  },
+  "113": {
+   "draftsim": "7/10",
+   "zone": "4.0/5",
+   "picker": "A"
+  },
+  "114": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "C"
+  },
+  "115": {
+   "draftsim": "3/10",
+   "zone": "2.0/5",
+   "picker": "C"
+  },
+  "116": {
+   "draftsim": "5/10",
+   "zone": "3.5/5",
+   "picker": "B"
+  },
+  "117": {
+   "draftsim": "1/10",
+   "zone": "1.5/5",
+   "picker": "C"
+  },
+  "118": {
+   "draftsim": "10/10",
+   "zone": "4.5/5",
+   "picker": "S"
+  },
+  "119": {
+   "draftsim": "3/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "120": {
+   "draftsim": "1/10",
+   "zone": "1.5/5",
+   "picker": "C"
+  },
+  "121": {
+   "draftsim": "9/10",
+   "zone": "4.5/5",
+   "picker": "S"
+  },
+  "122": {
+   "draftsim": "8/10",
+   "zone": "4.0/5",
+   "picker": "S"
+  },
+  "123": {
+   "draftsim": "3/10",
+   "zone": "1.5/5",
+   "picker": "B"
+  },
+  "124": {
+   "draftsim": "7/10",
+   "zone": "3.5/5",
+   "picker": "A"
+  },
+  "125": {
+   "draftsim": "1/10",
+   "zone": "1.5/5",
+   "picker": "B"
+  },
+  "126": {
+   "draftsim": "6/10",
+   "zone": "3.5/5",
+   "picker": "B"
+  },
+  "127": {
+   "draftsim": "8/10",
+   "zone": "3.5/5",
+   "picker": "A"
+  },
+  "128": {
+   "draftsim": "10/10",
+   "zone": "4.5/5",
+   "picker": "S"
+  },
+  "129": {
+   "draftsim": "7/10",
+   "zone": "3.5/5",
+   "picker": "B"
+  },
+  "130": {
+   "draftsim": "3/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "131": {
+   "draftsim": "0/10",
+   "zone": "1.0/5",
+   "picker": "F"
+  },
+  "132": {
+   "draftsim": "5/10",
+   "zone": "3.5/5",
+   "picker": "A"
+  },
+  "133": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "134": {
+   "draftsim": "1/10",
+   "zone": "1.5/5",
+   "picker": "A"
+  },
+  "135": {
+   "draftsim": "1/10",
+   "zone": "1.5/5",
+   "picker": "B"
+  },
+  "136": {
+   "draftsim": "5/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "137": {
+   "draftsim": "9/10",
+   "zone": "4.5/5",
+   "picker": "S"
+  },
+  "138": {
+   "draftsim": "2/10",
+   "zone": "2.0/5",
+   "picker": "A"
+  },
+  "139": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "140": {
+   "draftsim": "10/10",
+   "zone": "4.5/5",
+   "picker": "S"
+  },
+  "141": {
+   "draftsim": "7/10",
+   "zone": "3.0/5",
+   "picker": "B"
+  },
+  "142": {
+   "draftsim": "7/10",
+   "zone": "4.0/5",
+   "picker": "A"
+  },
+  "143": {
+   "draftsim": "6/10",
+   "zone": "2.5/5",
+   "picker": "C"
+  },
+  "144": {
+   "draftsim": "6/10",
+   "zone": "3.0/5",
+   "picker": "B"
+  },
+  "145": {
+   "draftsim": "7/10",
+   "zone": "4.0/5",
+   "picker": "A"
+  },
+  "146": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "147": {
+   "draftsim": "6/10",
+   "zone": "3.5/5",
+   "picker": "A"
+  },
+  "148": {
+   "draftsim": "4/10",
+   "zone": "3.0/5",
+   "picker": "A"
+  },
+  "149": {
+   "draftsim": "6/10",
+   "zone": "3.0/5",
+   "picker": "B"
+  },
+  "150": {
+   "draftsim": "7/10",
+   "zone": "3.5/5",
+   "picker": "A"
+  },
+  "151": {
+   "draftsim": "6/10",
+   "zone": "2.5/5",
+   "picker": "A"
+  },
+  "152": {
+   "draftsim": "5/10",
+   "zone": "3.0/5",
+   "picker": "C"
+  },
+  "153": {
+   "draftsim": "2/10",
+   "zone": "1.5/5",
+   "picker": "D"
+  },
+  "154": {
+   "draftsim": "8/10",
+   "zone": "3.5/5",
+   "picker": "B"
+  },
+  "155": {
+   "draftsim": "4/10",
+   "zone": "2.5/5",
+   "picker": "A"
+  },
+  "156": {
+   "draftsim": "3/10",
+   "zone": "2.0/5",
+   "picker": "C"
+  },
+  "157": {
+   "draftsim": "3/10",
+   "zone": "2.0/5",
+   "picker": "C"
+  },
+  "158": {
+   "draftsim": "6/10",
+   "zone": "3.5/5",
+   "picker": "A"
+  },
+  "159": {
+   "draftsim": "9/10",
+   "zone": "4.5/5",
+   "picker": "A"
+  },
+  "160": {
+   "draftsim": "6/10",
+   "zone": "3.5/5",
+   "picker": "A"
+  },
+  "161": {
+   "draftsim": "3/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "162": {
+   "draftsim": "7/10",
+   "zone": "2.5/5",
+   "picker": "A"
+  },
+  "163": {
+   "draftsim": "6/10",
+   "zone": "2.0/5",
+   "picker": "A"
+  },
+  "164": {
+   "draftsim": "2/10",
+   "zone": "1.5/5",
+   "picker": "C"
+  },
+  "165": {
+   "draftsim": "6/10",
+   "zone": "2.5/5",
+   "picker": "A"
+  },
+  "166": {
+   "draftsim": "2/10",
+   "zone": "2.5/5",
+   "picker": "D"
+  },
+  "167": {
+   "draftsim": "3/10",
+   "zone": "2.0/5",
+   "picker": "D"
+  },
+  "168": {
+   "draftsim": "4/10",
+   "zone": "1.5/5",
+   "picker": "D"
+  },
+  "169": {
+   "draftsim": "6/10",
+   "zone": "4.0/5",
+   "picker": "A"
+  },
+  "170": {
+   "draftsim": "1/10",
+   "zone": "1.0/5",
+   "picker": "D"
+  },
+  "171": {
+   "draftsim": "1/10",
+   "zone": "1.5/5",
+   "picker": "D"
+  },
+  "172": {
+   "draftsim": "2/10",
+   "zone": "1.5/5",
+   "picker": "D"
+  },
+  "173": {
+   "draftsim": "2/10",
+   "zone": "1.5/5",
+   "picker": "A"
+  },
+  "174": {
+   "draftsim": "3/10",
+   "zone": "1.5/5",
+   "picker": "C"
+  },
+  "175": {
+   "draftsim": "4/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "176": {
+   "draftsim": "4/10",
+   "zone": "3.0/5",
+   "picker": "B"
+  },
+  "177": {
+   "draftsim": "4/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "178": {
+   "draftsim": "4/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "179": {
+   "draftsim": "2/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "180": {
+   "draftsim": "4/10",
+   "zone": "3.0/5",
+   "picker": "B"
+  },
+  "181": {
+   "draftsim": "1/10",
+   "zone": "1.5/5",
+   "picker": "B"
+  },
+  "182": {
+   "draftsim": "4/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "183": {
+   "draftsim": "4/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "184": {
+   "draftsim": "4/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "185": {
+   "draftsim": "4/10",
+   "zone": "3.0/5",
+   "picker": "B"
+  },
+  "186": {
+   "draftsim": "4/10",
+   "zone": "3.0/5",
+   "picker": "B"
+  },
+  "187": {
+   "draftsim": "0/10",
+   "zone": "0.5/5",
+   "picker": "D"
+  },
+  "188": {
+   "draftsim": "3/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "189": {
+   "draftsim": "4/10",
+   "zone": "3.0/5",
+   "picker": "B"
+  },
+  "190": {
+   "draftsim": "4/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "191": {
+   "draftsim": "7/10",
+   "zone": "3.5/5",
+   "picker": "A"
+  },
+  "192": {
+   "draftsim": "4/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "193": {
+   "draftsim": "4/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "194": {
+   "draftsim": "4/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "195": {
+   "draftsim": "2/10",
+   "zone": "3.5/5",
+   "picker": "S"
+  },
+  "196": {
+   "draftsim": "4/10",
+   "zone": "2.5/5",
+   "picker": "A"
+  },
+  "197": {
+   "draftsim": "2/10",
+   "zone": "1.5/5",
+   "picker": "B"
+  },
+  "198": {
+   "draftsim": "6/10",
+   "zone": "1.5/5",
+   "picker": "A"
+  },
+  "199": {
+   "draftsim": "4/10",
+   "zone": "3.5/5",
+   "picker": "C"
+  },
+  "200": {
+   "draftsim": "7/10",
+   "zone": "4.0/5",
+   "picker": "C"
+  },
+  "201": {
+   "draftsim": "8/10",
+   "zone": "3.5/5",
+   "picker": "S"
+  },
+  "202": {
+   "draftsim": "2/10",
+   "zone": "2.5/5",
+   "picker": "C"
+  },
+  "203": {
+   "draftsim": "7/10",
+   "zone": "3.0/5",
+   "picker": "B"
+  },
+  "204": {
+   "draftsim": "6/10",
+   "zone": "3.0/5",
+   "picker": "C"
+  },
+  "205": {
+   "draftsim": "3/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "206": {
+   "draftsim": "5/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "207": {
+   "draftsim": "6/10",
+   "zone": "2.5/5",
+   "picker": "A"
+  },
+  "208": {
+   "draftsim": "1/10",
+   "zone": "1.5/5",
+   "picker": "B"
+  },
+  "209": {
+   "draftsim": "4/10",
+   "zone": "1.5/5",
+   "picker": "B"
+  },
+  "210": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "211": {
+   "draftsim": "5/10",
+   "zone": "3.0/5",
+   "picker": "B"
+  },
+  "212": {
+   "draftsim": "8/10",
+   "zone": "3.5/5",
+   "picker": "A"
+  },
+  "213": {
+   "draftsim": "4/10",
+   "zone": "1.5/5",
+   "picker": "B"
+  },
+  "214": {
+   "draftsim": "5/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "215": {
+   "draftsim": "5/10",
+   "zone": "3.0/5",
+   "picker": "B"
+  },
+  "216": {
+   "draftsim": "6/10",
+   "zone": "2.5/5",
+   "picker": "C"
+  },
+  "217": {
+   "draftsim": "10/10",
+   "zone": "3.5/5",
+   "picker": "A"
+  },
+  "218": {
+   "draftsim": "6/10",
+   "zone": "3.5/5",
+   "picker": "A"
+  },
+  "219": {
+   "draftsim": "4/10",
+   "zone": "3.0/5",
+   "picker": "B"
+  },
+  "220": {
+   "draftsim": "1/10",
+   "zone": "2.0/5",
+   "picker": "C"
+  },
+  "221": {
+   "draftsim": "5/10",
+   "zone": "1.5/5",
+   "picker": "B"
+  },
+  "222": {
+   "draftsim": "5/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "223": {
+   "draftsim": "4/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "224": {
+   "draftsim": "1/10",
+   "zone": "1.5/5",
+   "picker": "B"
+  },
+  "225": {
+   "draftsim": "1/10",
+   "zone": "1.5/5",
+   "picker": "D"
+  },
+  "226": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "D"
+  },
+  "227": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "A"
+  },
+  "228": {
+   "draftsim": "6/10",
+   "zone": "3.0/5",
+   "picker": "B"
+  },
+  "229": {
+   "draftsim": "9/10",
+   "zone": "4.5/5",
+   "picker": "A"
+  },
+  "230": {
+   "draftsim": "6/10",
+   "zone": "2.5/5",
+   "picker": "A"
+  },
+  "231": {
+   "draftsim": "6/10",
+   "zone": "3.0/5",
+   "picker": "A"
+  },
+  "232": {
+   "draftsim": "5/10",
+   "zone": "1.5/5",
+   "picker": "B"
+  },
+  "233": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "234": {
+   "draftsim": "6/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "235": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "C"
+  },
+  "236": {
+   "draftsim": "3/10",
+   "zone": "2.5/5",
+   "picker": "C"
+  },
+  "237": {
+   "draftsim": "5/10",
+   "zone": "2.0/5",
+   "picker": "C"
+  },
+  "238": {
+   "draftsim": "3/10",
+   "zone": "1.5/5",
+   "picker": "C"
+  },
+  "239": {
+   "draftsim": "1/10",
+   "zone": "1.0/5",
+   "picker": "C"
+  },
+  "240": {
+   "draftsim": "5/10",
+   "zone": "1.5/5",
+   "picker": "B"
+  },
+  "241": {
+   "draftsim": "1/10",
+   "zone": "1.5/5",
+   "picker": "C"
+  },
+  "242": {
+   "draftsim": "10/10",
+   "zone": "5.0/5",
+   "picker": "A"
+  },
+  "243": {
+   "draftsim": "3/10",
+   "zone": "2.0/5",
+   "picker": "C"
+  },
+  "244": {
+   "draftsim": "10/10",
+   "zone": "4.5/5",
+   "picker": "S"
+  },
+  "245": {
+   "draftsim": "4/10",
+   "zone": "2.5/5",
+   "picker": "A"
+  },
+  "246": {
+   "draftsim": "3/10",
+   "zone": "1.5/5",
+   "picker": "B"
+  },
+  "247": {
+   "draftsim": "6/10",
+   "zone": "4.0/5",
+   "picker": "A"
+  },
+  "248": {
+   "draftsim": "4/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "249": {
+   "draftsim": "4/10",
+   "zone": "3.0/5",
+   "picker": "B"
+  },
+  "250": {
+   "draftsim": "6/10",
+   "zone": "2.5/5",
+   "picker": "A"
+  },
+  "251": {
+   "draftsim": "5/10",
+   "zone": "3.0/5",
+   "picker": "A"
+  },
+  "252": {
+   "draftsim": "6/10",
+   "zone": "2.5/5",
+   "picker": "C"
+  },
+  "253": {
+   "draftsim": "5/10",
+   "zone": "1.5/5",
+   "picker": "C"
+  },
+  "254": {
+   "draftsim": "5/10",
+   "zone": "1.0/5",
+   "picker": "A"
+  },
+  "255": {
+   "draftsim": "6/10",
+   "zone": "2.5/5",
+   "picker": "B"
+  },
+  "256": {
+   "draftsim": "4/10",
+   "zone": "1.5/5",
+   "picker": "C"
+  },
+  "257": {
+   "draftsim": "6/10",
+   "zone": "3.0/5",
+   "picker": "B"
+  },
+  "258": {
+   "draftsim": "6/10",
+   "zone": "2.5/5",
+   "picker": "C"
+  },
+  "259": {
+   "draftsim": "10/10",
+   "zone": "5.0/5",
+   "picker": "A"
+  },
+  "260": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "261": {
+   "draftsim": "5/10",
+   "zone": "3.5/5",
+   "picker": "B"
+  },
+  "262": {
+   "draftsim": "6/10",
+   "zone": "2.5/5",
+   "picker": "A"
+  },
+  "263": {
+   "draftsim": "5/10",
+   "zone": "2.0/5",
+   "picker": "B"
+  },
+  "264": {
+   "draftsim": "4/10",
+   "zone": "1.5/5",
+   "picker": "D"
+  },
+  "265": {
+   "draftsim": "7/10",
+   "zone": "2.5/5",
+   "picker": "D"
+  },
+  "266": {
+   "draftsim": "6/10",
+   "zone": "2.0/5",
+   "picker": "C"
+  },
+  "267": {
+   "draftsim": "4/10",
+   "zone": "1.5/5",
+   "picker": "B"
+  },
+  "268": {
+   "draftsim": "6/10",
+   "zone": "3.5/5",
+   "picker": "A"
+  },
+  "269": {
+   "draftsim": "7/10",
+   "zone": "2.5/5",
+   "picker": "C"
+  },
+  "270": {
+   "draftsim": "5/10",
+   "zone": "3.0/5",
+   "picker": "C"
+  },
+  "271": {
+   "draftsim": "7/10",
+   "zone": "3.5/5",
+   "picker": "A"
+  },
+  "272": {
+   "draftsim": "3/10",
+   "zone": "1.5/5",
+   "picker": "F"
+  },
+  "273": {
+   "draftsim": "6/10",
+   "zone": "2.0/5",
+   "picker": "A"
+  },
+  "274": {
+   "draftsim": "4/10",
+   "zone": "3.0/5",
+   "picker": "B"
+  },
+  "275": {
+   "draftsim": "7/10",
+   "zone": "4.0/5",
+   "picker": "A"
+  },
+  "276": {
+   "draftsim": "1/10",
+   "zone": "1.0/5",
+   "picker": "D"
+  },
+  "277": {
+   "draftsim": "6/10",
+   "zone": "3.0/5",
+   "picker": "B"
+  },
+  "278": {
+   "draftsim": "8/10",
+   "zone": "4.0/5",
+   "picker": "A"
+  },
+  "279": {
+   "draftsim": "1/10",
+   "zone": "1.0/5",
+   "picker": "D"
+  },
+  "280": {
+   "draftsim": "4/10",
+   "zone": "2.0/5",
+   "picker": "D"
+  }
+ }
+}
