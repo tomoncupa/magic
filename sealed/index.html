@@ -96,6 +96,10 @@ p{margin:0 0 var(--s3)}
 .rar.U{color:#c6d3de;border-color:#5d7285}.rar.R{color:var(--brass);border-color:rgba(240,179,35,.5)}.rar.M{color:#ff8a5c;border-color:rgba(255,138,92,.5)}
 .tag{font-family:var(--disp);font-size:10px;font-weight:600;letter-spacing:var(--cap);text-transform:uppercase;padding:0 5px;border-radius:3px;border:1px solid rgba(126,232,250,.4);color:var(--info)}
 .tag.rm{border-color:rgba(255,107,129,.45);color:var(--danger)}
+.syn{font-family:var(--disp);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums}
+.syn.up{color:var(--good)}.syn.down{color:var(--warn)}
+.themes{display:flex;flex-direction:column;gap:2px;margin-top:var(--s3);font-size:var(--t2);color:var(--ink2)}
+.themes b{font-family:var(--disp);font-weight:600;color:var(--good)}
 
 .cost{display:inline-flex;gap:2px;vertical-align:middle}
 .pip{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;font-family:var(--disp);font-weight:700;font-size:10px;color:#10160f;line-height:1}
@@ -230,11 +234,12 @@ let undoFn = null, toastT = null, showAllPairs = false, sheetId = null;
 function load() {
   try {
     const v = JSON.parse(localStorage.getItem(KEY));
-    if (v && v.pool) return Object.assign(fresh(), v);
+    // Decks saved before synergy counted (version 1) are rebuilt with it.
+    if (v && v.pool) { if (v.ver !== 2) { v.decks = {}; v.ver = 2; } return Object.assign(fresh(), v); }
   } catch (e) {}
   return fresh();
 }
-function fresh() { return {pool:{}, tab:'pool', pair:null, decks:{}, lands:{}, opp:{cols:'', mana:3}}; }
+function fresh() { return {ver:2, pool:{}, tab:'pool', pair:null, decks:{}, lands:{}, opp:{cols:'', mana:3}}; }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 
 /* ---------- mana ---------- */
@@ -324,12 +329,12 @@ function groupOf(c) {
   return CNAME[c.col];
 }
 const GROUPS = ['White','Blue','Black','Red','Green','Multicolour','Colourless','Lands'];
-function crowHTML(c, n, extra) {
+function crowHTML(c, n, extra, bonus) {
   const tags = (c.rm ? '<span class="tag rm">Removal</span>' : '') + (extra || '');
   return `<button class="crow" data-act="card" data-id="${c.id}">
     <span class="mv">${c.land ? '–' : c.v}</span>
     <span><span class="nm">${esc(c.n)} ${costHTML(c.m)} ${tags}</span><span class="sub">${esc(c.note)}</span></span>
-    <span class="right">${scHTML(c)}${n != null ? `<span class="n">×${n}</span>` : ''}</span>
+    <span class="right">${bonus != null ? bonusHTML(bonus) : ''}${scHTML(c)}${n != null ? `<span class="n">×${n}</span>` : ''}</span>
   </button>`;
 }
 function renderPool() {
@@ -355,6 +360,97 @@ function renderPool() {
   el.innerHTML = h;
 }
 
+/* ---------- synergy ----------
+   Read off each card's rules text, not a list of names, so any card worded the
+   set's usual way is caught. A payoff rewards a theme; an enabler feeds one. A
+   payoff gains up to +0.45 when the deck has a full load of enablers and loses
+   up to 0.45 when it has almost none; a card that fully feeds itself (its own
+   lifelink, Jace or Heartwood) is never marked down. Enablers gain 0.06 for each payoff beside them, up to 0.2.
+   Rows only show synergy of 0.15 or more; smaller is noise. */
+const SYN = [
+  {k:'surveil', full:6, what:'cards that surveil or scry', short:'Surveil',
+   en:/\b(surveil|scry) (\d|x)\b|empower jace/i, pay:/whenever you scry or surveil|scried or surveilled/i},
+  {k:'jace', full:5, what:'cards that make or grow a Jace', short:'Jace',
+   en:/empower jace/i, pay:/jace planeswalker|behold a jace|you control a jace|whenever you (put one or more loyalty counters|activate a loyalty ability)|loyalty counter on each planeswalker|planeswalkers you control (have|aren't)|planeswalker spells you cast/i},
+  {k:'life', full:6, what:'life-gain cards', short:'Life gain',
+   en:/gain \d+ life|lifelink|you gain life/i, pay:/whenever you gain life|gained life this turn|life you gained this turn|amount of life you gained/i},
+  {k:'grave', full:6, what:'cards that fill your graveyard', short:'Graveyard',
+   en:/\bmill (\w+)|surveil \d|discard a card|omit variables/i, pay:/threshold|seven or more cards in your graveyard|for every (seven|three) cards in your graveyard|graveyard from their library/i},
+  {k:'burn', full:5, what:'cards that burn your opponent', short:'Burn',
+   en:/damage to (target|each) opponent|damage to any target|damage to target player|damage to them/i, pay:/noncombat damage/i},
+  {k:'spells', full:8, what:'noncreature spells', short:'Spells',
+   en:null, pay:/prowess|whenever you cast a noncreature spell|if you've cast a noncreature spell/i},
+  {k:'art', full:5, what:'artifacts and artifact tokens', short:'Artifacts',
+   en:/heartwood token|thopter|artifact token|treasure|named lotus/i, pay:/artifacts you control|sacrifice another artifact|untapped artifacts|artifact tokens would be created|number of artifacts|enchant artifact/i},
+  {k:'counters', full:6, what:'cards that give +1/+1 counters', short:'Counters',
+   en:/\+1\/\+1 counters? on (target|each|up to|it|this|that)|enters with (x |an additional |a )?\+1\/\+1/i, pay:/with a \+1\/\+1 counter on it|\+1\/\+1 counters would be put|for each \+1\/\+1 counter on the creature/i},
+  {k:'wide', full:5, what:'token makers', short:'Tokens',
+   en:/create (a|two|three|x) .*creature tokens?|named cadet/i, pay:/creature tokens you control|wizard token|creatures you control get \+|number of creatures you control/i},
+  {k:'death', full:5, what:'sacrifice and token cards', short:'Deaths',
+   en:/sacrifice (a|another) creature|named cadet|create (a|two) .*creature token/i, pay:/(a|another) creature( or planeswalker)? you control dies|creatures died this turn/i},
+  {k:'legend', full:5, what:'legendary cards', short:'Legendary',
+   en:null, pay:/legendary creature|legendary card/i},
+  {k:'prep', full:5, what:'prepared creatures', short:'Prepared',
+   en:null, pay:/cast a prepared spell|(each creature you control|target creature)( that attacked this turn)? becomes prepared/i},
+];
+const SYNK = Object.fromEntries(SYN.map(t => [t.k, t]));
+const SELF_OK = new Set(['life', 'jace', 'art']);
+function tagSynergy(c) {
+  const txt = (c.x || '').replace(/ ?\([^)]*\)/g, '');
+  c.en = new Set(); c.pay = new Set(); c.w = {};
+  for (const t of SYN) {
+    let en = t.en ? t.en.test(txt) : false;
+    if (t.k === 'spells') en = !/Creature|Land/.test(c.t);
+    if (t.k === 'legend') en = /Legendary/.test(c.t);
+    if (t.k === 'prep') en = !!c.prep;
+    if (t.k === 'jace' && /Planeswalker/.test(c.t)) en = true;
+    if (t.k === 'art' && /Artifact/.test(c.t)) en = true;
+    if (en) c.en.add(t.k);
+    // Half weight for slow feeders: a surveil 1 fills the graveyard far slower
+    // than a mill 3, and a Jace token surveils only when you spend loyalty.
+    if (en && t.k === 'grave' && !/\bmill \w+|omit variables|discard a card/i.test(txt)) c.w.grave = 0.5;
+    if (en && t.k === 'surveil' && !/\b(surveil|scry) (\d|x)\b/i.test(txt)) c.w.surveil = 0.5;
+    if (t.pay.test(txt)) c.pay.add(t.k);
+  }
+}
+// How many enablers and payoffs of each theme a list of cards holds.
+function synCounts(list) {
+  const n = {};
+  for (const t of SYN) n[t.k] = {en: 0, pay: 0};
+  for (const c of list) { for (const k of c.en) n[k].en += c.w[k] || 1; for (const k of c.pay) n[k].pay++; }
+  return n;
+}
+// A card's synergy with the rest of `counts`, which may include the card itself.
+function synergy(c, counts, scale) {
+  scale = scale || 1;
+  let b = 0;
+  const why = [];
+  for (const k of c.pay) {
+    const t = SYNK[k];
+    const n = (counts[k].en - (c.en.has(k) ? c.w[k] || 1 : 0)) * scale;
+    let v = Math.max(-0.45, Math.min(0.45, 0.9 * (n / t.full - 0.5)));
+    // Only some themes are fully fed by the card itself: its own lifelink, its own
+    // Jace, its own Heartwood. A mill 3 is not seven cards in the graveyard.
+    if (c.en.has(k) && SELF_OK.has(k)) v = Math.max(0, v);
+    b += v;
+    why.push({k, v, n: Math.round(n), pay: true});
+  }
+  for (const k of c.en) {
+    if (c.pay.has(k)) continue;
+    const m = (counts[k].pay - (c.pay.has(k) ? 1 : 0)) * scale;
+    if (m < 0.5) continue;
+    const v = Math.min(0.06 * m, 0.2);
+    b += v;
+    why.push({k, v, n: Math.round(m), pay: false});
+  }
+  return {b: Math.max(-0.5, Math.min(0.6, b)), why};
+}
+const eff = (c, counts, scale) => c.s + synergy(c, counts, scale).b;
+function bonusHTML(b) {
+  if (Math.abs(b) < 0.15) return '';
+  return `<span class="syn ${b > 0 ? 'up' : 'down'}">${b > 0 ? '+' : '−'}${Math.abs(b).toFixed(1)}</span>`;
+}
+
 /* ---------- deck building ---------- */
 function pickDeck(cols) {
   const cands = [];
@@ -362,6 +458,15 @@ function pickDeck(cols) {
     if (c.land || !fits(c.m, cols)) continue;
     for (let i = 0; i < have(c.id); i++) cands.push(c);
   }
+  // First pass judges synergy against every on-colour card, scaled down to a
+  // 23-card deck; the second judges it against the deck the first pass chose.
+  let counts = synCounts(cands), scale = Math.min(1, 23 / Math.max(cands.length, 1));
+  let picked = fillDeck(cands, counts, scale);
+  counts = synCounts(picked);
+  return fillDeck(cands, counts, 1);
+}
+function fillDeck(all, counts, scale) {
+  const cands = all.slice();
   const picked = [];
   while (picked.length < 23 && cands.length) {
     const cr = picked.filter(isCreature).length;
@@ -370,7 +475,7 @@ function pickDeck(cols) {
     const left = 23 - picked.length;
     let best = 0, bv = -1e9;
     cands.forEach((c, i) => {
-      let v = c.s;
+      let v = eff(c, counts, scale);
       if (isCreature(c) && cr < 15) v += 0.3;
       if (!isCreature(c) && 13 - cr >= left) v -= 1;   // keep room for at least 13 creatures
       if (c.v >= 6 && big >= 2) v -= 0.6;
@@ -383,13 +488,23 @@ function pickDeck(cols) {
 }
 function rate(pair) {
   const picked = pickDeck(pair);
-  const total = picked.reduce((a, c) => a + c.s, 0);
+  const counts = synCounts(picked);
+  const syn = picked.reduce((a, c) => a + synergy(c, counts).b, 0);
+  const total = picked.reduce((a, c) => a + c.s, 0) + syn;
   const cr = picked.filter(isCreature).length;
   const adj = total - Math.max(0, 12 - cr) * 0.5;
   const best = [...new Set(picked.filter(c => c.s >= 3.5).sort((a, b) => b.s - a.s).map(c => c.n))].slice(0, 3);
-  return {pair, picked, avg: adj / 23, n: picked.length, bombs: picked.filter(c => c.s >= 4).length,
+  return {pair, picked, avg: adj / 23, syn, themes: themesOf(counts), n: picked.length, bombs: picked.filter(c => c.s >= 4).length,
           rm: picked.filter(c => c.rm).length, cr, best};
 }
+// The themes a deck is really playing: two or more payoffs with at least half a
+// full load of enablers, strongest first.
+function themesOf(counts) {
+  return SYN.filter(t => counts[t.k].pay >= 2 && counts[t.k].en >= t.full / 2)
+    .sort((a, b) => counts[b.k].pay * counts[b.k].en - counts[a.k].pay * counts[a.k].en)
+    .map(t => ({t, pay: counts[t.k].pay, en: Math.round(counts[t.k].en)}));
+}
+function expand(d) { const out = []; for (const c of deckCards(d)) for (let i = 0; i < d[c.id]; i++) out.push(c); return out; }
 function deckFor(pair) {
   if (!S.decks[pair]) {
     const d = {};
@@ -452,20 +567,24 @@ function renderBuild() {
   const tied = rated[1].avg.toFixed(2) === rated[0].avg.toFixed(2);
   if (!S.pair) { S.pair = rated[0].pair; save(); }
   const shown = showAllPairs ? rated : rated.slice(0, 3);
-  let h = `<h2>Best colours</h2><p class="small">Each pair's best 23 cards, average score. Tap a pair to build it.</p><div class="pairs">`;
+  let h = `<h2>Best colours</h2><p class="small">Each pair's best 23 cards, average score including how well they work together. Tap a pair to build it.</p><div class="pairs">`;
   shown.forEach((r, i) => {
     const [name, plan] = THEME[r.pair];
     h += `<button class="pair${S.pair === r.pair ? ' on' : ''}" data-act="pair" data-v="${r.pair}">
       <span class="pp"><span class="pip ${r.pair[0]}">${r.pair[0]}</span><span class="pip ${r.pair[1]}">${r.pair[1]}</span></span>
       <span>${i === 0 ? '<span class="rank">Best</span>' : ''}<b>${CNAME[r.pair[0]]}-${CNAME[r.pair[1]]}${name ? ' · ' + esc(name) : ''}</b>
         <span class="sub">${r.bombs} great · ${r.rm} removal · ${r.cr} creatures${r.n < 23 ? ` · <span class="warn">only ${r.n} cards</span>` : ''}</span>
-        ${r.best.length ? `<span class="sub" style="display:block;color:var(--ink2)">${r.best.map(esc).join(', ')}</span>` : ''}</span>
+        ${r.best.length ? `<span class="sub" style="display:block;color:var(--ink2)">${r.best.map(esc).join(', ')}</span>` : ''}
+        <span class="sub" style="display:block">${r.themes.length ? 'Synergy: ' + r.themes.slice(0, 2).map(x => esc(x.t.short)).join(', ') + ' · ' : 'No real synergy · '}<span class="syn ${r.syn >= 0 ? 'up' : 'down'}">${r.syn >= 0 ? '+' : '−'}${Math.abs(r.syn).toFixed(1)}</span> total</span></span>
       <span class="big">${r.avg.toFixed(2)}<small>avg</small></span>
     </button>`;
   });
   h += `</div>${tied ? '<p class="small" style="margin-top:var(--s3)">The top pairs score the same. Best is the one with more great cards; pick whichever deck you would rather play.</p>' : ''}<div style="margin-top:var(--s3)"><button class="btn" data-act="allpairs">${showAllPairs ? 'Show top 3' : 'Show all 10 pairs'}</button></div>`;
 
   const pair = S.pair, d = deckFor(pair), cards = deckCards(d);
+  const deckList = expand(d), counts = synCounts(deckList);
+  const synOf = c => synergy(c, counts).b;
+  const synIfAdded = c => synergy(c, synCounts([...deckList, c])).b;
   const nSpells = cards.reduce((a, c) => a + d[c.id], 0);
   const plan = landPlan(pair, d);
   const nCr = cards.filter(isCreature).reduce((a, c) => a + d[c.id], 0);
@@ -478,6 +597,9 @@ function renderBuild() {
       <div class="stat"><div class="v">${nRm}</div><div class="l">Removal</div></div>
       <div class="stat"><div class="v">${plan.L}</div><div class="l">Lands</div></div>
     </div>`;
+  const th = themesOf(counts);
+  h += `<div class="themes">${th.length ? th.map(x => `<span><b>${esc(x.t.short)}</b>: ${x.pay} payoff${x.pay === 1 ? '' : 's'}, ${x.en} ${esc(x.t.what)}</span>`).join('') : '<span>No theme has enough payoffs and enablers here; this deck wins on card quality.</span>'}
+    <span class="small">Green and orange numbers beside a score are each card's synergy in this deck. Tap a card to see why.</span></div>`;
   if (total !== 40) h += `<p class="warn" style="margin-top:var(--s3)">${total > 40 ? `${total - 40} over 40: take ${total - 40 === 1 ? 'a card' : 'some cards'} out.` : `${40 - total} short of 40: put more in.`}</p>`;
   if (nCr < 13) h += `<p class="warn">Under 13 creatures. Sealed decks usually want 14 to 17.</p>`;
   const buckets = [0, 0, 0, 0, 0, 0];
@@ -487,8 +609,8 @@ function renderBuild() {
 
   const byMv = (a, b) => a.v - b.v || b.s - a.s || a.n.localeCompare(b.n);
   const crs = cards.filter(isCreature).sort(byMv), sps = cards.filter(c => !isCreature(c)).sort(byMv);
-  h += `<h3>Creatures <span class="ct">${nCr}</span></h3>` + crs.map(c => crowHTML(c, d[c.id])).join('');
-  h += `<h3>Spells <span class="ct">${nSpells - nCr}</span></h3>` + sps.map(c => crowHTML(c, d[c.id])).join('');
+  h += `<h3>Creatures <span class="ct">${nCr}</span></h3>` + crs.map(c => crowHTML(c, d[c.id], '', synOf(c))).join('');
+  h += `<h3>Spells <span class="ct">${nSpells - nCr}</span></h3>` + sps.map(c => crowHTML(c, d[c.id], '', synOf(c))).join('');
   h += `<h3>Lands <span class="ct">${plan.L}</span></h3><div class="lands">`;
   for (const x of 'WUBRG') if (plan.counts[x]) h += `<span class="li"><span class="pip ${x}">${x}</span><b>${plan.counts[x]}</b> ${BASIC[x]}</span>`;
   const nonCount = {};
@@ -505,9 +627,9 @@ function renderBuild() {
     const spare = have(c.id) - (d[c.id] || 0);
     if (spare > 0 && fits(c.m, pair)) side.push([c, spare]);
   }
-  side.sort((a, b) => b[0].s - a[0].s || a[0].v - b[0].v);
+  side.sort((a, b) => (b[0].s + synIfAdded(b[0])) - (a[0].s + synIfAdded(a[0])) || a[0].v - b[0].v);
   h += `<h3>Sideboard, ${CNAME[pair[0]]} and ${CNAME[pair[1]]} <span class="ct">${side.reduce((a, x) => a + x[1], 0)}</span></h3>`;
-  h += side.length ? side.map(([c, n]) => crowHTML(c, n)).join('') : '<p class="small">Everything on-colour is in the deck.</p>';
+  h += side.length ? side.map(([c, n]) => crowHTML(c, n, '', synIfAdded(c))).join('') : '<p class="small">Everything on-colour is in the deck.</p>';
 
   const fixers = x => poolCards().filter(c => c.land && c.prod.includes(x) && [...c.prod].some(p => pair.includes(p))).reduce((a, c) => a + have(c.id), 0);
   const splashy = poolCards().filter(c => {
@@ -520,7 +642,7 @@ function renderBuild() {
     h += splashy.map(c => {
       const x = offNeeds(c.m, pair)[0];
       const f = [...x].map(fixers).reduce((a, b) => Math.max(a, b), 0);
-      return crowHTML(c, null, `<span class="tag">${f} fixing land${f === 1 ? '' : 's'}</span>`);
+      return crowHTML(c, null, `<span class="tag">${f} fixing land${f === 1 ? '' : 's'}</span>`, synIfAdded(c));
     }).join('');
   }
   h += `<div style="margin-top:var(--s6)"><button class="btn" data-act="rebuild">Rebuild this deck</button></div>`;
@@ -604,6 +726,18 @@ function openCard(id) {
     if (spare > 0) foot += `<button class="btn primary" data-act="deckin" data-id="${id}">Put in deck</button>`;
     foot += `</div>`;
   }
+  let synBox = '';
+  if (S.tab === 'build' && S.pair && !c.land) {
+    const dl = expand(deckFor(S.pair));
+    const {b, why} = synergy(c, synCounts(inDeck ? dl : [...dl, c]));
+    const lines = why.map(w => {
+      const t = SYNK[w.k];
+      if (!w.pay) return `Feeds ${w.n} ${t.short.toLowerCase()} payoff${w.n === 1 ? '' : 's'} in this deck.`;
+      if (c.en.has(w.k) && SELF_OK.has(w.k) && w.v === 0) return `Rewards ${t.what}; it helps itself, and the deck has ${w.n} more.`;
+      return `${w.v >= 0 ? 'Works with' : 'Wants more'} ${t.what}: this deck has ${w.n}.`;
+    });
+    synBox = `<div class="themes" style="margin-top:var(--s4)"><span><b style="color:${b >= 0 ? 'var(--good)' : 'var(--warn)'}">Synergy ${b >= 0 ? '+' : '−'}${Math.abs(b).toFixed(1)}</b> ${inDeck ? 'in' : 'if added to'} this deck</span>${lines.length ? lines.map(l => `<span>${esc(l)}</span>`).join('') : '<span>Works on its own; no theme to feed.</span>'}</div>`;
+  }
   const prep = c.prep ? `\n\nPrepared spell: ${c.prep.n} ${c.prep.m}\n${c.prep.x}` : '';
   const text = c.prep ? c.x.split('\n\n')[0].replace(/ ?\([^)]*\)/g, '') + prep : c.x;
   sh.innerHTML = `
@@ -617,6 +751,7 @@ function openCard(id) {
           ${c.rm ? '<div style="margin-top:6px"><span class="tag rm">Removal</span></div>' : ''}
         </div>
       </div>
+      ${synBox}
       <div class="oracle">${esc(text)}</div>
       <div id="zoomed"></div>
     </div>
@@ -709,6 +844,7 @@ fetch('fra.json').then(r => r.json()).then(list => {
   CARDS = list;
   for (const c of CARDS) {
     c.v = mvOf(c.m);
+    tagSynergy(c);
     BY[c.id] = c;
     NAMES.push({c, front: norm(c.n), words: norm(c.full).split(' '), flat: norm(c.full).replace(/ /g, '')});
   }
