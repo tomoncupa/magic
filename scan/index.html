@@ -1,0 +1,1316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Card Scanner</title>
+<meta name="description" content="Scan your Magic cards with the phone camera into one collection, priced in pesos, ready for Moxfield.">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080B10">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Scanner">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Block, Motherbase's default theme: flat plates, hairlines do the separating,
+   6px corners, Chakra Petch for headings, labels and numbers. */
+:root{
+  --bg:#080B10; --bg2:#0E141D; --bg3:#131B26; --bg4:#1B2634;
+  --line:#1E2A38; --line2:#2B3A4D;
+  --ink:#DBE7F0; --ink2:#B8C9D8; --ink3:#7F93A8;
+  --brass:#F0B323; --brass-fg:#1A1206; --brass-soft:rgba(240,179,35,.10);
+  --danger:#FF6B81; --good:#6EE7A8; --warn:#FFB347; --info:#7EE8FA;
+  --s1:4px; --s2:6px; --s3:8px; --s4:12px; --s5:16px; --s6:22px;
+  --t1:11px; --t2:13px; --t3:15px; --t4:19px; --t5:25px;
+  --tap:44px; --r:6px; --cap:.08em;
+  --disp:'Chakra Petch',system-ui,sans-serif;
+  --ui:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);font-size:14px;line-height:1.45;min-height:100vh}
+button,input,textarea{font:inherit;color:inherit}
+button{background:none;border:0;cursor:pointer;touch-action:manipulation;padding:0;text-align:inherit}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px;border-radius:4px}
+[hidden]{display:none!important}
+
+.top{position:sticky;top:0;z-index:5;background:var(--bg2);border-bottom:1px solid var(--line);
+  padding:calc(8px + env(safe-area-inset-top,0px)) 16px 8px}
+.toprow{display:flex;align-items:center;gap:var(--s3);max-width:760px;margin:0 auto}
+.back{width:var(--tap);height:var(--tap);margin-left:-12px;display:grid;place-items:center;font-family:var(--disp);font-size:28px;line-height:1;color:var(--ink2);text-decoration:none;border-radius:var(--r)}
+.brand{font-family:var(--disp);font-weight:700;font-size:19px;color:var(--brass);line-height:1;letter-spacing:var(--cap);text-transform:uppercase}
+.brand small{display:block;font-weight:500;font-size:10px;letter-spacing:.14em;color:var(--ink3);margin-top:4px}
+.spacer{flex:1}
+
+main{max-width:760px;margin:0 auto;padding:var(--s5) 16px calc(90px + env(safe-area-inset-bottom,0px))}
+h3{font-family:var(--disp);font-size:var(--t1);letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);font-weight:600;margin:var(--s5) 0 var(--s2)}
+p{margin:0 0 var(--s3)}
+.note{color:var(--ink2);font-size:var(--t2)}
+.small{font-size:var(--t1);color:var(--ink3)}
+.warn{color:var(--warn)} .good{color:var(--good)}
+.warnbar{padding:var(--s3) var(--s4);border:1px solid rgba(255,179,71,.45);border-radius:var(--r);color:var(--warn);font-size:var(--t2);margin-bottom:var(--s4)}
+
+.btn{min-height:var(--tap);padding:0 var(--s5);border-radius:var(--r);background:var(--bg3);border:1px solid var(--line);color:var(--ink2);
+  font-family:var(--disp);font-weight:600;letter-spacing:var(--cap);text-transform:uppercase;font-size:var(--t2);display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn:hover{border-color:var(--line2);color:var(--ink)}
+.btn.primary{border-color:var(--brass);color:var(--brass)}
+.btn.fill{background:var(--brass);color:var(--brass-fg);border-color:var(--brass)}
+.btn.bad{border-color:var(--danger);color:var(--danger)}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.big{width:100%;min-height:52px;font-size:var(--t3)}
+
+.search{position:relative;margin-top:var(--s3)}
+.search input{width:100%;background:var(--bg3);border:1px solid var(--line2);border-radius:var(--r);padding:10px 12px;min-height:48px;font-size:17px}
+.search input:focus{outline:none;border-color:var(--brass)}
+.results{margin-top:var(--s2);border:1px solid var(--line2);border-radius:var(--r);background:var(--bg2);overflow:hidden}
+.results:empty{display:none}
+.res{display:grid;grid-template-columns:1fr auto auto;gap:var(--s3);align-items:center;width:100%;min-height:50px;padding:6px 12px;border-bottom:1px solid var(--line)}
+.res:last-child{border-bottom:0}
+.res:hover,.res.first{background:var(--bg3)}
+.res .nm{font-weight:500;min-width:0}
+.res .have{font-family:var(--disp);font-size:var(--t1);color:var(--brass);letter-spacing:var(--cap);text-transform:uppercase}
+.res .plus{font-family:var(--disp);font-weight:700;font-size:20px;color:var(--brass);width:28px;text-align:center}
+.nores{padding:12px;color:var(--ink3);font-size:var(--t2)}
+
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2);margin-top:var(--s4)}
+.stat{padding:var(--s3);background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);text-align:center;min-width:0}
+.stat .v{font-family:var(--disp);font-size:22px;font-weight:700;color:var(--brass);line-height:1.1;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stat .l{font-family:var(--disp);font-size:10px;letter-spacing:var(--cap);text-transform:uppercase;color:var(--ink3)}
+
+.listhead{display:flex;align-items:center;gap:var(--s3);margin-top:var(--s5)}
+.listhead h3{margin:0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--bg2)}
+.seg button{min-height:var(--tap);padding:0 12px;font-family:var(--disp);font-size:var(--t1);font-weight:600;letter-spacing:var(--cap);text-transform:uppercase;color:var(--ink3)}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{background:var(--brass-soft);color:var(--brass)}
+.seg.wide{display:flex}
+.seg.wide button{flex:1}
+
+.crow{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:var(--s3);align-items:center;width:100%;min-height:66px;padding:7px 0;border-bottom:1px solid var(--line);text-align:left;content-visibility:auto;contain-intrinsic-size:auto 66px}
+.crow .th{width:40px;aspect-ratio:488/680;border-radius:3px;background:var(--bg3);display:block;object-fit:cover}
+.crow .mid{min-width:0}
+.crow .nm{font-weight:500;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crow .sub{font-size:var(--t1);color:var(--ink3);display:flex;gap:4px 6px;align-items:center;flex-wrap:wrap;margin-top:2px;font-family:var(--disp);letter-spacing:.02em}
+.crow .right{text-align:right;font-family:var(--disp);font-variant-numeric:tabular-nums}
+.crow .px{font-weight:600;color:var(--ink);display:block}
+.crow .q{font-size:var(--t2);color:var(--brass);font-weight:600}
+.tag{font-family:var(--disp);font-size:10px;font-weight:600;letter-spacing:var(--cap);text-transform:uppercase;padding:0 5px;border-radius:3px;border:1px solid rgba(126,232,250,.4);color:var(--info);line-height:16px}
+.tag.warn{border-color:rgba(255,179,71,.45);color:var(--warn)}
+.empty{padding:var(--s6) var(--s5);text-align:center;color:var(--ink2);border:1px dashed var(--line2);border-radius:var(--r);margin-top:var(--s3)}
+.foot{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3);margin-top:var(--s5)}
+#pricenote{margin-top:var(--s3)}
+
+/* Sheets: a bottom sheet on a phone, a centred card on a wide screen,
+   same as Motherbase's shared dialogs. */
+.veil{position:fixed;inset:0;z-index:80;background:rgba(4,7,11,.72);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:81;margin:0 auto;width:100%;max-width:560px;max-height:92vh;max-height:92svh;display:flex;flex-direction:column;
+  background:var(--bg2);border-top:1px solid var(--line2);border-radius:var(--r) var(--r) 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (min-width:700px){.sheet{top:50%;bottom:auto;left:50%;right:auto;transform:translate(-50%,-50%);width:min(560px,94vw);border:1px solid var(--line2);border-radius:var(--r)}}
+.sheet-head{display:flex;align-items:center;gap:var(--s3);padding:var(--s4) var(--s5) var(--s3)}
+.sheet-head h3{margin:0;flex:1;min-width:0}
+.x{position:relative;width:32px;height:32px;border-radius:50%;background:var(--bg3);color:var(--ink2);font-size:14px;display:grid;place-items:center}
+.x::after{content:'';position:absolute;left:50%;top:50%;width:var(--tap);height:var(--tap);transform:translate(-50%,-50%)}
+.sheet-body{padding:0 var(--s5);overflow:auto;flex:1;min-height:0}
+.sheet-foot{display:flex;gap:var(--s3);padding:var(--s4) var(--s5) var(--s5);border-top:1px solid var(--line);margin-top:var(--s4);flex-wrap:wrap}
+.sheet-foot .btn{flex:1}
+.cardview{display:grid;grid-template-columns:132px minmax(0,1fr);gap:var(--s4);align-items:start}
+.cardview img{width:132px;border-radius:7px;background:var(--bg3);aspect-ratio:488/680;display:block}
+.cardview .nm{font-family:var(--disp);font-weight:700;font-size:var(--t4);line-height:1.15}
+.cardview .ty{font-size:var(--t2);color:var(--ink3);margin:4px 0 8px}
+.price{font-family:var(--disp);font-weight:700;font-size:var(--t4);color:var(--brass)}
+.price small{font-family:var(--ui);font-weight:400;font-size:var(--t1);color:var(--ink3)}
+.how{font-size:var(--t2);color:var(--ink2);margin-top:6px}
+.how.warn{color:var(--warn)}
+.stepper{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.stepper button{width:var(--tap);height:var(--tap);font-family:var(--disp);font-size:20px;color:var(--ink2);background:var(--bg3)}
+.stepper span{min-width:48px;text-align:center;font-family:var(--disp);font-weight:700;font-size:17px}
+.prints{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:var(--s3);padding-bottom:var(--s3)}
+.pt{display:flex;flex-direction:column;gap:3px;padding:4px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg3);text-align:center;min-width:0}
+.pt img{width:100%;aspect-ratio:488/680;border-radius:4px;background:var(--bg4);display:block}
+.pt .c{font-family:var(--disp);font-size:var(--t1);font-weight:600;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pt .p{font-family:var(--disp);font-size:var(--t1);color:var(--ink3)}
+.pt.on{border-color:var(--brass);background:var(--brass-soft)}
+.pt.on .c{color:var(--brass)}
+.setrow{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:var(--s3);align-items:center;width:100%;min-height:var(--tap);padding:4px 0;border-bottom:1px solid var(--line);text-align:left}
+.setrow img{width:22px;height:22px;filter:invert(.85)}
+.setrow .code{font-family:var(--disp);font-size:var(--t1);color:var(--ink3);text-transform:uppercase}
+.setrow.on{color:var(--brass)}
+textarea.exp{width:100%;min-height:150px;max-height:40vh;background:var(--bg3);border:1px solid var(--line2);border-radius:var(--r);padding:10px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:var(--ink2);resize:vertical}
+
+/* The scanner: the camera fills the screen, the card goes in a card-shaped
+   frame, and its name goes in the gold bar at the top of the frame. */
+.scanner{position:fixed;inset:0;z-index:70;background:#000;overflow:hidden}
+.scanner video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.scantop{position:absolute;top:0;left:0;right:0;display:flex;gap:var(--s3);justify-content:center;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 0;z-index:2}
+.chip{min-height:var(--tap);padding:0 14px;border-radius:22px;background:rgba(8,11,16,.82);border:1px solid var(--line2);font-family:var(--disp);font-weight:600;font-size:var(--t2);letter-spacing:var(--cap);text-transform:uppercase;color:var(--ink2);display:inline-flex;align-items:center;gap:6px;max-width:60vw}
+.chip b{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip.on{border-color:var(--brass);color:var(--brass)}
+.guide{position:absolute;left:50%;top:calc(66px + env(safe-area-inset-top,0px));transform:translateX(-50%);
+  width:min(80vw,calc((100vh - 330px) * .716));width:min(80vw,calc((100svh - 330px) * .716));aspect-ratio:63/88;
+  border:2px solid rgba(240,179,35,.9);border-radius:12px;box-shadow:0 0 0 9999px rgba(0,0,0,.5);transition:border-color .15s,box-shadow .15s}
+.guide .band{position:absolute;left:3%;right:3%;top:3.5%;height:8.5%;border-radius:4px;background:rgba(240,179,35,.14);border:1px dashed rgba(240,179,35,.85)}
+.guide.hit{border-color:var(--good);box-shadow:0 0 0 9999px rgba(0,0,0,.5),inset 0 0 0 4px var(--good)}
+.scanbar{position:absolute;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));background:rgba(8,11,16,.95);border-top:1px solid var(--line2);z-index:2}
+.scanbar .in{max-width:560px;margin:0 auto}
+#scanmsg{font-size:15px;min-height:22px;margin-bottom:10px}
+#scanmsg b{font-family:var(--disp);color:var(--good)}
+.last{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:var(--s3);align-items:center;margin-bottom:10px;padding:6px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg2)}
+.last img{width:44px;aspect-ratio:488/680;border-radius:3px;background:var(--bg3);display:block}
+.last .nm{font-weight:600;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.last .sub{font-family:var(--disp);font-size:var(--t1);color:var(--ink3)}
+.last .acts{display:flex;gap:6px}
+.last .acts .btn{padding:0 12px}
+.scanbtns{display:flex;gap:var(--s3)}
+.scanbtns .btn{flex:1}
+
+.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:90;
+  display:flex;gap:var(--s4);align-items:center;background:var(--bg4);border:1px solid var(--line2);border-radius:var(--r);padding:4px 4px 4px 14px;
+  max-width:calc(100vw - 32px);font-size:var(--t2);box-shadow:0 10px 30px rgba(0,0,0,.5);min-height:48px}
+.toast span{flex:1;min-width:0}
+.toast .btn{min-height:40px}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="toprow">
+    <a class="back" href="../" aria-label="Back to the table">‹</a>
+    <div class="brand">Card Scanner<small>Your collection</small></div>
+    <div class="spacer"></div>
+  </div>
+</header>
+
+<main>
+  <div id="warn" class="warnbar" hidden></div>
+  <button class="btn fill big" data-act="scan">Scan cards</button>
+  <div class="search">
+    <input id="q" type="search" placeholder="Or type a card name" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" aria-label="Card name">
+    <div class="results" id="results"></div>
+  </div>
+  <div class="stats" id="stats"></div>
+  <div class="listhead">
+    <h3>Collection</h3>
+    <div class="spacer"></div>
+    <div class="seg" id="sort">
+      <button data-act="sort" data-v="new">Newest</button><button data-act="sort" data-v="name">Name</button><button data-act="sort" data-v="price">Price</button>
+    </div>
+  </div>
+  <div id="list"></div>
+  <div class="foot" id="foot">
+    <button class="btn primary" data-act="export">Send to Moxfield</button>
+    <button class="btn" data-act="prices">Refresh prices</button>
+  </div>
+  <p class="small" id="pricenote"></p>
+</main>
+
+<div id="scanner" class="scanner" hidden>
+  <video id="cam" playsinline muted autoplay></video>
+  <div class="scantop">
+    <button class="chip" data-act="sets" id="setchip">Set <b>Any</b></button>
+    <button class="chip" data-act="foil" id="foilchip">Foil <b>Off</b></button>
+  </div>
+  <div class="guide" id="guide"><div class="band"></div></div>
+  <div class="scanbar"><div class="in">
+    <div id="scanmsg" aria-live="polite">Starting the camera…</div>
+    <div id="last" class="last" hidden></div>
+    <div class="scanbtns"><button class="btn" data-act="scanundo" id="scanundo" hidden>Undo last</button><button class="btn fill" data-act="scanstop">Done</button></div>
+  </div></div>
+</div>
+
+<div id="toast" class="toast" hidden><span id="toastmsg"></span><button class="btn" data-act="undo">Undo</button></div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const DAY = 864e5;
+const API = 'https://api.scryfall.com';
+const RAR = {C:'Common', U:'Uncommon', R:'Rare', M:'Mythic', S:'Special', B:'Bonus'};
+const front = n => n.split(' // ')[0];
+const norm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/æ/g, 'ae').replace(/['’]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+const letters = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/æ/g, 'ae').replace(/[^a-z]/g, '');
+
+/* ---------- storage ----------
+   IndexedDB rather than localStorage: every page on tomoncupa.github.io shares
+   one localStorage (Motherbase included), and a collection runs to thousands. */
+const DB = (() => {
+  let dbp = null;
+  const open = () => dbp || (dbp = new Promise((res, rej) => {
+    const r = indexedDB.open('ktm-scan', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv');
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  }));
+  return {
+    async get(k) {
+      try {
+        const db = await open();
+        return await new Promise((res, rej) => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); });
+      } catch (e) { return undefined; }
+    },
+    async set(k, v) {
+      try {
+        const db = await open();
+        await new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error); });
+        return true;
+      } catch (e) { return false; }
+    },
+  };
+})();
+
+// items: one row per printing and finish, {k, id, name, set, setName, cn, rar,
+// fin, fins, qty, sent, img, big, usd:{nonfoil,foil,etched}, pAt, at, how, sure}.
+// sent is how many of the copies have already gone to Moxfield.
+const fresh = () => ({v: 1, items: [], picks: {}, set: null, foil: false, sort: 'new', fx: null, sentAt: 0});
+let S = fresh(), saveT = null, saveOK = true;
+function save() { clearTimeout(saveT); saveT = setTimeout(flush, 250); }
+async function flush() {
+  clearTimeout(saveT); saveT = null;
+  const ok = await DB.set('state', S);
+  if (ok !== saveOK) { saveOK = ok; renderWarn(); }
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden && saveT) flush(); });
+
+/* ---------- Scryfall ----------
+   One request at a time, a tenth of a second apart, as Scryfall asks. */
+let apiChain = Promise.resolve(), apiLast = 0;
+function api(path, body) {
+  const run = async () => {
+    const wait = apiLast + 110 - Date.now();
+    if (wait > 0) await sleep(wait);
+    apiLast = Date.now();
+    const url = path.startsWith('http') ? path : API + path;
+    const opts = body ? {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)} : {};
+    let r = await fetch(url, opts);
+    if (r.status === 429) { await sleep(1500); apiLast = Date.now(); r = await fetch(url, opts); }
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error('Scryfall ' + r.status);
+    return r.json();
+  };
+  const p = apiChain.then(run, run);
+  apiChain = p.catch(() => {});
+  return p;
+}
+const num = v => v == null || v === '' ? null : +v;
+const SPECIAL_FX = /showcase|extendedart|inverted|etched|shatteredglass|fullart|borderless/;
+function slim(c) {
+  const faces = c.card_faces || [];
+  const pics = size => c.image_uris ? [c.image_uris[size]] : faces.map(f => f.image_uris && f.image_uris[size]).filter(Boolean);
+  const fx = (c.frame_effects || []).slice().sort();
+  return {
+    id: c.id, name: c.name, set: c.set, setName: c.set_name, cn: c.collector_number,
+    rar: (c.rarity || '?')[0].toUpperCase(), fin: c.finishes && c.finishes.length ? c.finishes : ['nonfoil'],
+    usd: {nonfoil: num(c.prices && c.prices.usd), foil: num(c.prices && c.prices.usd_foil), etched: num(c.prices && c.prices.usd_etched)},
+    img: pics('small'), big: pics('normal'), tl: c.type_line || (faces[0] && faces[0].type_line) || '',
+    // Printings that look the same can only be told apart by the set symbol.
+    look: [c.illustration_id || (faces[0] && faces[0].illustration_id) || c.id, c.frame, c.border_color, c.full_art ? 1 : 0, fx.join(','), c.textless ? 1 : 0].join('|'),
+    reg: !c.promo && !c.full_art && /^(black|white)$/.test(c.border_color) && !fx.some(x => SPECIAL_FX.test(x)) &&
+      /^(expansion|core|masters|draft_innovation|commander)$/.test(c.set_type || ''),
+  };
+}
+const isBasic = p => /\bBasic\b.*\bLand\b/.test(p.tl);
+
+// Every paper printing of one card, newest first.
+const PR = new Map();
+function getPrints(name) {
+  if (PR.has(name)) return PR.get(name);
+  const p = (async () => {
+    const q = (s) => `/cards/search?q=${encodeURIComponent(s)}&unique=prints&order=released&dir=desc`;
+    let j = name.includes('"') ? null : await api(q(`!"${name}" game:paper`));
+    if (!j) {
+      const c = await api(`/cards/named?exact=${encodeURIComponent(name)}`);
+      if (!c) return [];
+      j = await api(q(`oracleid:${c.oracle_id} game:paper`));
+      if (!j) return [slim(c)];
+    }
+    const out = j.data.map(slim);
+    let next = j.has_more ? j.next_page : null;
+    for (let i = 0; next && i < 3; i++) {
+      const k = await api(next);
+      if (!k) break;
+      out.push(...k.data.map(slim));
+      next = k.has_more ? k.next_page : null;
+    }
+    return out;
+  })();
+  PR.set(name, p);
+  p.catch(() => PR.delete(name));
+  return p;
+}
+
+let SETS = null;
+async function getSets() {
+  if (SETS) return SETS;
+  const j = await api('/sets');
+  SETS = j.data.filter(s => !s.digital && s.card_count > 0 && !/^(token|memorabilia|minigame|alchemy|treasure_chest|vanguard)$/.test(s.set_type))
+    .map(s => ({code: s.code, name: s.name, rel: s.released_at || '', icon: s.icon_svg_uri}))
+    .sort((a, b) => b.rel.localeCompare(a.rel));
+  return SETS;
+}
+// The names printed in one set, so a set pile is matched against a few
+// hundred names instead of every card ever made.
+const SETN = new Map();
+let SETNAMES = null;
+function setNames(code) {
+  if (SETN.has(code)) return SETN.get(code);
+  const p = (async () => {
+    const names = new Set();
+    let url = `/cards/search?q=${encodeURIComponent(`e:${code} game:paper`)}&unique=cards`;
+    for (let i = 0; url && i < 10; i++) {
+      const j = await api(url);
+      if (!j) break;
+      j.data.forEach(c => names.add(c.name));
+      url = j.has_more ? j.next_page : null;
+    }
+    return names;
+  })();
+  SETN.set(code, p);
+  p.catch(() => SETN.delete(code));
+  return p;
+}
+async function loadSetNames() {
+  SETNAMES = null;
+  if (!S.set) return;
+  const code = S.set.code;
+  try {
+    const n = await setNames(code);
+    if (!S.set || S.set.code !== code) return;
+    if (IDX) n.forEach(x => IDX.add(x));
+    SETNAMES = n;
+  } catch (e) {}
+}
+
+/* ---------- pesos ----------
+   Scryfall's prices are the US market (TCGplayer). They are turned into pesos
+   at today's rate, fetched twice a day at most. */
+async function getRate() {
+  if (S.fx && Date.now() - S.fx.at < DAY / 2) return;
+  const sources = [
+    ['https://open.er-api.com/v6/latest/USD', j => j.rates && j.rates.PHP],
+    ['https://api.frankfurter.app/latest?from=USD&to=PHP', j => j.rates && j.rates.PHP],
+  ];
+  for (const [url, pick] of sources) {
+    try {
+      const r = await fetch(url);
+      if (!r.ok) continue;
+      const v = +pick(await r.json());
+      if (v > 20 && v < 200) { S.fx = {rate: v, at: Date.now()}; save(); render(); return; }
+    } catch (e) {}
+  }
+}
+function money(usd) {
+  if (usd == null || isNaN(usd)) return '—';
+  const r = S.fx && S.fx.rate;
+  if (!r) return '$' + usd.toFixed(2);
+  const php = usd * r;
+  if (!php) return '₱0';
+  if (php < 10) return '₱' + php.toFixed(php < 1 ? 2 : 1);
+  return '₱' + Math.round(php).toLocaleString('en-US');
+}
+const unit = it => it.usd ? it.usd[it.fin] : null;
+const value = it => (unit(it) || 0) * it.qty;
+const dateShort = t => new Date(t).toLocaleDateString('en-GB', {day: 'numeric', month: 'short'});
+
+/* ---------- names ----------
+   Scryfall's list of every card name (about 35,000), kept on the phone for a
+   week. Each name is also filed under its three-letter pieces, so a misread
+   finds its few likely names without comparing against all of them. */
+let NAMES = null, NORM = null, IDX = null;
+async function ensureNames() {
+  if (NAMES) return NAMES;
+  const c = await DB.get('names');
+  if (c && c.list && Date.now() - c.at < 7 * DAY) NAMES = c.list;
+  else {
+    try {
+      const j = await api('/catalog/card-names');
+      NAMES = j.data.filter(n => !/^A-/.test(n));
+      DB.set('names', {at: Date.now(), list: NAMES});
+    } catch (e) {
+      if (c && c.list) NAMES = c.list; else throw e;
+    }
+  }
+  return NAMES;
+}
+function buildIndex(names) {
+  const faces = [], tri = new Map(), known = new Set(), keys = new Set();
+  const add = n => {
+    if (known.has(n)) return;
+    known.add(n);
+    (n.includes(' // ') ? n.split(' // ') : [n]).forEach((part, f) => {
+      const k = letters(part);
+      // A face spelled like a card already filed ("Sol Ring // Sol Ring") could
+      // never be told apart by its name, so the plain card keeps the name.
+      if (k.length < 3 || keys.has(k)) return;
+      keys.add(k);
+      const i = faces.length, seen = new Set();
+      for (let j = 0; j + 3 <= k.length; j++) {
+        const g = k.substr(j, 3);
+        if (seen.has(g)) continue;
+        seen.add(g);
+        let a = tri.get(g);
+        if (!a) tri.set(g, a = []);
+        a.push(i);
+      }
+      faces.push({k, n, f, t: seen.size});
+    });
+  };
+  names.filter(n => !n.includes(' // ')).forEach(add);
+  names.filter(n => n.includes(' // ')).forEach(add);
+  return {faces, tri, add, cnt: null};
+}
+async function ensureIndex() {
+  if (!IDX) IDX = buildIndex(await ensureNames());
+  return IDX;
+}
+
+// Letters Tesseract mixes up cost less than a plain wrong letter.
+const SUB = {};
+for (const [a, b, c] of [['i','l',.4],['i','j',.5],['l','t',.6],['c','e',.6],['u','v',.6],['n','h',.6],['m','n',.6],['r','n',.7],['a','o',.7],['e','o',.7]]) SUB[a + b] = SUB[b + a] = c;
+let DPA = new Float32Array(128), DPB = new Float32Array(128);
+// How many edits it takes to find name f somewhere inside the read t.
+function editsInside(f, t) {
+  const m = f.length, n = t.length;
+  if (DPA.length <= n) { DPA = new Float32Array(n + 64); DPB = new Float32Array(n + 64); }
+  let prev = DPA, cur = DPB;
+  for (let j = 0; j <= n; j++) prev[j] = 0;
+  for (let i = 1; i <= m; i++) {
+    cur[0] = i;
+    const fc = f[i - 1];
+    for (let j = 1; j <= n; j++) {
+      const tc = t[j - 1];
+      let v = prev[j - 1] + (fc === tc ? 0 : (SUB[fc + tc] || 1));
+      if (prev[j] + 1 < v) v = prev[j] + 1;
+      if (cur[j - 1] + 1 < v) v = cur[j - 1] + 1;
+      cur[j] = v;
+    }
+    const s = prev; prev = cur; cur = s;
+  }
+  let best = m;
+  for (let j = 0; j <= n; j++) if (prev[j] < best) best = prev[j];
+  return best;
+}
+// The best name for one line of read text, with how far ahead of the runner-up it is.
+function matchLine(line, only) {
+  if (/^\s*[-—–]/.test(line)) return null;   // flavour text credits a speaker after a dash
+  const t = letters(line);
+  if (t.length < 3) return null;
+  const {faces, tri} = IDX;
+  if (!IDX.cnt || IDX.cnt.length < faces.length) IDX.cnt = new Uint16Array(faces.length + 256);
+  const cnt = IDX.cnt, touched = [], seen = new Set();
+  for (let j = 0; j + 3 <= t.length; j++) {
+    const g = t.substr(j, 3);
+    if (seen.has(g)) continue;
+    seen.add(g);
+    const a = tri.get(g);
+    if (a) for (const i of a) if (cnt[i]++ === 0) touched.push(i);
+  }
+  const cands = [];
+  for (const i of touched) {
+    const e = faces[i], c = cnt[i];
+    cnt[i] = 0;
+    if (only && !only.has(e.n)) continue;
+    if (e.k.length > t.length + 3 || e.k.length < t.length * 0.4) continue;
+    if (c < Math.max(1, Math.ceil(e.t * 0.3))) continue;
+    cands.push([c / e.t, i]);
+  }
+  cands.sort((a, b) => b[0] - a[0]);
+  let a = null, b = null;
+  for (let x = 0; x < cands.length && x < 120; x++) {
+    const e = faces[cands[x][1]];
+    const sim = 1 - editsInside(e.k, t) / e.k.length;
+    const score = sim - 0.3 * (1 - Math.min(1, e.k.length / t.length));
+    const r = {n: e.n, f: e.f, k: e.k, score, sim};
+    if (!a || score > a.score) { if (a && a.n !== e.n) b = a; a = r; }
+    else if (e.n !== a.n && (!b || score > b.score)) b = r;
+  }
+  if (!a) return null;
+  a.margin = a.score - (b ? b.score : 0);
+  a.read = line.trim();
+  return a;
+}
+function bestOf(text) {
+  const lines = text.split('\n').filter(l => letters(l).length >= 3);
+  const run = only => {
+    let best = null;
+    for (const l of lines) { const m = matchLine(l, only); if (m && (!best || m.score > best.score)) best = m; }
+    return best;
+  };
+  if (SETNAMES) { const m = run(SETNAMES); if (m && m.score >= 0.82 && m.margin >= 0.07) return m; }
+  return run(null);
+}
+
+/* ---------- reading the name ----------
+   Tesseract reads the text on the phone; nothing is sent anywhere. The reader
+   (about 4 MB) loads the first time and is kept for offline use after that. */
+const TESS = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+let ocr = null, ocrLoading = null, ocrLog = null;
+function loadOCR() {
+  if (ocr) return Promise.resolve(ocr);
+  if (!ocrLoading) {
+    ocrLoading = new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = TESS; s.onload = res; s.onerror = () => rej(new Error('no reader'));
+      document.head.append(s);
+    }).then(() => Tesseract.createWorker('eng', 1, {logger: m => ocrLog && ocrLog(m)}))
+      .then(w => (ocr = w))
+      .catch(e => { ocrLoading = null; throw e; });
+  }
+  return ocrLoading;
+}
+// Where the frame on screen sits in the camera's own pixels. The video is
+// drawn with object-fit: cover, so part of the picture is off screen.
+function guideInVideo(v) {
+  const g = $('#guide').getBoundingClientRect(), r = v.getBoundingClientRect();
+  const vw = v.videoWidth, vh = v.videoHeight;
+  const sc = Math.max(r.width / vw, r.height / vh);
+  const ox = (r.width - vw * sc) / 2, oy = (r.height - vh * sc) / 2;
+  return {x: (g.left - r.left - ox) / sc, y: (g.top - r.top - oy) / sc, w: g.width / sc, h: g.height / sc, vw, vh};
+}
+// Copy part of the camera picture, clipped to the picture's edges.
+function grab(v, sx, sy, sw, sh, W, H) {
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const x = cv.getContext('2d', {willReadFrequently: true});
+  x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
+  const cx = Math.max(0, sx), cy = Math.max(0, sy);
+  const cw = Math.min(v.videoWidth, sx + sw) - cx, ch = Math.min(v.videoHeight, sy + sh) - cy;
+  if (cw > 1 && ch > 1) x.drawImage(v, cx, cy, cw, ch, (cx - sx) / sw * W, (cy - sy) / sh * H, cw / sw * W, ch / sh * H);
+  return cv;
+}
+// The whole card, about 520 pixels wide, in grey with the contrast stretched.
+// Tesseract finds the name far more reliably with the whole card in view than
+// from a strip cut round the name bar (measured: the strip missed Sol Ring at
+// every size tried, the card read it), and the grey stretch is what let it read
+// white on blue (Insectile Aberration). flip turns it round, light for dark.
+function cropCard(v, flip) {
+  const G = guideInVideo(v), k = Math.min(1, 520 / G.w);
+  const cv = grab(v, G.x, G.y, G.w, G.h, Math.round(G.w * k), Math.round(G.h * k));
+  const x = cv.getContext('2d', {willReadFrequently: true});
+  const im = x.getImageData(0, 0, cv.width, cv.height), p = im.data, hist = new Uint32Array(256), n = p.length / 4;
+  for (let i = 0; i < p.length; i += 4) { const g = (p[i] * 0.3 + p[i + 1] * 0.59 + p[i + 2] * 0.11) | 0; p[i] = g; hist[g]++; }
+  let lo = 0, hi = 255;
+  for (let g = 0, acc = 0; g < 256; g++) { acc += hist[g]; if (acc > n * 0.02) { lo = g; break; } }
+  for (let g = 255, acc = 0; g >= 0; g--) { acc += hist[g]; if (acc > n * 0.02) { hi = g; break; } }
+  const span = Math.max(1, hi - lo);
+  for (let i = 0; i < p.length; i += 4) {
+    let g = Math.max(0, Math.min(255, ((p[i] - lo) * 255 / span) | 0));
+    if (flip) g = 255 - g;
+    p[i] = p[i + 1] = p[i + 2] = g;
+  }
+  x.putImageData(im, 0, 0);
+  return cv;
+}
+// Only lines in the top fifth of the card count, so rules and flavour text
+// that mention another card are never read as the name.
+const topLines = (d, h) => (d.lines || []).filter(l => l.bbox && l.bbox.y0 < h * 0.22).map(l => l.text).join('\n');
+// The whole card and a little around it, small, for matching the printing.
+const CAPM = 0.08, CAPW = 186, CAPH = 259;
+function captureCard(v) {
+  const G = guideInVideo(v), ex = G.w * CAPM, ey = G.h * CAPM;
+  return grab(v, G.x - ex, G.y - ey, G.w + 2 * ex, G.h + 2 * ey, CAPW, CAPH)
+    .getContext('2d', {willReadFrequently: true}).getImageData(0, 0, CAPW, CAPH);
+}
+
+/* ---------- which printing ----------
+   The camera's picture of the card is compared with Scryfall's picture of each
+   different-looking printing (art, frame, border), on an 18 by 25 grid of
+   average colours. Brightness and colour cast are evened out first, and the
+   card is looked for at a few sizes and offsets inside the frame. */
+const FW = 18, FH = 25, FN = FW * FH;
+function sums(img) {
+  const {width: w, height: h, data} = img, W1 = w + 1;
+  const I = [0, 1, 2].map(() => new Float64Array(W1 * (h + 1)));
+  for (let y = 1; y <= h; y++) {
+    let r = 0, g = 0, b = 0;
+    for (let x = 1; x <= w; x++) {
+      const o = ((y - 1) * w + (x - 1)) * 4, k = y * W1 + x, u = k - W1;
+      r += data[o]; g += data[o + 1]; b += data[o + 2];
+      I[0][k] = I[0][u] + r; I[1][k] = I[1][u] + g; I[2][k] = I[2][u] + b;
+    }
+  }
+  return {w, h, I};
+}
+function feat(T, x0, y0, ww, hh) {
+  const v = new Float32Array(FN * 3), W1 = T.w + 1;
+  for (let c = 0; c < 3; c++) {
+    const I = T.I[c];
+    let sum = 0, sq = 0;
+    for (let gy = 0; gy < FH; gy++) for (let gx = 0; gx < FW; gx++) {
+      const X0 = Math.max(0, Math.min(T.w - 1, Math.round(x0 + ww * gx / FW)));
+      const X1 = Math.max(X0 + 1, Math.min(T.w, Math.round(x0 + ww * (gx + 1) / FW)));
+      const Y0 = Math.max(0, Math.min(T.h - 1, Math.round(y0 + hh * gy / FH)));
+      const Y1 = Math.max(Y0 + 1, Math.min(T.h, Math.round(y0 + hh * (gy + 1) / FH)));
+      const s = (I[Y1 * W1 + X1] - I[Y0 * W1 + X1] - I[Y1 * W1 + X0] + I[Y0 * W1 + X0]) / ((X1 - X0) * (Y1 - Y0));
+      v[c * FN + gy * FW + gx] = s; sum += s; sq += s * s;
+    }
+    const mean = sum / FN, sd = Math.sqrt(Math.max(1, sq / FN - mean * mean));
+    for (let i = 0; i < FN; i++) v[c * FN + i] = (v[c * FN + i] - mean) / sd;
+  }
+  return v;
+}
+function corr(a, b) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s / a.length; }
+function windows(cap) {
+  const T = sums(cap), d = 1 + 2 * CAPM;
+  const gw = CAPW / d, gh = CAPH / d, ox = CAPW * CAPM / d, oy = CAPH * CAPM / d, out = [];
+  for (const s of [1.06, 1, 0.94, 0.88]) for (const dx of [-0.03, 0, 0.03]) for (const dy of [-0.03, 0, 0.03]) {
+    const w = gw * s, h = gh * s;
+    out.push(feat(T, ox + (gw - w) / 2 + dx * gw, oy + (gh - h) / 2 + dy * gh, w, h));
+  }
+  return out;
+}
+async function bitmap(blob) {
+  if (window.createImageBitmap) { try { return await createImageBitmap(blob); } catch (e) {} }
+  const url = URL.createObjectURL(blob), img = new Image();
+  try { await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; }); return img; }
+  finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
+}
+const TF = new Map();
+function thumbFeat(url) {
+  if (TF.has(url)) return TF.get(url);
+  const p = (async () => {
+    // Its own address: the table caches these pictures in a form a page cannot read.
+    const r = await fetch(url + (url.includes('?') ? '&' : '?') + 'scan=1', {mode: 'cors'});
+    if (!r.ok) throw new Error('picture');
+    const bmp = await bitmap(await r.blob());
+    const cv = document.createElement('canvas');
+    cv.width = 146; cv.height = 204;
+    const x = cv.getContext('2d', {willReadFrequently: true});
+    x.drawImage(bmp, 0, 0, 146, 204);
+    return feat(sums(x.getImageData(0, 0, 146, 204)), 0, 0, 146, 204);
+  })();
+  TF.set(url, p);
+  p.catch(() => TF.delete(url));
+  return p;
+}
+async function pictureMatch(pool, face, cap) {
+  const groups = new Map();
+  for (const p of pool) { if (!groups.has(p.look)) groups.set(p.look, []); groups.get(p.look).push(p); }
+  if (groups.size < 2) return null;
+  const W = windows(cap), looks = [...groups.values()].slice(0, 100), scores = [];
+  let i = 0;
+  const worker = async () => {
+    while (i < looks.length) {
+      const g = looks[i++], url = g[0].img[face] || g[0].img[0];
+      if (!url) continue;
+      try {
+        const f = await thumbFeat(url);
+        let best = -1;
+        for (const w of W) { const c = corr(w, f); if (c > best) best = c; }
+        scores.push({g, r: best});
+      } catch (e) {}
+    }
+  };
+  await Promise.all(Array.from({length: 6}, worker));
+  if (!scores.length) return null;
+  scores.sort((a, b) => b.r - a.r);
+  const [a, b] = scores;
+  return {group: a.g, r: a.r, gap: b ? a.r - b.r : 1, sure: a.r >= 0.45 && (!b || a.r - b.r >= 0.04)};
+}
+// Pick the printing: the set being scanned, then the picture, then what he
+// picked before, then the copy already in the list, then the newest normal one.
+async function resolvePrint(name, face, cap) {
+  const prints = await getPrints(name);
+  if (!prints.length) return null;
+  let pool = prints, how = null;
+  if (S.set) {
+    const inSet = prints.filter(p => p.set === S.set.code);
+    if (inSet.length) { pool = inSet; how = 'set'; }
+  }
+  const looks = () => new Set(pool.map(p => p.look)).size;
+  if (looks() > 1 && cap && !(isBasic(pool[0]) && !S.set)) {
+    const m = await pictureMatch(pool, face, cap).catch(() => null);
+    if (m && m.sure) { pool = m.group; how = 'picture'; }
+  }
+  const settled = looks() === 1;
+  let p = null;
+  const last = S.picks[name];
+  if (last && (p = pool.find(x => x.id === last)) && !how) how = 'last';
+  if (!p) {
+    const had = S.items.filter(i => i.name === name && i.id).sort((x, y) => y.at - x.at)[0];
+    if (had && (p = pool.find(x => x.id === had.id)) && !how) how = 'have';
+  }
+  if (!p) p = pool.find(x => x.reg) || pool[0];
+  if (!how) how = settled ? 'only' : 'newest';
+  if (how === 'set' && !settled) how = 'setguess';
+  return {p, how, sure: how !== 'newest' && how !== 'setguess'};
+}
+const HOW = {
+  picture: 'Printing matched by its picture.',
+  set: 'Printing from the set you were scanning.',
+  setguess: 'From the set you were scanning. Which version is a guess.',
+  last: 'The printing you picked last time for this card.',
+  have: 'Same printing as the copy already in your list.',
+  only: 'Every printing of this card looks the same, so this one stands for them.',
+  newest: 'Printing is a guess: the newest one. Change it if yours is different.',
+  you: 'The printing you picked.',
+  pending: 'Not looked up yet. It will be the next time there is a connection.',
+};
+
+/* ---------- the collection ---------- */
+const keyOf = (id, fin) => id + '|' + fin;
+function pickFinish(p, foil) {
+  const f = p.fin;
+  if (foil) return f.includes('foil') ? 'foil' : f.includes('etched') ? 'etched' : f[0];
+  return f.includes('nonfoil') ? 'nonfoil' : f[0];
+}
+const fromPrint = p => ({id: p.id, name: p.name, set: p.set, setName: p.setName, cn: p.cn, rar: p.rar, fins: p.fin,
+  img: p.img[0] || '', big: p.big[0] || p.img[0] || '', usd: p.usd, pAt: Date.now()});
+function addItem(p, fin, how, sure) {
+  const k = keyOf(p.id, fin);
+  let it = S.items.find(x => x.k === k);
+  if (it) { it.qty++; it.at = Date.now(); if (sure && !it.sure) { it.sure = true; it.how = how; } }
+  else { it = Object.assign({k, fin, qty: 1, sent: 0, at: Date.now(), how, sure}, fromPrint(p)); S.items.push(it); }
+  save();
+  return it;
+}
+function takeOne(k) {
+  const it = S.items.find(x => x.k === k);
+  if (!it) return;
+  if (--it.qty <= 0) S.items.splice(S.items.indexOf(it), 1);
+  else it.sent = Math.min(it.sent, it.qty);
+  save(); render();
+}
+// Offline, a scanned name is kept and looked up once there is a connection.
+function addPending(name, fin) {
+  const k = 'name:' + name + '|' + fin;
+  let it = S.items.find(x => x.k === k);
+  if (it) it.qty++;
+  else S.items.push(it = {k, id: null, name, set: '', setName: '', cn: '', rar: '', fin, fins: [fin], qty: 1, sent: 0, img: '', big: '', usd: null, pAt: 0, at: Date.now(), how: 'pending', sure: false, pending: true});
+  save();
+  return it;
+}
+let fixing = false;
+async function fixPending() {
+  if (fixing || !navigator.onLine) return;
+  fixing = true;
+  try {
+    for (const it of S.items.filter(x => x.pending)) {
+      const r = await resolvePrint(it.name, 0, null);
+      if (!r) continue;
+      const fin = r.p.fin.includes(it.fin) ? it.fin : pickFinish(r.p, it.fin !== 'nonfoil');
+      S.items.splice(S.items.indexOf(it), 1);
+      const n = addItem(r.p, fin, r.how, r.sure);
+      n.qty += it.qty - 1; n.at = it.at;
+    }
+  } catch (e) {}
+  fixing = false;
+  save(); render();
+}
+function changePrint(it, p) {
+  const fin = p.fin.includes(it.fin) ? it.fin : pickFinish(p, it.fin !== 'nonfoil');
+  const k = keyOf(p.id, fin);
+  S.picks[it.name] = p.id;
+  if (k !== it.k) {
+    const other = S.items.find(x => x.k === k);
+    if (other) {
+      other.qty += it.qty; other.sent += it.sent; other.sure = true; other.how = 'you';
+      S.items.splice(S.items.indexOf(it), 1);
+      it = other;
+    } else Object.assign(it, fromPrint(p), {k, fin, pending: false});
+  }
+  it.sure = true; it.how = 'you';
+  save(); render();
+  return it;
+}
+function setFinish(it, fin) {
+  if (fin === it.fin) return it;
+  const k = keyOf(it.id, fin), other = S.items.find(x => x.k === k);
+  if (other) { other.qty += it.qty; S.items.splice(S.items.indexOf(it), 1); it = other; }
+  else { it.fin = fin; it.k = k; }
+  save(); render();
+  return it;
+}
+async function refreshPrices(quiet) {
+  const ids = [...new Set(S.items.filter(i => i.id).map(i => i.id))];
+  if (!ids.length) return;
+  try {
+    for (let i = 0; i < ids.length; i += 75) {
+      const j = await api('/cards/collection', {identifiers: ids.slice(i, i + 75).map(id => ({id}))});
+      for (const c of (j && j.data) || []) {
+        const p = slim(c);
+        for (const it of S.items) if (it.id === p.id) { it.usd = p.usd; it.pAt = Date.now(); }
+      }
+    }
+    save(); render();
+    if (!quiet) toast('Prices updated.');
+  } catch (e) { if (!quiet) toast('Could not reach Scryfall for prices.'); }
+}
+
+/* ---------- adding ----------
+   Scanned cards queue here and are added one at a time, in the order read. */
+const queue = [];
+let busy = false;
+function enqueue(job) { queue.push(job); if (!busy) runQueue(); }
+async function runQueue() {
+  busy = true;
+  while (queue.length) {
+    const j = queue.shift();
+    let it = null;
+    try {
+      const r = await resolvePrint(j.name, j.face, j.cap);
+      if (r) it = addItem(r.p, pickFinish(r.p, j.foil), r.how, r.sure);
+      else toast(`Scryfall has no paper printing of ${front(j.name)}.`);
+    } catch (e) {
+      it = addPending(j.name, j.foil ? 'foil' : 'nonfoil');
+    }
+    if (it) {
+      if (j.via === 'scan') { if (scan) { scan.hist.push(it.k); showLast(it); } }
+      else toast(`${front(it.name)} added.`, () => takeOne(it.k));
+    }
+    render();
+  }
+  busy = false;
+}
+
+/* ---------- scanner ---------- */
+let beepCtx = null;
+function beep(silent) {
+  try {
+    beepCtx = beepCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (beepCtx.state === 'suspended') beepCtx.resume();
+    const o = beepCtx.createOscillator(), g = beepCtx.createGain();
+    o.frequency.value = 1320; g.gain.value = silent ? 0 : 0.08;
+    o.connect(g); g.connect(beepCtx.destination); o.start(); o.stop(beepCtx.currentTime + 0.08);
+  } catch (e) {}
+}
+function scanMsg(h) { $('#scanmsg').innerHTML = h; }
+function renderChips() {
+  $('#setchip').innerHTML = `Set <b>${esc(S.set ? S.set.code.toUpperCase() : 'Any')}</b>`;
+  $('#setchip').classList.toggle('on', !!S.set);
+  $('#foilchip').innerHTML = `Foil <b>${S.foil ? 'On' : 'Off'}</b>`;
+  $('#foilchip').classList.toggle('on', S.foil);
+}
+let scan = null;
+async function startScan() {
+  closeSheet();
+  beep(true);   // unlocks sound on iPhone while the tap still counts
+  $('#scanner').hidden = false;
+  document.body.style.overflow = 'hidden';
+  $('#scanundo').hidden = true;
+  $('#last').hidden = true;
+  renderChips();
+  scan = {on: true, block: null, cand: null, hits: 0, empty: 0, flip: false, n: 0, pauseUntil: 0, stream: null, hist: []};
+  const me = scan;
+  scanMsg('Starting the camera…');
+  try {
+    me.stream = await navigator.mediaDevices.getUserMedia({audio: false, video: {facingMode: {ideal: 'environment'}, width: {ideal: 1920}, height: {ideal: 1080}}});
+  } catch (e) {
+    scanMsg('The camera is blocked. Allow it for this site (Settings › Apps › Safari › Camera), or type the name instead.');
+    return;
+  }
+  if (!me.on) return me.stream.getTracks().forEach(t => t.stop());
+  const v = $('#cam');
+  v.srcObject = me.stream;
+  await Promise.race([v.play().catch(() => {}), sleep(1500)]);
+  scanMsg('Getting the list of every card name…');
+  try { await ensureIndex(); } catch (e) { scanMsg('Could not get the card names. It needs a connection the first time.'); return; }
+  if (S.set && !SETNAMES) loadSetNames();
+  ocrLog = m => { if (me.on && /load/.test(m.status || '') && m.progress != null) scanMsg(`Loading the name reader, first time only… ${Math.round(m.progress * 100)}%`); };
+  scanMsg('Loading the name reader…');
+  try { await loadOCR(); } catch (e) { scanMsg('Could not load the name reader. It needs a connection the first time.'); return; }
+  await ocr.setParameters({tessedit_pageseg_mode: '11'});
+  if (!me.on) return;
+  scanMsg('Hold a card in the frame with its <b>name in the gold bar</b>.');
+  while (me.on) {
+    if (Date.now() < me.pauseUntil || v.readyState < 2 || !v.videoWidth || document.querySelector('.sheet')) { await sleep(120); continue; }
+    let text = '';
+    try { const cv = cropCard(v, me.flip); text = topLines((await ocr.recognize(cv)).data, cv.height); } catch (e) { await sleep(300); continue; }
+    if (!me.on) break;
+    if (letters(text).length < 4) {
+      // Nothing in the bar: the card has been taken away, so the same card can count again.
+      if (++me.empty >= 2) me.block = null;
+      me.cand = null; me.hits = 0; me.flip = !me.flip;
+      continue;
+    }
+    me.empty = 0;
+    const m = bestOf(text);
+    if (!m || m.score < 0.82 || m.margin < 0.07) { me.cand = null; me.hits = 0; if (!m || m.score < 0.6) me.flip = !me.flip; continue; }
+    if (m.n === me.block) continue;   // the same card is still in the frame
+    if (me.cand === m.n) me.hits++; else { me.cand = m.n; me.hits = 1; }
+    const strong = m.score >= 0.95 && m.margin >= 0.15 && m.k.length >= 8;
+    if (me.hits < 2 && !strong) continue;
+    const cap = captureCard(v);
+    me.block = m.n; me.cand = null; me.hits = 0; me.n++;
+    me.pauseUntil = Date.now() + 700;
+    beep();
+    const g = $('#guide'); g.classList.add('hit'); setTimeout(() => g.classList.remove('hit'), 500);
+    scanMsg(`<b>${esc(front(m.n))}</b> · finding the printing…`);
+    enqueue({name: m.n, face: m.f, cap, foil: S.foil, via: 'scan'});
+  }
+}
+function showLast(it) {
+  if (!scan) return;
+  const el = $('#last');
+  el.hidden = false;
+  el.innerHTML = `<img src="${esc(it.img)}" alt="">
+    <div style="min-width:0"><span class="nm">${esc(front(it.name))}</span>
+      <span class="sub">${it.pending ? 'Printing looked up later' : `${esc(it.set.toUpperCase())} ${esc(it.cn)}${it.fin !== 'nonfoil' ? ' · ' + (it.fin === 'foil' ? 'FOIL' : 'ETCHED') : ''} · ${money(unit(it))}${it.sure ? '' : ' · <span class="warn">check printing</span>'}`}</span></div>
+    <div class="acts"><button class="btn" data-act="plus" data-k="${esc(it.k)}" aria-label="One more copy">+1</button><button class="btn" data-act="item" data-k="${esc(it.k)}">Change</button></div>`;
+  const tot = scan.hist.reduce((s, k) => { const x = S.items.find(i => i.k === k); return s + (x ? unit(x) || 0 : 0); }, 0);
+  scanMsg(`<b>${esc(front(it.name))}</b> added · ${scan.hist.length} this session · ${money(tot)}<br><span class="small">Next card. For a second copy, tap +1, or take this one out of the frame first.</span>`);
+  $('#scanundo').hidden = !scan.hist.length;
+}
+function stopScan() {
+  if (scan) { scan.on = false; if (scan.stream) scan.stream.getTracks().forEach(t => t.stop()); }
+  scan = null;
+  $('#cam').srcObject = null;
+  $('#scanner').hidden = true;
+  document.body.style.overflow = '';
+  render();
+}
+
+/* ---------- typing a name ---------- */
+async function ensureNorm() {
+  if (!NORM) { await ensureNames(); NORM = NAMES.map(n => ({n, a: norm(n), f: norm(front(n)), w: norm(n).split(' ')})); }
+  return NORM;
+}
+function searchNames(q) {
+  const nq = norm(q);
+  if (!nq || !NORM) return [];
+  const toks = nq.split(' '), hits = [];
+  for (const e of NORM) {
+    let rank = -1;
+    if (e.f.startsWith(nq) || e.a.startsWith(nq)) rank = 0;
+    else if (toks.every(t => e.w.some(w => w.startsWith(t)))) rank = 1;
+    else if (nq.length >= 4 && e.a.includes(nq)) rank = 2;
+    if (rank >= 0) hits.push([rank, e.n]);
+  }
+  hits.sort((a, b) => a[0] - b[0] || a[1].length - b[1].length || a[1].localeCompare(b[1]));
+  return hits.slice(0, 7).map(h => h[1]);
+}
+let lastHits = [];
+async function onType() {
+  const q = $('#q').value;
+  if (!q.trim()) { $('#results').innerHTML = ''; lastHits = []; return; }
+  if (!NORM) {
+    $('#results').innerHTML = '<div class="nores">Getting the list of card names…</div>';
+    try { await ensureNorm(); } catch (e) { $('#results').innerHTML = '<div class="nores">Could not get the card names. It needs a connection the first time.</div>'; return; }
+    if ($('#q').value !== q) return;
+  }
+  lastHits = searchNames(q);
+  $('#results').innerHTML = lastHits.length
+    ? lastHits.map((n, i) => {
+        const have = S.items.filter(x => x.name === n).reduce((s, x) => s + x.qty, 0);
+        return `<button class="res${i ? '' : ' first'}" data-act="addname" data-n="${esc(n)}"><span class="nm">${esc(n)}</span><span class="have">${have ? 'have ' + have : ''}</span><span class="plus">+</span></button>`;
+      }).join('')
+    : '<div class="nores">No card by that name.</div>';
+}
+function addByName(n) {
+  $('#q').value = ''; $('#results').innerHTML = ''; lastHits = [];
+  enqueue({name: n, face: 0, cap: null, foil: false, via: 'typed'});
+}
+
+/* ---------- rendering ---------- */
+function renderWarn() {
+  const w = $('#warn');
+  w.hidden = saveOK;
+  w.textContent = 'This browser is not saving the list (private browsing?). Send it to Moxfield before closing the page.';
+}
+function renderStats() {
+  const cards = S.items.reduce((s, x) => s + x.qty, 0);
+  const val = S.items.reduce((s, x) => s + value(x), 0);
+  $('#stats').innerHTML = `<div class="stat"><div class="v">${cards.toLocaleString('en-US')}</div><div class="l">Cards</div></div>
+    <div class="stat"><div class="v">${S.items.length.toLocaleString('en-US')}</div><div class="l">Different</div></div>
+    <div class="stat"><div class="v">${money(val)}</div><div class="l">Worth</div></div>`;
+}
+function rowHTML(it) {
+  const u = unit(it);
+  const sub = it.pending ? '<span class="tag warn">Printing not looked up yet</span>'
+    : `<span>${esc(it.set.toUpperCase())} ${esc(it.cn)}</span><span>${esc(it.rar)}</span>` +
+      (it.fin !== 'nonfoil' ? `<span class="tag">${it.fin === 'foil' ? 'Foil' : 'Etched'}</span>` : '') +
+      (it.sure ? '' : '<span class="tag warn">Check printing</span>');
+  return `<button class="crow" data-act="item" data-k="${esc(it.k)}">
+    ${it.img ? `<img class="th" src="${esc(it.img)}" alt="" loading="lazy">` : '<span class="th"></span>'}
+    <span class="mid"><span class="nm">${esc(front(it.name))}</span><span class="sub">${sub}</span></span>
+    <span class="right"><span class="px">${money(u == null ? null : u * it.qty)}</span><span class="q">${it.qty > 1 ? '×' + it.qty : ''}</span></span>
+  </button>`;
+}
+function renderList() {
+  const el = $('#list');
+  document.querySelectorAll('#sort button').forEach(b => b.classList.toggle('on', b.dataset.v === S.sort));
+  if (!S.items.length) {
+    el.innerHTML = '<div class="empty">No cards yet. Tap <b>Scan cards</b> and hold one up to the camera, name in the gold bar.</div>';
+    return;
+  }
+  const rows = S.items.slice();
+  if (S.sort === 'name') rows.sort((a, b) => a.name.localeCompare(b.name) || a.set.localeCompare(b.set));
+  else if (S.sort === 'price') rows.sort((a, b) => value(b) - value(a) || a.name.localeCompare(b.name));
+  else rows.sort((a, b) => b.at - a.at);
+  el.innerHTML = rows.map(rowHTML).join('');
+}
+function renderFoot() {
+  $('#foot').hidden = !S.items.length;
+  const pAts = S.items.filter(x => x.pAt).map(x => x.pAt);
+  const bits = [];
+  if (pAts.length) bits.push(`Prices are US market prices from Scryfall, checked ${dateShort(Math.min(...pAts))}.`);
+  if (S.fx) bits.push(`Pesos at ₱${S.fx.rate.toFixed(2)} to the dollar (${dateShort(S.fx.at)}).`);
+  else if (pAts.length) bits.push('Shown in dollars until the exchange rate loads.');
+  if (S.sentAt) bits.push(`Last sent to Moxfield ${dateShort(S.sentAt)}.`);
+  $('#pricenote').textContent = bits.join(' ');
+}
+function render() { renderStats(); renderList(); renderFoot(); }
+
+/* ---------- sheets ---------- */
+function openSheet(title, body, foot) {
+  closeSheet();
+  const veil = document.createElement('div'); veil.className = 'veil'; veil.dataset.act = 'close';
+  const sh = document.createElement('div'); sh.className = 'sheet'; sh.setAttribute('role', 'dialog'); sh.setAttribute('aria-modal', 'true');
+  sh.innerHTML = `<div class="sheet-head"><h3>${esc(title)}</h3><button class="x" data-act="close" aria-label="Close">✕</button></div>
+    <div class="sheet-body" id="sbody">${body}</div><div class="sheet-foot" id="sfoot"${foot ? '' : ' hidden'}>${foot || ''}</div>`;
+  document.body.append(veil, sh);
+  if ($('#scanner').hidden) document.body.style.overflow = 'hidden';
+}
+function closeSheet() {
+  sheetK = null;
+  document.querySelectorAll('.veil,.sheet').forEach(n => n.remove());
+  if ($('#scanner').hidden) document.body.style.overflow = '';
+}
+let sheetK = null;
+function openItem(k) {
+  const it = S.items.find(x => x.k === k);
+  if (!it) return closeSheet();
+  sheetK = k;
+  const u = unit(it), fins = it.fins || [it.fin];
+  const finBtns = fins.length > 1
+    ? `<h3>Finish</h3><div class="seg wide">${fins.map(f => `<button data-act="fin" data-v="${f}" class="${f === it.fin ? 'on' : ''}">${f === 'nonfoil' ? 'Normal' : f === 'foil' ? 'Foil' : 'Etched'}</button>`).join('')}</div>`
+    : '';
+  openSheet(front(it.name), `
+    <div class="cardview">${it.big ? `<img src="${esc(it.big)}" alt="">` : '<img alt="">'}
+      <div><div class="nm">${esc(it.name)}</div>
+        <div class="ty">${it.pending ? '' : `${esc(it.setName)} · ${esc(it.set.toUpperCase())} ${esc(it.cn)} · ${esc(RAR[it.rar] || '')}`}</div>
+        <div class="price">${money(u)} <small>each${u != null ? ` · $${u.toFixed(2)} US` : ''}</small></div>
+        <div class="how${it.sure ? '' : ' warn'}">${esc(HOW[it.how] || '')}</div>
+      </div></div>
+    <h3>How many</h3>
+    <div class="stepper"><button data-act="qty" data-v="-1" aria-label="One fewer">−</button><span>${it.qty}</span><button data-act="qty" data-v="1" aria-label="One more">+</button></div>
+    ${finBtns}`,
+    `${it.pending ? '' : '<button class="btn primary" data-act="prints">Change printing</button>'}<button class="btn bad" data-act="remove">Remove</button>`);
+}
+async function openPrints() {
+  const it = S.items.find(x => x.k === sheetK);
+  if (!it) return;
+  const k = sheetK;
+  openSheet('Which printing is yours?', '<p class="note">Getting every printing…</p>');
+  sheetK = k;
+  let prints;
+  try { prints = await getPrints(it.name); } catch (e) { $('#sbody').innerHTML = '<p class="note">Could not reach Scryfall.</p>'; return; }
+  if (sheetK !== k || !$('#sbody')) return;
+  const draw = f => {
+    const nf = norm(f || '');
+    const list = nf ? prints.filter(p => norm(p.setName + ' ' + p.set + ' ' + p.cn).includes(nf)) : prints;
+    $('#plist').innerHTML = list.slice(0, 150).map(p => {
+      const price = p.usd[it.fin] != null ? p.usd[it.fin] : p.usd.nonfoil != null ? p.usd.nonfoil : p.usd.foil;
+      return `<button class="pt${p.id === it.id ? ' on' : ''}" data-act="pick" data-id="${p.id}"><img src="${esc(p.img[0] || '')}" alt="" loading="lazy">
+        <span class="c">${esc(p.set.toUpperCase())} ${esc(p.cn)}</span><span class="p">${money(price)}</span></button>`;
+    }).join('') || '<p class="note">No printing matches.</p>';
+  };
+  $('#sbody').innerHTML = `<p class="note">${prints.length} printing${prints.length === 1 ? '' : 's'}. Tap the one that looks like your card.</p>
+    ${prints.length > 12 ? '<div class="search" style="margin:0 0 var(--s3)"><input id="pq" type="search" placeholder="Set name or code" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></div>' : ''}
+    <div class="prints" id="plist"></div>`;
+  draw('');
+  const pq = $('#pq');
+  if (pq) pq.addEventListener('input', () => draw(pq.value));
+  openPrints.list = prints;
+}
+async function openSets() {
+  openSheet('Scanning cards from', `<p class="note">Pick the set when a pile is all from one set, such as a prerelease or a precon. Names are matched against that set first, and printings come from it.</p>
+    <div class="search" style="margin:0 0 var(--s3)"><input id="sq" type="search" placeholder="Set name or code" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></div>
+    <div id="slist"><p class="note">Getting the sets…</p></div>`);
+  let sets;
+  try { sets = await getSets(); } catch (e) { if ($('#slist')) $('#slist').innerHTML = '<p class="note">Could not reach Scryfall.</p>'; return; }
+  const draw = f => {
+    if (!$('#slist')) return;
+    const nf = norm(f || '');
+    const list = nf ? sets.filter(s => s.code === nf || norm(s.name).includes(nf)) : sets;
+    $('#slist').innerHTML = `<button class="setrow${S.set ? '' : ' on'}" data-act="setpick" data-v=""><span></span><span>Any set</span><span class="code"></span></button>` +
+      list.slice(0, 80).map(s => `<button class="setrow${S.set && S.set.code === s.code ? ' on' : ''}" data-act="setpick" data-v="${esc(s.code)}">
+        <img src="${esc(s.icon)}" alt="" loading="lazy"><span>${esc(s.name)}</span><span class="code">${esc(s.code)} · ${esc(s.rel.slice(0, 4))}</span></button>`).join('');
+  };
+  draw('');
+  $('#sq').addEventListener('input', e => draw(e.target.value));
+}
+
+/* ---------- Moxfield ----------
+   Moxfield's collection import takes pasted text or its own CSV. Only copies
+   not sent before go by default, in case an import adds to what is there. */
+let expMode = 'new';
+const MOX_HEAD = ['Count', 'Tradelist Count', 'Name', 'Edition', 'Condition', 'Language', 'Foil', 'Tags', 'Last Modified', 'Collector Number', 'Alter', 'Proxy', 'Purchase Price'];
+function expRows(mode) {
+  return S.items.filter(x => x.id).map(x => ({x, n: mode === 'all' ? x.qty : Math.max(0, x.qty - (x.sent || 0))})).filter(r => r.n > 0)
+    .sort((a, b) => a.x.name.localeCompare(b.x.name));
+}
+const moxName = n => n;   // Moxfield reads full "A // B" names
+function expText(rows) {
+  return rows.map(({x, n}) => `${n} ${moxName(x.name)} (${x.set.toUpperCase()}) ${x.cn}${x.fin === 'foil' ? ' *F*' : x.fin === 'etched' ? ' *E*' : ''}`).join('\n');
+}
+function expCSV(rows) {
+  const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+  const now = new Date().toISOString().replace('T', ' ').replace('Z', '').slice(0, 19) + '.000000';
+  return [MOX_HEAD.map(q).join(','), ...rows.map(({x, n}) =>
+    [n, 0, moxName(x.name), x.set, 'Near Mint', 'English', x.fin === 'nonfoil' ? '' : x.fin, '', now, x.cn, 'False', 'False', ''].map(q).join(','))].join('\r\n');
+}
+function openExport() {
+  const newN = expRows('new').reduce((s, r) => s + r.n, 0), allN = expRows('all').reduce((s, r) => s + r.n, 0);
+  if (!newN) expMode = 'all';
+  const rows = expRows(expMode), pend = S.items.filter(x => x.pending).length;
+  openSheet('Send to Moxfield', `
+    ${S.sentAt ? `<div class="seg wide"><button data-act="expmode" data-v="new" class="${expMode === 'new' ? 'on' : ''}"${newN ? '' : ' disabled'}>New since last time · ${newN}</button><button data-act="expmode" data-v="all" class="${expMode === 'all' ? 'on' : ''}">Everything · ${allN}</button></div>` : ''}
+    <p class="note" style="margin-top:var(--s3)">In Moxfield, open <b>Collection</b>, then <b>Import</b>. Paste this, or pick the saved file.${pend ? ` ${pend} card${pend === 1 ? ' is' : 's are'} left out until their printing is looked up.` : ''}</p>
+    <textarea class="exp" id="exptext" readonly>${esc(expText(rows))}</textarea>
+    <p class="small" id="expdone"></p>`,
+    `<button class="btn primary" data-act="copy"${rows.length ? '' : ' disabled'}>Copy</button><button class="btn" data-act="savefile"${rows.length ? '' : ' disabled'}>Save file</button><button class="btn fill" data-act="sent" id="sentbtn" hidden>It’s in Moxfield</button>`);
+}
+function exported() {
+  $('#sentbtn').hidden = false;
+  $('#expdone').textContent = 'Once Moxfield has them, tap It’s in Moxfield so they are not sent twice.';
+}
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); return true; } catch (e) {}
+  const ta = $('#exptext');
+  if (ta) { ta.focus(); ta.select(); try { return document.execCommand('copy'); } catch (e) {} }
+  return false;
+}
+async function saveFile(name, text) {
+  const file = new File([text], name, {type: 'text/csv'});
+  if (matchMedia('(pointer:coarse)').matches && navigator.canShare && navigator.canShare({files: [file]})) {
+    try { await navigator.share({files: [file]}); return true; } catch (e) { if (e.name === 'AbortError') return false; }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(file); a.download = name;
+  document.body.append(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+  return true;
+}
+
+/* ---------- toast ---------- */
+let undoFn = null, toastT = null;
+function toast(msg, undo) {
+  undoFn = undo || null;
+  $('#toastmsg').textContent = msg;
+  $('#toast').querySelector('button').hidden = !undo;
+  $('#toast').hidden = false;
+  clearTimeout(toastT);
+  toastT = setTimeout(() => { $('#toast').hidden = true; undoFn = null; }, 6000);
+}
+
+/* ---------- taps ---------- */
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-act]');
+  if (!b || b.disabled) return;
+  const act = b.dataset.act;
+  if (act === 'scan') startScan();
+  else if (act === 'scanstop') stopScan();
+  else if (act === 'scanundo') {
+    if (!scan || !scan.hist.length) return;
+    const k = scan.hist.pop(), it = S.items.find(x => x.k === k);
+    takeOne(k);
+    scan.block = null;
+    $('#last').hidden = true;
+    $('#scanundo').hidden = !scan.hist.length;
+    scanMsg(it ? `Took out <b>${esc(front(it.name))}</b>.` : 'Taken out.');
+  }
+  else if (act === 'plus') {
+    const it = S.items.find(x => x.k === b.dataset.k);
+    if (!it) return;
+    it.qty++; it.at = Date.now(); save();
+    if (scan) { scan.hist.push(it.k); showLast(it); }
+    render();
+  }
+  else if (act === 'foil') { S.foil = !S.foil; save(); renderChips(); }
+  else if (act === 'sets') openSets();
+  else if (act === 'setpick') {
+    const code = b.dataset.v;
+    S.set = code ? {code, name: ((SETS || []).find(s => s.code === code) || {}).name || code} : null;
+    save(); closeSheet(); renderChips();
+    loadSetNames();
+    if (scan) scanMsg(S.set ? `Scanning cards from <b>${esc(S.set.name)}</b>.` : 'Scanning cards from any set.');
+  }
+  else if (act === 'close') closeSheet();
+  else if (act === 'item') openItem(b.dataset.k);
+  else if (act === 'qty') {
+    const it = S.items.find(x => x.k === sheetK);
+    if (!it) return;
+    const n = it.qty + (+b.dataset.v);
+    if (n <= 0) { removeItem(it); return; }
+    it.qty = n; it.sent = Math.min(it.sent, n); save(); render(); openItem(it.k);
+  }
+  else if (act === 'fin') {
+    const it = S.items.find(x => x.k === sheetK);
+    if (it) openItem(setFinish(it, b.dataset.v).k);
+  }
+  else if (act === 'remove') {
+    const it = S.items.find(x => x.k === sheetK);
+    if (it) removeItem(it);
+  }
+  else if (act === 'prints') openPrints();
+  else if (act === 'pick') {
+    const it = S.items.find(x => x.k === sheetK), p = (openPrints.list || []).find(x => x.id === b.dataset.id);
+    if (!it || !p) return;
+    const n = changePrint(it, p);
+    if (scan && scan.hist.length && scan.hist[scan.hist.length - 1] === it.k) { scan.hist[scan.hist.length - 1] = n.k; showLast(n); }
+    openItem(n.k);
+  }
+  else if (act === 'addname') addByName(b.dataset.n);
+  else if (act === 'sort') { S.sort = b.dataset.v; save(); renderList(); }
+  else if (act === 'prices') refreshPrices(false);
+  else if (act === 'export') openExport();
+  else if (act === 'expmode') { expMode = b.dataset.v; openExport(); }
+  else if (act === 'copy') {
+    const ok = await copyText($('#exptext').value);
+    toast(ok ? 'Copied. Paste it into Moxfield.' : 'Could not copy. Select the text and copy it by hand.');
+    exported();
+  }
+  else if (act === 'savefile') {
+    const d = new Date(), stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (await saveFile(`collection-${stamp}.csv`, expCSV(expRows(expMode)))) exported();
+  }
+  else if (act === 'sent') {
+    const rows = expRows(expMode);
+    const before = S.items.map(x => [x, x.sent, S.sentAt]);
+    rows.forEach(({x}) => { x.sent = x.qty; });
+    const was = S.sentAt;
+    S.sentAt = Date.now(); expMode = 'new';
+    save(); closeSheet(); render();
+    toast(`${rows.reduce((s, r) => s + r.n, 0)} cards marked as in Moxfield.`, () => { before.forEach(([x, s]) => { x.sent = s; }); S.sentAt = was; save(); render(); });
+  }
+  else if (act === 'undo') {
+    const f = undoFn;
+    $('#toast').hidden = true; undoFn = null;
+    if (f) f();
+  }
+});
+function removeItem(it) {
+  const i = S.items.indexOf(it);
+  if (i < 0) return;
+  S.items.splice(i, 1);
+  save(); closeSheet(); render();
+  toast(`${front(it.name)} removed.`, () => { S.items.splice(Math.min(i, S.items.length), 0, it); save(); render(); });
+}
+$('#q').addEventListener('input', onType);
+$('#q').addEventListener('focus', () => { ensureNorm().catch(() => {}); });
+$('#q').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && lastHits.length) { e.preventDefault(); addByName(lastHits[0]); }
+  if (e.key === 'Escape') { $('#q').value = ''; onType(); }
+});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (document.querySelector('.sheet')) closeSheet();
+  else if (scan) stopScan();
+});
+window.addEventListener('online', fixPending);
+
+/* ---------- start ---------- */
+(async () => {
+  const saved = await DB.get('state');
+  if (saved && saved.v === 1) S = Object.assign(fresh(), saved);
+  render();
+  getRate();
+  fixPending();
+  const oldest = S.items.filter(x => x.pAt).reduce((m, x) => Math.min(m, x.pAt), Infinity);
+  if (oldest < Date.now() - 3 * DAY) refreshPrices(true);
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+})();
+</script>
+</body>
+</html>

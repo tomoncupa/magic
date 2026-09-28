@@ -1,7 +1,7 @@
 // Offline support. The app shell is cached up front; card pictures are cached
 // as they are seen. A shop with no wifi can still deal a game, though the two
 // devices will not sync until there is a connection again.
-const SHELL = 'ktm-shell-v23';
+const SHELL = 'ktm-shell-v24';
 const CARDS = 'ktm-cards-v2';
 // Libraries from the CDN, such as the Sealed helper's card-name reader. Their
 // addresses carry a version, so a cached copy never goes stale.
@@ -30,12 +30,13 @@ self.addEventListener('fetch', e => {
   // Card pictures never change once published, so cache them for good.
   // An image from another domain comes back "opaque" with status 0, so res.ok
   // is false even on success. Store it anyway or nothing is ever cached and
-  // offline has no art.
+  // offline has no art. A page that reads a picture's pixels (the card
+  // scanner) asks in cors mode, and an opaque copy cannot answer that.
   if (url.hostname === 'cards.scryfall.io') {
     e.respondWith(
       caches.open(CARDS).then(c =>
         c.match(e.request).then(hit => {
-          if (hit) return hit;
+          if (hit && !(e.request.mode === 'cors' && hit.type === 'opaque')) return hit;
           return fetch(e.request).then(res => {
             try { c.put(e.request, res.clone()); } catch (err) { /* over quota */ }
             return res;
