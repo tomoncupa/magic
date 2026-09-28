@@ -6909,6 +6909,45 @@ function importFromLink(){
     if(j && j.text) setTimeout(function(){ openImport(j); }, 300);
   }catch(e){}
 }
+// The card scanner hands a checked deck over in the link:
+// #scanned=<base64 of {name, stamp, changes:[{n, q}]}>. The real cards are the
+// truth, so each change is made the way a hand edit is, and joins the list of
+// changes still to make on Moxfield. A scan of a different list is refused.
+async function scannedFromLink(){
+  var m = location.hash.match(/^#scanned=([A-Za-z0-9_-]+)/);
+  if(!m) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  var j;
+  try{ j = JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g,'+').replace(/_/g,'/'))))); }catch(e){ return; }
+  if(!j || !j.changes || !j.changes.length) return;
+  var mine = defsAreBuiltin ? null : (lastDeckStamp || null);
+  if((j.stamp || null) !== mine || j.name !== deckName){
+    sheet('Deck not updated', 'The table’s deck changed after that scan, so nothing was changed. Scan it again.');
+    return;
+  }
+  var adds = [], out = 0, put = 0;
+  j.changes.forEach(function(c){
+    var d = findDef(c.n);
+    if(d){
+      var was = qOf(d);
+      d.q = Math.max(0, was + c.q);
+      if(d.q !== was){ noteChange(d.n, d.q - was); if(d.q < was) out += was - d.q; else put += d.q - was; }
+    }
+    else if(c.q > 0) adds.push(c);
+  });
+  for(var i=0;i<adds.length;i++){
+    var c = adds[i], d = { n:c.n, q:c.q, t:'', m:'', ci:[], pm:[], o:'' };
+    try{ var hit = await scryOne(c.n); if(hit){ hit.q = c.q; d = hit; } }catch(e){}
+    var dupe = findDef(d.n);   // the lookup can answer with a name already in the list
+    if(dupe){ dupe.q = qOf(dupe) + c.q; noteChange(dupe.n, c.q); }
+    else { defs.push(d); noteChange(d.n, c.q); }
+    put += c.q;
+  }
+  persistDeck();
+  logg('Real deck scanned: ' + out + ' out, ' + put + ' in');
+  render();
+  openDeckSheet();
+}
 
 /* ---------------- boot ---------------- */
 function boot(){
@@ -6960,6 +6999,7 @@ function boot(){
   finishSignIn().then(function(){
     initSync();
     importFromLink();
+    scannedFromLink();
     if(authNote){ var sn = sheet('Sign-in did not finish', authNote); actionGrid(sn, [['Try again', signIn, true]]); }
   });
 
