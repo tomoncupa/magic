@@ -39,6 +39,7 @@ button{background:none;border:0;cursor:pointer;touch-action:manipulation;padding
 .top{position:sticky;top:0;z-index:5;background:var(--bg2);border-bottom:1px solid var(--line);
   padding:calc(8px + env(safe-area-inset-top,0px)) 16px 0}
 .toprow{display:flex;align-items:center;gap:var(--s4);max-width:760px;margin:0 auto}
+.back{flex:none;width:var(--tap);height:var(--tap);margin-left:-12px;display:grid;place-items:center;font-family:var(--disp);font-size:28px;line-height:1;color:var(--ink2);text-decoration:none}
 .brand{font-family:var(--disp);font-weight:700;font-size:19px;color:var(--brass);line-height:1;letter-spacing:var(--cap);text-transform:uppercase}
 .brand small{display:block;font-weight:500;font-size:10px;letter-spacing:.14em;color:var(--ink3);margin-top:4px}
 .spacer{flex:1}
@@ -197,6 +198,7 @@ p{margin:0 0 var(--s3)}
 <body>
 <header class="top">
   <div class="toprow">
+    <a class="back" href="../" aria-label="All Magic apps">‹</a>
     <div class="brand">Sealed<small>Reality Fracture</small></div>
     <div class="spacer"></div>
     <span class="count" id="count"></span>

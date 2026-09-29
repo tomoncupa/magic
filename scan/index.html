@@ -41,7 +41,7 @@ button{background:none;border:0;cursor:pointer;touch-action:manipulation;padding
 .tabbtn{flex:1;min-height:var(--tap);font-family:var(--disp);font-weight:600;font-size:var(--t2);letter-spacing:var(--cap);text-transform:uppercase;color:var(--ink3);border-bottom:2px solid transparent;text-align:center}
 .tabbtn.on{color:var(--brass);border-bottom-color:var(--brass)}
 .toprow{display:flex;align-items:center;gap:var(--s3);max-width:760px;margin:0 auto}
-.back{width:var(--tap);height:var(--tap);margin-left:-12px;display:grid;place-items:center;font-family:var(--disp);font-size:28px;line-height:1;color:var(--ink2);text-decoration:none;border-radius:var(--r)}
+.back{flex:none;width:var(--tap);height:var(--tap);margin-left:-12px;display:grid;place-items:center;font-family:var(--disp);font-size:28px;line-height:1;color:var(--ink2);text-decoration:none;border-radius:var(--r)}
 .brand{font-family:var(--disp);font-weight:700;font-size:19px;color:var(--brass);line-height:1;letter-spacing:var(--cap);text-transform:uppercase}
 .brand small{display:block;font-weight:500;font-size:10px;letter-spacing:.14em;color:var(--ink3);margin-top:4px}
 .spacer{flex:1}
@@ -189,8 +189,8 @@ textarea.exp{width:100%;min-height:150px;max-height:40vh;background:var(--bg3);b
 <body>
 <header class="top">
   <div class="toprow">
-    <a class="back" href="../" aria-label="Back to the table">‹</a>
-    <div class="brand">Card Scanner<small>Kitchen Table Magic</small></div>
+    <a class="back" href="../" aria-label="All Magic apps">‹</a>
+    <div class="brand">Card Scanner<small>Magic</small></div>
     <div class="spacer"></div>
   </div>
   <nav class="tabs">
@@ -978,7 +978,7 @@ async function applyDeck() {
   S.check = null;
   await flush();
   const b = btoa(unescape(encodeURIComponent(JSON.stringify(payload)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  location.href = '../#scanned=' + b;
+  location.href = '../table.html#scanned=' + b;
 }
 
 /* ---------- adding ----------

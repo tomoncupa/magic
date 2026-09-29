@@ -1,0 +1,864 @@
+<title>Commander Playmat Designer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=Chakra+Petch:wght@500;600;700&family=Cinzel:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --bg:#080B10; --panel:#0E141D; --panel2:#131B26; --gold:#F0B323; --gold-ink:#0A0E14;
+  --ink:#E7EDF5; --muted:#7E8CA0; --line:#1E2937;
+  --ok:#4CC27E; --warn:#E0A43A; --bad:#EE6B5B;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --head:"Chakra Petch","IBM Plex Sans",system-ui,sans-serif;
+  --r:6px;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans);padding-inline:16px;padding-block:14px 40px}
+header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+h1{font:700 22px/1.1 var(--head);letter-spacing:.06em;text-transform:uppercase;margin:0;color:var(--ink)}
+header .home{align-self:center;width:44px;height:44px;margin-left:-12px;display:grid;place-items:center;font-family:var(--head);font-size:28px;line-height:1;color:var(--muted);text-decoration:none}
+header .home:hover{color:var(--gold)}
+header .sub{color:var(--muted);font-family:var(--head);font-size:13px;letter-spacing:.06em;font-variant-numeric:tabular-nums}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 348px;gap:16px;align-items:start}
+@media (max-width:900px){.app{grid-template-columns:minmax(0,1fr)}}
+.stage{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 10px)}
+@media (max-width:900px){.stage{position:static}}
+.viewport{overflow:auto;display:flex;border-radius:var(--r);background:#05070A}
+#mat{display:block;flex:none;margin:auto;height:auto;touch-action:none;user-select:none;-webkit-user-select:none}
+.viewbar,.stagebar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;font-size:13px;color:var(--muted)}
+.viewbar{margin-bottom:10px}
+.stagebar{margin-top:10px}
+.grp{display:flex;gap:6px;align-items:center}
+.mono{font-family:var(--head);font-variant-numeric:tabular-nums;color:var(--ink);letter-spacing:.04em}
+.legend{display:flex;gap:14px;flex-wrap:wrap}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:11px;height:11px;border-radius:2px;display:inline-block}
+aside{display:flex;flex-direction:column;gap:12px}
+section{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+section h2{font:700 12px/1 var(--head);letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin:0 0 12px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row + .row{margin-top:8px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+label.f{display:flex;flex-direction:column;gap:4px;font:600 11px/1.2 var(--head);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);min-width:0}
+label.f.inline{flex-direction:row;align-items:center;gap:8px;font-size:12px;color:var(--ink);text-transform:none;letter-spacing:.02em;min-height:44px}
+input,select,button{font:inherit;color:var(--ink)}
+input[type=number],input[type=text],select{background:var(--panel2);border:1px solid var(--line);border-radius:var(--r);padding:8px 9px;width:100%;min-width:0;font-size:14px;min-height:40px}
+input[type=number]{font-family:var(--head);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--gold);min-height:32px}
+input[type=color]{width:44px;height:40px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel2);padding:3px}
+input[type=checkbox]{accent-color:var(--gold);width:20px;height:20px}
+button{background:var(--panel2);border:1px solid var(--line);border-radius:var(--r);padding:0 12px;min-height:44px;cursor:pointer;font:600 13px/1 var(--head);letter-spacing:.06em;text-transform:uppercase}
+button:hover{border-color:var(--gold);color:var(--gold)}
+button.primary{background:var(--gold);color:var(--gold-ink);border-color:var(--gold)}
+button.primary:hover{color:var(--gold-ink);filter:brightness(1.08)}
+button.danger{color:var(--bad)}
+button.danger:hover{border-color:var(--bad);color:var(--bad)}
+button:disabled{opacity:.4;cursor:default}
+button:disabled:hover{border-color:var(--line);color:var(--ink)}
+.viewbar button{min-height:36px;padding:0 10px}
+.viewbar select{width:auto;min-height:36px;padding:4px 8px}
+:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.tpls{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.tpls button{text-align:left;padding:8px 10px;line-height:1.3;text-transform:none;letter-spacing:.02em;font-size:13px;flex-direction:column;align-items:flex-start;display:flex;justify-content:center}
+.tpls small{display:block;color:var(--muted);font:400 11px/1.3 var(--sans);letter-spacing:0}
+.olist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.olist li{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--r);cursor:pointer;border:1px solid transparent;min-height:44px}
+.olist li:hover{background:var(--panel2)}
+.olist li.sel{border-color:var(--gold);background:var(--panel2)}
+.olist .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.olist .sz{font-family:var(--head);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.olist img{width:34px;height:26px;object-fit:contain;background:#05070A;border:1px solid var(--line);border-radius:3px}
+.chip{font:700 10px/1 var(--head);letter-spacing:.08em;text-transform:uppercase;padding:4px 7px;border-radius:99px;white-space:nowrap}
+.chip.ok{color:var(--ok);background:color-mix(in srgb,var(--ok) 16%,transparent)}
+.chip.warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 16%,transparent)}
+.chip.bad{color:var(--bad);background:color-mix(in srgb,var(--bad) 16%,transparent)}
+.note{font-size:13px;color:var(--muted);margin:10px 0 0}
+.note.warn{color:var(--warn)} .note.ok{color:var(--ok)}
+.editor{margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.status{font-size:13px;margin-top:10px;min-height:1.2em}
+.drop{outline:3px dashed var(--gold);outline-offset:-8px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+<header>
+  <a class="home" href="../" aria-label="All Magic apps">‹</a>
+  <h1>Commander Playmat Designer</h1>
+  <span class="sub">600 × 350 mm mat · 66 × 91 mm sleeves</span>
+</header>
+
+<div class="app">
+  <div class="stage" id="stage">
+    <div class="viewbar">
+      <div class="grp">View
+        <button id="zoomOut" aria-label="Zoom out">−</button>
+        <span id="zoomPct" class="mono">100%</span>
+        <button id="zoomIn" aria-label="Zoom in">+</button>
+        <button id="zoomFit">Fit</button>
+      </div>
+      <div class="grp">Grid
+        <select id="grid"><option value="0">off</option><option value="1">1 mm</option><option value="2.5">2.5 mm</option><option value="5">5 mm</option><option value="10">10 mm</option><option value="20">20 mm</option><option value="25">25 mm</option></select>
+        <label class="f inline"><input type="checkbox" id="showGrid"> Show</label>
+      </div>
+      <span>Ctrl + scroll wheel also zooms</span>
+    </div>
+    <div class="viewport" id="viewport"><svg id="mat" xmlns="http://www.w3.org/2000/svg"></svg></div>
+    <div class="stagebar">
+      <span class="mono" id="sizeReadout"></span>
+      <div class="legend">
+        <span><i style="border:1.5px solid #fff;background:#0003"></i>trim edge</span>
+        <span><i style="border:1.5px dashed #F0B323"></i>safe line</span>
+        <span><i style="background:repeating-linear-gradient(45deg,#fff6 0 2px,transparent 2px 4px)"></i>bleed (cut off)</span>
+      </div>
+      <label class="f inline"><input type="checkbox" id="showGuides" checked> Guides</label>
+      <label class="f inline"><input type="checkbox" id="showCards" checked> Test cards</label>
+    </div>
+  </div>
+
+  <aside>
+    <section>
+      <h2>Background</h2>
+      <div class="row">
+        <button class="primary" id="pickImg">Choose image…</button>
+        <button id="fitWhole">Show whole</button>
+        <button id="fillMat">Fill mat</button>
+        <button id="clearImg">Remove</button>
+        <input type="file" id="fileImg" accept="image/*" hidden>
+      </div>
+      <p class="note" id="dpiNote">No image yet. You can also drop one onto the mat.</p>
+      <div class="grid2" style="margin-top:8px">
+        <label class="f">Zoom <input type="range" id="imgZoom" min="0.2" max="3" step="0.01"></label>
+        <label class="f">Colour behind <input type="color" id="bgColor"></label>
+        <label class="f">Left ↔ right <input type="range" id="imgX" min="0" max="100" step="0.5"></label>
+        <label class="f">Up ↕ down <input type="range" id="imgY" min="0" max="100" step="0.5"></label>
+      </div>
+    </section>
+
+    <section>
+      <h2>Stickers</h2>
+      <ul class="olist" id="slist"></ul>
+      <div class="row" style="margin-top:8px">
+        <button class="primary" id="addSticker">Add sticker…</button>
+        <input type="file" id="fileSticker" accept="image/*" multiple hidden>
+      </div>
+      <div class="editor" id="stickerEditor" hidden>
+        <div class="grid4">
+          <label class="f">X mm <input type="number" id="kX" step="1"></label>
+          <label class="f">Y mm <input type="number" id="kY" step="1"></label>
+          <label class="f">Width <input type="number" id="kW" step="1" min="5"></label>
+          <label class="f">Height <input type="number" id="kH" step="1" min="5"></label>
+        </div>
+        <div class="grid2" style="margin-top:8px">
+          <label class="f">Turn <input type="range" id="kRot" min="-180" max="180" step="1"></label>
+          <label class="f">See-through <input type="range" id="kOp" min="0.05" max="1" step="0.01"></label>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button id="kLock">Keep shape</button>
+          <button id="kFront">Front</button>
+          <button id="kBack">Back</button>
+          <button class="danger" id="kDel">Delete</button>
+        </div>
+      </div>
+      <p class="note">Stickers print on top of the zones. Logos, art cut-outs, a phase wheel. PNG files with see-through backgrounds work best.</p>
+    </section>
+
+    <section>
+      <h2>Templates</h2>
+      <div class="tpls" id="tpls"></div>
+      <p class="note">Picking a template replaces your zones.</p>
+    </section>
+
+    <section>
+      <h2>Zones</h2>
+      <ul class="olist" id="zlist"></ul>
+      <div class="row" style="margin-top:8px">
+        <button id="addZone">Add card zone</button>
+        <button id="addWide">Add wide zone</button>
+      </div>
+      <div class="editor" id="zoneEditor" hidden>
+        <label class="f">Label <input type="text" id="zLabel" maxlength="30"></label>
+        <div class="grid4" style="margin-top:8px">
+          <label class="f">X mm <input type="number" id="zX" step="1"></label>
+          <label class="f">Y mm <input type="number" id="zY" step="1"></label>
+          <label class="f">Width <input type="number" id="zW" step="1" min="20"></label>
+          <label class="f">Height <input type="number" id="zH" step="1" min="20"></label>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <button id="zRotate">Turn sideways</button>
+          <button id="zFit">Fit 1 sleeve</button>
+          <button id="zDup">Duplicate</button>
+          <button class="danger" id="zDel">Delete</button>
+        </div>
+        <p class="note" id="zFitNote"></p>
+      </div>
+      <p class="note">Drag a zone to move it. Drag a corner dot to resize. Edges snap to the grid set above the mat. Arrow keys nudge one grid step (Shift: ten).</p>
+    </section>
+
+    <section>
+      <h2>Zone look</h2>
+      <div class="grid2">
+        <label class="f">Line colour <input type="color" id="sStroke"></label>
+        <label class="f">Fill colour <input type="color" id="sFill"></label>
+        <label class="f">Line thickness <input type="range" id="sWidth" min="0" max="3" step="0.1"></label>
+        <label class="f">Fill strength <input type="range" id="sFillOp" min="0" max="0.8" step="0.01"></label>
+        <label class="f">Line strength <input type="range" id="sOp" min="0.1" max="1" step="0.01"></label>
+        <label class="f">Corner round <input type="range" id="sRadius" min="0" max="12" step="0.5"></label>
+        <label class="f">Label font
+          <select id="sFont"><option value="Cinzel">Cinzel (classic fantasy)</option><option value="Barlow Condensed">Barlow Condensed (clean)</option><option value="Chakra Petch">Chakra Petch (house)</option></select>
+        </label>
+        <label class="f">Label spot
+          <select id="sPos"><option value="top">Top</option><option value="center">Middle</option><option value="bottom">Bottom</option></select>
+        </label>
+        <label class="f">Label size <input type="range" id="sSize" min="2" max="12" step="0.5"></label>
+        <label class="f inline" style="align-self:end"><input type="checkbox" id="sDash"> Dashed line</label>
+      </div>
+    </section>
+
+    <section>
+      <h2>Test cards</h2>
+      <div class="row">
+        <button id="addCard">Add sleeved card</button>
+        <button id="tapCard" disabled>Tap / untap</button>
+        <button class="danger" id="delCard" disabled>Remove</button>
+      </div>
+      <p class="note">Cards are 66 × 91 mm. Double-click one to tap it. Green: sits inside a zone. Amber: hangs over a zone edge. They never print.</p>
+    </section>
+
+    <section>
+      <h2>Export for printing</h2>
+      <div class="grid2">
+        <label class="f">File type
+          <select id="eFmt"><option value="pdf">PDF</option><option value="jpg">JPG</option><option value="png">PNG</option></select>
+        </label>
+        <label class="f">Resolution
+          <select id="eDpi"><option value="300">300 DPI (print)</option><option value="150">150 DPI (smaller)</option></select>
+        </label>
+        <label class="f">Bleed per side, mm <input type="number" id="bleed" min="0" max="20" step="0.5"></label>
+        <label class="f">Safe line, mm in <input type="number" id="safe" min="0" max="30" step="0.5"></label>
+      </div>
+      <div class="row" style="margin-top:10px"><button class="primary" id="doExport">Export print file</button></div>
+      <div class="status" id="eStatus"></div>
+      <p class="note">Ask the shop what bleed they want. 3 mm is common. Keep labels and lines inside the gold safe line: stitched edges eat the outer few mm.</p>
+    </section>
+  </aside>
+</div>
+
+<script>
+(() => {
+const MAT_W = 600, MAT_H = 350, CARD_W = 66, CARD_H = 91, ZONE_W = 72, ZONE_H = 97;
+const KEY = 'playmat-designer-v1';
+const NS = 'http://www.w3.org/2000/svg';
+const $ = id => document.getElementById(id);
+
+const TEMPLATES = {
+  right: { name: 'Right-handed', sub: 'Piles right, commander left', zones: [
+    { label: 'Commander', x: 12, y: 12 },
+    { label: 'Library', x: 516, y: 12 },
+    { label: 'Graveyard', x: 516, y: 126 },
+    { label: 'Exile', x: 516, y: 241 } ] },
+  left: { name: 'Left-handed', sub: 'Mirror of right-handed', zones: [
+    { label: 'Commander', x: 516, y: 12 },
+    { label: 'Library', x: 12, y: 12 },
+    { label: 'Graveyard', x: 12, y: 126 },
+    { label: 'Exile', x: 12, y: 241 } ] },
+  bottom: { name: 'Bottom row', sub: 'All four along the front edge', zones: [
+    { label: 'Commander', x: 12, y: 241 },
+    { label: 'Exile', x: 348, y: 241 },
+    { label: 'Graveyard', x: 432, y: 241 },
+    { label: 'Library', x: 516, y: 241 } ] },
+  lands: { name: 'With land strip', sub: 'Right-handed plus lands', zones: [
+    { label: 'Commander', x: 12, y: 12 },
+    { label: 'Library', x: 516, y: 12 },
+    { label: 'Graveyard', x: 516, y: 126 },
+    { label: 'Exile', x: 516, y: 241 },
+    { label: 'Lands', x: 96, y: 241, w: 408, h: 97 } ] },
+  blank: { name: 'Blank', sub: 'Art only, no zones', zones: [] }
+};
+
+function defaults() {
+  return {
+    bleed: 3, safe: 5, bgColor: '#080B10', img: null, imgZoom: 1, imgX: 50, imgY: 50,
+    style: { stroke: '#F0B323', fill: '#000000', width: 0.8, op: 0.9, fillOp: 0.22, radius: 3, dash: false, font: 'Cinzel', size: 5, pos: 'top' },
+    zones: tplZones('right'),
+    stickers: [],
+    cards: [ { x: 526, y: 20, tapped: false }, { x: 200, y: 120, tapped: false }, { x: 290, y: 132, tapped: true } ],
+    grid: 5, showGrid: true, viewZoom: 1, showGuides: true, showCards: true
+  };
+}
+function tplZones(k) { return TEMPLATES[k].zones.map(z => ({ w: ZONE_W, h: ZONE_H, ...z })); }
+
+let S = defaults();
+try {
+  const saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+  if (saved && saved.zones) S = { ...S, ...saved, style: { ...S.style, ...saved.style } };
+} catch (e) {}
+if (!Array.isArray(S.stickers)) S.stickers = [];
+delete S.snap;
+
+let sel = null;          // {kind:'zone'|'card'|'sticker', i}
+let imgEl = null;        // background Image
+let drag = null;
+let lastTap = { i: -1, t: 0 };
+const imgCache = new Map();   // src -> Promise<Image>
+
+const svg = $('mat');
+
+// ---------- helpers ----------
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const snapV = v => { const s = +S.grid || 0.1; return Math.round(v / s) * s; };
+const r1 = v => Math.round(v * 10) / 10;
+function el(tag, attrs, parent) {
+  const n = document.createElementNS(NS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(n);
+  return n;
+}
+function loadImage(src) {
+  if (!imgCache.has(src)) imgCache.set(src, new Promise((res, rej) => {
+    const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = src;
+  }));
+  return imgCache.get(src);
+}
+function cardBox(c) { return c.tapped ? { x: c.x, y: c.y, w: CARD_H, h: CARD_W } : { x: c.x, y: c.y, w: CARD_W, h: CARD_H }; }
+function listOf(kind) { return kind === 'zone' ? S.zones : kind === 'sticker' ? S.stickers : S.cards; }
+function selObj() { return sel ? listOf(sel.kind)[sel.i] || null : null; }
+function fitOf(z) {
+  const up = z.w >= CARD_W && z.h >= CARD_H, side = z.w >= CARD_H && z.h >= CARD_W;
+  if (up && side) return { cls: 'ok', txt: 'fits both ways' };
+  if (up) return { cls: 'ok', txt: 'fits card' };
+  if (side) return { cls: 'warn', txt: 'fits tapped only' };
+  return { cls: 'bad', txt: 'too small' };
+}
+function cardState(c) {
+  const b = cardBox(c); let over = false;
+  for (const z of S.zones) {
+    const inside = b.x >= z.x && b.y >= z.y && b.x + b.w <= z.x + z.w && b.y + b.h <= z.y + z.h;
+    if (inside) return 'in';
+    const hit = b.x < z.x + z.w && b.x + b.w > z.x && b.y < z.y + z.h && b.y + b.h > z.y;
+    if (hit) over = true;
+  }
+  return over ? 'over' : 'free';
+}
+function imgGeom() {
+  const b = S.bleed, W = MAT_W + 2 * b, H = MAT_H + 2 * b;
+  const iw = imgEl.naturalWidth, ih = imgEl.naturalHeight;
+  const scale = Math.max(W / iw, H / ih) * S.imgZoom; // mm per image pixel
+  const dw = iw * scale, dh = ih * scale;
+  return { x: -b + (W - dw) * S.imgX / 100, y: -b + (H - dh) * S.imgY / 100, w: dw, h: dh, dpi: 25.4 / scale };
+}
+function save() {
+  const strip = () => ({ ...S, img: null, stickers: S.stickers.map(s => ({ ...s, src: '' })) });
+  try { localStorage.setItem(KEY, JSON.stringify(S)); }
+  catch (e) { try { localStorage.setItem(KEY, JSON.stringify(strip())); } catch (e2) {} }
+}
+
+// ---------- render mat ----------
+function labelY(z, st) {
+  const pad = 2.5;
+  if (st.pos === 'center') return z.y + z.h / 2;
+  if (st.pos === 'bottom') return z.y + z.h - pad - st.size / 2;
+  return z.y + pad + st.size / 2;
+}
+function drawHandles(o, kind, parent) {
+  const g = el('g', o.rot ? { transform: `rotate(${o.rot} ${o.x + o.w / 2} ${o.y + o.h / 2})` } : {}, parent);
+  el('rect', { x: o.x - 1, y: o.y - 1, width: o.w + 2, height: o.h + 2, fill: 'none', stroke: '#F0B323', 'stroke-width': 1.2, 'vector-effect': 'non-scaling-stroke', 'pointer-events': 'none' }, g);
+  [['nw', o.x, o.y], ['ne', o.x + o.w, o.y], ['sw', o.x, o.y + o.h], ['se', o.x + o.w, o.y + o.h]].forEach(([c, x, y]) => {
+    el('circle', { cx: x, cy: y, r: 3.2, fill: '#F0B323', stroke: '#080B10', 'stroke-width': .8, 'data-kind': 'handle', 'data-for': kind, 'data-i': sel.i, 'data-c': c,
+      style: `cursor:${c === 'nw' || c === 'se' ? 'nwse' : 'nesw'}-resize` }, g);
+  });
+  const t = el('text', { x: o.x + o.w / 2, y: o.y + o.h + 6, 'text-anchor': 'middle', 'font-family': 'Chakra Petch, sans-serif', 'font-size': 4.2,
+    fill: '#F0B323', stroke: '#080B10', 'stroke-width': .9, 'paint-order': 'stroke', 'pointer-events': 'none' }, g);
+  t.textContent = `${r1(o.w)} × ${r1(o.h)} mm`;
+}
+function render() {
+  const b = S.bleed, st = S.style;
+  svg.setAttribute('viewBox', `${-b - 2} ${-b - 2} ${MAT_W + 2 * b + 4} ${MAT_H + 2 * b + 4}`);
+  svg.innerHTML = '';
+  const defs = el('defs', {}, svg);
+  const clip = el('clipPath', { id: 'sheet' }, defs);
+  el('rect', { x: -b, y: -b, width: MAT_W + 2 * b, height: MAT_H + 2 * b }, clip);
+  const pat = el('pattern', { id: 'hatch', width: 3, height: 3, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' }, defs);
+  el('rect', { width: 1, height: 3, fill: '#ffffff', 'fill-opacity': .4 }, pat);
+
+  // background
+  const art = el('g', { 'clip-path': 'url(#sheet)' }, svg);
+  el('rect', { x: -b, y: -b, width: MAT_W + 2 * b, height: MAT_H + 2 * b, fill: S.bgColor }, art);
+  if (imgEl && S.img) {
+    const g = imgGeom();
+    el('image', { href: S.img, x: g.x, y: g.y, width: g.w, height: g.h, preserveAspectRatio: 'none' }, art);
+  }
+
+  // zones (printed)
+  const zg = el('g', {}, svg);
+  S.zones.forEach((z, i) => {
+    const g = el('g', { 'data-kind': 'zone', 'data-i': i, style: 'cursor:move' }, zg);
+    el('rect', { x: z.x, y: z.y, width: z.w, height: z.h, rx: st.radius, fill: st.fill, 'fill-opacity': st.fillOp,
+      stroke: st.stroke, 'stroke-opacity': st.op, 'stroke-width': st.width, 'stroke-dasharray': st.dash ? '3 2' : 'none' }, g);
+    if (z.label) {
+      const t = el('text', { x: z.x + z.w / 2, y: labelY(z, st), 'text-anchor': 'middle', 'dominant-baseline': 'central',
+        'font-family': `"${st.font}"`, 'font-size': st.size, 'font-weight': 700, 'letter-spacing': st.size * 0.12,
+        fill: st.stroke, 'fill-opacity': st.op, 'pointer-events': 'none' }, g);
+      t.textContent = z.label.toUpperCase();
+    }
+  });
+
+  // stickers (printed, on top of zones)
+  const kg = el('g', { 'clip-path': 'url(#sheet)' }, svg);
+  S.stickers.forEach((k, i) => {
+    if (!k.src) return;
+    const g = el('g', { 'data-kind': 'sticker', 'data-i': i, style: 'cursor:move',
+      ...(k.rot ? { transform: `rotate(${k.rot} ${k.x + k.w / 2} ${k.y + k.h / 2})` } : {}) }, kg);
+    el('image', { href: k.src, x: k.x, y: k.y, width: k.w, height: k.h, opacity: k.op, preserveAspectRatio: 'none' }, g);
+  });
+
+  // grid (never printed)
+  if (S.showGrid && S.grid > 0) {
+    const g = +S.grid, major = g < 2.5 ? 10 : g * 5;
+    let dMin = '', dMaj = '';
+    const line = (x1, y1, x2, y2, v) => { const d = `M${x1} ${y1}L${x2} ${y2}`; if (Math.abs(v / major - Math.round(v / major)) < 1e-6) dMaj += d; else if (g >= 2.5) dMin += d; };
+    for (let x = 0; x <= MAT_W + 1e-6; x += g) line(x, 0, x, MAT_H, x);
+    for (let y = 0; y <= MAT_H + 1e-6; y += g) line(0, y, MAT_W, y, y);
+    const gg = el('g', { 'pointer-events': 'none' }, svg);
+    if (dMin) el('path', { d: dMin, stroke: '#ffffff', 'stroke-opacity': .3, 'stroke-width': .7, 'vector-effect': 'non-scaling-stroke', fill: 'none' }, gg);
+    el('path', { d: dMaj, stroke: '#ffffff', 'stroke-opacity': .6, 'stroke-width': 1.3, 'vector-effect': 'non-scaling-stroke', fill: 'none' }, gg);
+  }
+
+  // guides (never printed)
+  if (S.showGuides) {
+    const gg = el('g', { 'pointer-events': 'none' }, svg);
+    if (b > 0) el('path', { d: `M${-b} ${-b}h${MAT_W + 2 * b}v${MAT_H + 2 * b}h${-(MAT_W + 2 * b)}z M0 0v${MAT_H}h${MAT_W}v${-MAT_H}z`, fill: 'url(#hatch)', 'fill-rule': 'evenodd' }, gg);
+    el('rect', { x: 0, y: 0, width: MAT_W, height: MAT_H, fill: 'none', stroke: '#ffffff', 'stroke-width': 1.2, 'vector-effect': 'non-scaling-stroke' }, gg);
+    if (S.safe > 0) el('rect', { x: S.safe, y: S.safe, width: MAT_W - 2 * S.safe, height: MAT_H - 2 * S.safe, fill: 'none', stroke: '#F0B323', 'stroke-width': 1, 'stroke-dasharray': '6 4', 'vector-effect': 'non-scaling-stroke' }, gg);
+  }
+
+  // test cards (never printed)
+  if (S.showCards) {
+    const cg = el('g', {}, svg);
+    const col = { in: '#4CC27E', over: '#E0A43A', free: '#E7EDF5' };
+    S.cards.forEach((c, i) => {
+      const bx = cardBox(c), state = cardState(c);
+      const g = el('g', { 'data-kind': 'card', 'data-i': i, style: 'cursor:grab' }, cg);
+      el('rect', { x: bx.x, y: bx.y, width: bx.w, height: bx.h, rx: 3, fill: '#F4F1E8', 'fill-opacity': .82, stroke: col[state], 'stroke-width': 1.4 }, g);
+      el('rect', { x: bx.x + 3.5, y: bx.y + 3.5, width: bx.w - 7, height: bx.h - 7, rx: 2, fill: 'none', stroke: '#2b2b2b', 'stroke-opacity': .35, 'stroke-width': .4 }, g);
+      const t = el('text', { x: bx.x + bx.w / 2, y: bx.y + bx.h / 2, 'text-anchor': 'middle', 'dominant-baseline': 'central',
+        'font-family': 'Chakra Petch, sans-serif', 'font-size': 4.2, fill: '#22282F', 'pointer-events': 'none' }, g);
+      t.textContent = c.tapped ? '91 × 66' : '66 × 91';
+      if (sel && sel.kind === 'card' && sel.i === i)
+        el('rect', { x: bx.x - 1.5, y: bx.y - 1.5, width: bx.w + 3, height: bx.h + 3, rx: 4, fill: 'none', stroke: '#F0B323', 'stroke-width': 1.2, 'vector-effect': 'non-scaling-stroke', 'pointer-events': 'none' }, g);
+    });
+  }
+
+  // selection handles
+  const o = selObj();
+  if (o && (sel.kind === 'zone' || sel.kind === 'sticker')) drawHandles(o, sel.kind, el('g', {}, svg));
+
+  $('sizeReadout').textContent = `Sheet ${MAT_W + 2 * S.bleed} × ${MAT_H + 2 * S.bleed} mm incl. ${S.bleed} mm bleed`;
+}
+
+// ---------- side panel ----------
+function renderPanel() {
+  const ul = $('zlist'); ul.innerHTML = '';
+  if (!S.zones.length) { const li = document.createElement('li'); li.style.cursor = 'default'; li.style.color = 'var(--muted)'; li.textContent = 'No zones. Add one or pick a template.'; ul.appendChild(li); }
+  S.zones.forEach((z, i) => {
+    const li = document.createElement('li');
+    if (sel && sel.kind === 'zone' && sel.i === i) li.className = 'sel';
+    const f = fitOf(z);
+    li.innerHTML = `<span class="nm"></span><span class="sz">${r1(z.w)}×${r1(z.h)}</span><span class="chip ${f.cls}">${f.txt}</span>`;
+    li.querySelector('.nm').textContent = z.label || '(no label)';
+    li.onclick = () => { sel = { kind: 'zone', i }; update(); };
+    ul.appendChild(li);
+  });
+
+  const sl = $('slist'); sl.innerHTML = '';
+  if (!S.stickers.length) { const li = document.createElement('li'); li.style.cursor = 'default'; li.style.color = 'var(--muted)'; li.textContent = 'No stickers yet.'; sl.appendChild(li); }
+  S.stickers.forEach((k, i) => {
+    const li = document.createElement('li');
+    if (sel && sel.kind === 'sticker' && sel.i === i) li.className = 'sel';
+    li.innerHTML = `<img alt=""><span class="nm"></span><span class="sz">${r1(k.w)}×${r1(k.h)}</span>`;
+    li.querySelector('img').src = k.src || '';
+    li.querySelector('.nm').textContent = k.name || 'Sticker';
+    li.onclick = () => { sel = { kind: 'sticker', i }; update(); };
+    sl.appendChild(li);
+  });
+
+  const zs = sel && sel.kind === 'zone' ? S.zones[sel.i] : null;
+  $('zoneEditor').hidden = !zs;
+  if (zs) {
+    for (const [id, k] of [['zX', 'x'], ['zY', 'y'], ['zW', 'w'], ['zH', 'h']]) if (document.activeElement !== $(id)) $(id).value = r1(zs[k]);
+    if (document.activeElement !== $('zLabel')) $('zLabel').value = zs.label;
+    const spare = zs.w - CARD_W, spareH = zs.h - CARD_H;
+    $('zFitNote').textContent = spare >= 0 && spareH >= 0
+      ? `Room around an upright sleeve: ${r1(spare / 2)} mm each side, ${r1(spareH / 2)} mm top and bottom.`
+      : `An upright sleeve needs ${CARD_W} × ${CARD_H} mm. This zone is ${r1(zs.w)} × ${r1(zs.h)}.`;
+  }
+  const ks = sel && sel.kind === 'sticker' ? S.stickers[sel.i] : null;
+  $('stickerEditor').hidden = !ks;
+  if (ks) {
+    for (const [id, k] of [['kX', 'x'], ['kY', 'y'], ['kW', 'w'], ['kH', 'h']]) if (document.activeElement !== $(id)) $(id).value = r1(ks[k]);
+    $('kRot').value = ks.rot || 0; $('kOp').value = ks.op;
+    $('kLock').textContent = ks.lock === false ? 'Free shape' : 'Keep shape';
+  }
+  const cs = sel && sel.kind === 'card';
+  $('tapCard').disabled = !cs; $('delCard').disabled = !cs;
+
+  const n = $('dpiNote');
+  if (imgEl && S.img) {
+    const d = Math.round(imgGeom().dpi);
+    n.className = 'note ' + (d >= 250 ? 'ok' : 'warn');
+    n.textContent = `Image prints at ${d} DPI. ` + (d >= 250 ? 'Sharp enough for print.' : d >= 150 ? 'Usable, slightly soft up close. 300 is ideal.' : 'Will look blurry printed. Use a bigger image or zoom out.')
+      + (S.imgZoom < 0.999 ? ' Gaps around the image print in the colour behind.' : '');
+  } else { n.className = 'note'; n.textContent = 'No image yet. You can also drop one onto the mat.'; }
+}
+function update() { render(); renderPanel(); save(); }
+
+function syncControls() {
+  const st = S.style;
+  $('imgZoom').value = S.imgZoom; $('imgX').value = S.imgX; $('imgY').value = S.imgY; $('bgColor').value = S.bgColor;
+  $('sStroke').value = st.stroke; $('sFill').value = st.fill; $('sWidth').value = st.width; $('sFillOp').value = st.fillOp;
+  $('sOp').value = st.op; $('sRadius').value = st.radius; $('sFont').value = st.font; $('sPos').value = st.pos; $('sSize').value = st.size; $('sDash').checked = st.dash;
+  $('grid').value = String(S.grid); $('showGrid').checked = S.showGrid;
+  $('bleed').value = S.bleed; $('safe').value = S.safe;
+  $('showGuides').checked = S.showGuides; $('showCards').checked = S.showCards;
+}
+
+// ---------- pointer interaction ----------
+function pt(e) {
+  const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY;
+  return p.matrixTransform(svg.getScreenCTM().inverse());
+}
+function unrotate(dx, dy, deg) {
+  if (!deg) return [dx, dy];
+  const a = -deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  return [dx * c - dy * s, dx * s + dy * c];
+}
+svg.addEventListener('pointerdown', e => {
+  const t = e.target.closest('[data-kind]');
+  if (!t) { sel = null; update(); return; }
+  const kind = t.dataset.kind, i = +t.dataset.i, p = pt(e);
+  if (kind === 'card') {
+    const now = performance.now();
+    if (lastTap.i === i && now - lastTap.t < 350) { toggleTap(i); lastTap = { i: -1, t: 0 }; return; }
+    lastTap = { i, t: now };
+    sel = { kind: 'card', i };
+    drag = { kind, i, p, o: { ...S.cards[i] } };
+  } else if (kind === 'handle') {
+    drag = { kind, for: t.dataset.for, i, p, c: t.dataset.c, o: { ...listOf(t.dataset.for)[i] } };
+  } else {
+    sel = { kind, i };
+    drag = { kind, i, p, o: { ...listOf(kind)[i] } };
+  }
+  svg.setPointerCapture(e.pointerId);
+  e.preventDefault();
+  render(); renderPanel();
+});
+svg.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const p = pt(e), o = drag.o;
+  let dx = p.x - drag.p.x, dy = p.y - drag.p.y;
+  if (drag.kind === 'card') {
+    const c = S.cards[drag.i], bx = cardBox(c);
+    c.x = clamp(snapV(o.x + dx), -S.bleed, MAT_W + S.bleed - bx.w);
+    c.y = clamp(snapV(o.y + dy), -S.bleed, MAT_H + S.bleed - bx.h);
+  } else if (drag.kind === 'zone') {
+    const z = S.zones[drag.i];
+    z.x = clamp(snapV(o.x + dx), 0, MAT_W - z.w);
+    z.y = clamp(snapV(o.y + dy), 0, MAT_H - z.h);
+  } else if (drag.kind === 'sticker') {
+    const k = S.stickers[drag.i];
+    k.x = clamp(snapV(o.x + dx), -S.bleed - k.w + 10, MAT_W + S.bleed - 10);
+    k.y = clamp(snapV(o.y + dy), -S.bleed - k.h + 10, MAT_H + S.bleed - 10);
+  } else {
+    const isZone = drag.for === 'zone', obj = listOf(drag.for)[drag.i], MIN = isZone ? 20 : 5, c = drag.c;
+    [dx, dy] = unrotate(dx, dy, o.rot);
+    let x1 = o.x, y1 = o.y, x2 = o.x + o.w, y2 = o.y + o.h;
+    const lo = isZone ? 0 : -S.bleed - 200, hiX = isZone ? MAT_W : MAT_W + S.bleed + 200, hiY = isZone ? MAT_H : MAT_H + S.bleed + 200;
+    if (c.includes('w')) x1 = clamp(snapV(o.x + dx), lo, x2 - MIN);
+    if (c.includes('e')) x2 = clamp(snapV(x2 + dx), x1 + MIN, hiX);
+    if (c.includes('n')) y1 = clamp(snapV(o.y + dy), lo, y2 - MIN);
+    if (c.includes('s')) y2 = clamp(snapV(y2 + dy), y1 + MIN, hiY);
+    let w = x2 - x1, h = y2 - y1;
+    if (!isZone && obj.lock !== false) {          // keep the sticker's shape
+      const ar = o.w / o.h, s = Math.max(w / o.w, h / o.h);
+      w = o.w * s; h = o.h * s;
+      if (c.includes('w')) x1 = x2 - w; if (c.includes('e')) x2 = x1 + w;
+      if (c.includes('n')) y1 = y2 - h; if (c.includes('s')) y2 = y1 + h;
+      void ar;
+    }
+    Object.assign(obj, { x: x1, y: y1, w, h });
+  }
+  render(); renderPanel();
+});
+const endDrag = () => { if (drag) { drag = null; save(); } };
+svg.addEventListener('pointerup', endDrag);
+svg.addEventListener('pointercancel', endDrag);
+
+function toggleTap(i) {
+  const c = S.cards[i], b = cardBox(c), cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+  c.tapped = !c.tapped;
+  const nb = cardBox(c);
+  c.x = r1(cx - nb.w / 2); c.y = r1(cy - nb.h / 2);
+  sel = { kind: 'card', i }; update();
+}
+
+document.addEventListener('keydown', e => {
+  if (!sel || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  const obj = selObj(); if (!obj) return;
+  const step = (+S.grid || 1) * (e.shiftKey ? 10 : 1);
+  const mv = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+  if (mv) {
+    e.preventDefault();
+    const b = sel.kind === 'card' ? cardBox(obj) : obj, slack = sel.kind === 'zone' ? 0 : S.bleed;
+    obj.x = clamp(obj.x + mv[0], -slack, MAT_W + slack - b.w);
+    obj.y = clamp(obj.y + mv[1], -slack, MAT_H + slack - b.h);
+    update();
+  } else if (e.key === 'Delete' || e.key === 'Backspace') {
+    e.preventDefault();
+    listOf(sel.kind).splice(sel.i, 1); sel = null; update();
+  }
+});
+
+// ---------- controls ----------
+$('tpls').innerHTML = '';
+for (const k in TEMPLATES) {
+  const t = TEMPLATES[k], b = document.createElement('button');
+  b.innerHTML = `<span></span><small></small>`;
+  b.firstChild.textContent = t.name; b.lastChild.textContent = t.sub;
+  b.onclick = () => { S.zones = tplZones(k); sel = null; update(); };
+  $('tpls').appendChild(b);
+}
+function addZone(w, h, label) {
+  S.zones.push({ label, w, h, x: snapV((MAT_W - w) / 2), y: snapV((MAT_H - h) / 2) });
+  sel = { kind: 'zone', i: S.zones.length - 1 }; update();
+}
+$('addZone').onclick = () => addZone(ZONE_W, ZONE_H, 'Zone');
+$('addWide').onclick = () => addZone(250, ZONE_H, 'Lands');
+$('grid').onchange = e => { S.grid = +e.target.value; update(); };
+$('showGrid').onchange = e => { S.showGrid = e.target.checked; update(); };
+
+const zSel = () => sel && sel.kind === 'zone' ? S.zones[sel.i] : null;
+$('zLabel').oninput = e => { const z = zSel(); if (z) { z.label = e.target.value; update(); } };
+for (const [id, k] of [['zX', 'x'], ['zY', 'y'], ['zW', 'w'], ['zH', 'h']]) {
+  $(id).oninput = e => {
+    const z = zSel(), v = parseFloat(e.target.value); if (!z || isNaN(v)) return;
+    if (k === 'w') z.w = clamp(v, 20, MAT_W - z.x);
+    else if (k === 'h') z.h = clamp(v, 20, MAT_H - z.y);
+    else if (k === 'x') z.x = clamp(v, 0, MAT_W - z.w);
+    else z.y = clamp(v, 0, MAT_H - z.h);
+    update();
+  };
+  $(id).onblur = () => renderPanel();
+}
+$('zRotate').onclick = () => { const z = zSel(); if (!z) return;
+  const cx = z.x + z.w / 2, cy = z.y + z.h / 2; [z.w, z.h] = [z.h, z.w];
+  z.x = clamp(snapV(cx - z.w / 2), 0, MAT_W - z.w); z.y = clamp(snapV(cy - z.h / 2), 0, MAT_H - z.h); update(); };
+$('zFit').onclick = () => { const z = zSel(); if (!z) return;
+  const side = z.w > z.h; z.w = side ? ZONE_H : ZONE_W; z.h = side ? ZONE_W : ZONE_H;
+  z.x = clamp(z.x, 0, MAT_W - z.w); z.y = clamp(z.y, 0, MAT_H - z.h); update(); };
+$('zDup').onclick = () => { const z = zSel(); if (!z) return;
+  S.zones.push({ ...z, x: clamp(z.x + 10, 0, MAT_W - z.w), y: clamp(z.y + 10, 0, MAT_H - z.h) });
+  sel = { kind: 'zone', i: S.zones.length - 1 }; update(); };
+$('zDel').onclick = () => { if (!zSel()) return; S.zones.splice(sel.i, 1); sel = null; update(); };
+
+// stickers
+const kSel = () => sel && sel.kind === 'sticker' ? S.stickers[sel.i] : null;
+$('addSticker').onclick = () => $('fileSticker').click();
+$('fileSticker').onchange = e => { [...e.target.files].forEach(addStickerFile); e.target.value = ''; };
+function addStickerFile(f) {
+  if (!f || !f.type.startsWith('image/')) return;
+  const r = new FileReader();
+  r.onload = () => loadImage(r.result).then(im => {
+    const w = 60, h = Math.max(5, w * im.naturalHeight / im.naturalWidth);
+    S.stickers.push({ src: r.result, name: f.name.replace(/\.[^.]+$/, '').slice(0, 24), x: snapV((MAT_W - w) / 2), y: snapV((MAT_H - h) / 2), w, h, op: 1, rot: 0, lock: true });
+    sel = { kind: 'sticker', i: S.stickers.length - 1 }; update();
+  }).catch(() => {});
+  r.readAsDataURL(f);
+}
+for (const [id, k] of [['kX', 'x'], ['kY', 'y'], ['kW', 'w'], ['kH', 'h']]) {
+  $(id).oninput = e => {
+    const s = kSel(), v = parseFloat(e.target.value); if (!s || isNaN(v)) return;
+    if (k === 'w' || k === 'h') {
+      const nv = Math.max(5, v);
+      if (s.lock !== false) { const ar = s.w / s.h; if (k === 'w') { s.w = nv; s.h = nv / ar; } else { s.h = nv; s.w = nv * ar; } }
+      else s[k] = nv;
+    } else s[k] = v;
+    update();
+  };
+  $(id).onblur = () => renderPanel();
+}
+$('kRot').oninput = e => { const s = kSel(); if (s) { s.rot = +e.target.value; update(); } };
+$('kOp').oninput = e => { const s = kSel(); if (s) { s.op = +e.target.value; update(); } };
+$('kLock').onclick = () => { const s = kSel(); if (s) { s.lock = s.lock === false; update(); } };
+$('kFront').onclick = () => { const s = kSel(); if (!s) return; S.stickers.splice(sel.i, 1); S.stickers.push(s); sel = { kind: 'sticker', i: S.stickers.length - 1 }; update(); };
+$('kBack').onclick = () => { const s = kSel(); if (!s) return; S.stickers.splice(sel.i, 1); S.stickers.unshift(s); sel = { kind: 'sticker', i: 0 }; update(); };
+$('kDel').onclick = () => { if (!kSel()) return; S.stickers.splice(sel.i, 1); sel = null; update(); };
+
+// test cards + toggles
+$('addCard').onclick = () => { S.cards.push({ x: 267, y: 129, tapped: false }); S.showCards = true; $('showCards').checked = true; sel = { kind: 'card', i: S.cards.length - 1 }; update(); };
+$('tapCard').onclick = () => { if (sel && sel.kind === 'card') toggleTap(sel.i); };
+$('delCard').onclick = () => { if (sel && sel.kind === 'card') { S.cards.splice(sel.i, 1); sel = null; update(); } };
+$('showGuides').onchange = e => { S.showGuides = e.target.checked; update(); };
+$('showCards').onchange = e => { S.showCards = e.target.checked; if (!S.showCards && sel && sel.kind === 'card') sel = null; update(); };
+
+const styleMap = { sStroke: 'stroke', sFill: 'fill', sWidth: 'width', sFillOp: 'fillOp', sOp: 'op', sRadius: 'radius', sFont: 'font', sPos: 'pos', sSize: 'size' };
+for (const id in styleMap) $(id).oninput = e => {
+  const k = styleMap[id], v = e.target.value;
+  S.style[k] = ['stroke', 'fill', 'font', 'pos'].includes(k) ? v : +v; update();
+};
+$('sDash').onchange = e => { S.style.dash = e.target.checked; update(); };
+$('imgZoom').oninput = e => { S.imgZoom = +e.target.value; update(); };
+$('imgX').oninput = e => { S.imgX = +e.target.value; update(); };
+$('imgY').oninput = e => { S.imgY = +e.target.value; update(); };
+$('bgColor').oninput = e => { S.bgColor = e.target.value; update(); };
+$('bleed').oninput = e => { const v = parseFloat(e.target.value); if (!isNaN(v)) { S.bleed = clamp(v, 0, 20); update(); layoutView(); } };
+$('safe').oninput = e => { const v = parseFloat(e.target.value); if (!isNaN(v)) { S.safe = clamp(v, 0, 30); update(); } };
+
+// background image
+function setBackground(dataUrl) {
+  loadImage(dataUrl).then(im => { imgEl = im; S.img = dataUrl; update(); })
+    .catch(() => { $('dpiNote').className = 'note warn'; $('dpiNote').textContent = 'That file could not be read as an image. Try a JPG or PNG.'; });
+}
+function readBgFile(f) {
+  if (!f || !f.type.startsWith('image/')) return;
+  const r = new FileReader(); r.onload = () => { S.imgZoom = 1; S.imgX = 50; S.imgY = 50; syncControls(); setBackground(r.result); }; r.readAsDataURL(f);
+}
+$('pickImg').onclick = () => $('fileImg').click();
+$('fileImg').onchange = e => { readBgFile(e.target.files[0]); e.target.value = ''; };
+$('clearImg').onclick = () => { S.img = null; imgEl = null; update(); };
+$('fitWhole').onclick = () => { if (!imgEl) return;
+  const W = MAT_W + 2 * S.bleed, H = MAT_H + 2 * S.bleed, a = W / imgEl.naturalWidth, b = H / imgEl.naturalHeight;
+  S.imgZoom = Math.min(a, b) / Math.max(a, b); S.imgX = 50; S.imgY = 50; syncControls(); update(); };
+$('fillMat').onclick = () => { S.imgZoom = 1; S.imgX = 50; S.imgY = 50; syncControls(); update(); };
+const stage = $('stage');
+stage.addEventListener('dragover', e => { e.preventDefault(); stage.classList.add('drop'); });
+stage.addEventListener('dragleave', () => stage.classList.remove('drop'));
+stage.addEventListener('drop', e => { e.preventDefault(); stage.classList.remove('drop'); readBgFile(e.dataTransfer.files[0]); });
+
+// ---------- export ----------
+const dlPromise = (window.claude && window.claude.use) ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
+
+function roundRect(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+}
+function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; }
+
+async function renderPrint(dpi) {
+  const st = S.style, b = S.bleed, k = dpi / 25.4;
+  const W = Math.round((MAT_W + 2 * b) * k), H = Math.round((MAT_H + 2 * b) * k);
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  if (!ctx) throw new Error('canvas');
+  const X = mm => (mm + b) * k;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.fillStyle = S.bgColor; ctx.fillRect(0, 0, W, H);
+  if (imgEl && S.img) { const g = imgGeom(); ctx.drawImage(imgEl, X(g.x), X(g.y), g.w * k, g.h * k); }
+
+  await document.fonts.load(`700 ${Math.round(st.size * k)}px "${st.font}"`);
+  for (const z of S.zones) {
+    roundRect(ctx, X(z.x), X(z.y), z.w * k, z.h * k, st.radius * k);
+    if (st.fillOp > 0) { ctx.fillStyle = hexA(st.fill, st.fillOp); ctx.fill(); }
+    if (st.width > 0) {
+      ctx.strokeStyle = hexA(st.stroke, st.op); ctx.lineWidth = st.width * k;
+      ctx.setLineDash(st.dash ? [3 * k, 2 * k] : []); ctx.stroke();
+    }
+    if (z.label) {
+      ctx.setLineDash([]);
+      ctx.font = `700 ${st.size * k}px "${st.font}"`;
+      if ('letterSpacing' in ctx) ctx.letterSpacing = `${st.size * 0.12 * k}px`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = hexA(st.stroke, st.op);
+      ctx.fillText(z.label.toUpperCase(), X(z.x + z.w / 2), X(labelY(z, st)));
+    }
+  }
+  if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+  for (const s of S.stickers) {
+    if (!s.src) continue;
+    const im = await loadImage(s.src).catch(() => null);
+    if (!im) continue;
+    ctx.save();
+    ctx.globalAlpha = s.op == null ? 1 : s.op;
+    ctx.translate(X(s.x + s.w / 2), X(s.y + s.h / 2));
+    if (s.rot) ctx.rotate(s.rot * Math.PI / 180);
+    ctx.drawImage(im, -s.w * k / 2, -s.h * k / 2, s.w * k, s.h * k);
+    ctx.restore();
+  }
+  return { cv, wmm: MAT_W + 2 * b, hmm: MAT_H + 2 * b };
+}
+const toBlob = (cv, type, q) => new Promise((res, rej) => cv.toBlob(bl => bl ? res(bl) : rej(new Error('blob')), type, q));
+
+async function deliver(filename, blob) {
+  const dl = await dlPromise;
+  if (dl) { await dl.save({ filename, data: blob }); return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+$('doExport').onclick = async () => {
+  const btn = $('doExport'), out = $('eStatus'), fmt = $('eFmt').value, dpi = +$('eDpi').value;
+  btn.disabled = true; out.style.color = 'var(--muted)'; out.textContent = 'Rendering print file…';
+  await new Promise(r => setTimeout(r, 30));
+  try {
+    const { cv, wmm, hmm } = await renderPrint(dpi);
+    const name = `playmat-${wmm}x${hmm}mm-${dpi}dpi.${fmt}`;
+    let blob;
+    if (fmt === 'png') blob = await toBlob(cv, 'image/png');
+    else if (fmt === 'jpg') blob = await toBlob(cv, 'image/jpeg', 0.95);
+    else {
+      const jpg = new Uint8Array(await (await toBlob(cv, 'image/jpeg', 0.95)).arrayBuffer());
+      const pdf = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: [wmm, hmm], compress: true });
+      pdf.addImage(jpg, 'JPEG', 0, 0, wmm, hmm);
+      blob = pdf.output('blob');
+    }
+    const px = `${Math.round(wmm * dpi / 25.4)} × ${Math.round(hmm * dpi / 25.4)} px`;
+    cv.width = cv.height = 1;
+    await deliver(name, blob);
+    out.style.color = 'var(--ok)';
+    out.textContent = `Saved ${name} (${(blob.size / 1048576).toFixed(1)} MB, ${px}).`;
+  } catch (e) {
+    out.style.color = 'var(--bad)';
+    if (e && e.code === 'declined') { out.style.color = 'var(--muted)'; out.textContent = 'Save cancelled.'; }
+    else if (e && e.code === 'too_large') out.textContent = 'File too large for this viewer. Try JPG, or 150 DPI.';
+    else if (e && e.code) out.textContent = 'Saving is not available here. Open the page in a normal browser tab.';
+    else out.textContent = 'Could not build the file. Your browser may be out of memory: try 150 DPI or JPG.';
+  } finally { btn.disabled = false; }
+};
+
+// ---------- view zoom ----------
+const vp = $('viewport');
+function layoutView() {
+  const b = S.bleed, aspect = (MAT_W + 2 * b + 4) / (MAT_H + 2 * b + 4);
+  const stacked = window.innerWidth <= 900;
+  const maxH = stacked ? window.innerHeight * 0.6 : window.innerHeight - vp.getBoundingClientRect().top + window.scrollY - 80;
+  const baseW = Math.max(200, Math.min(vp.clientWidth || 600, Math.max(160, maxH) * aspect));
+  vp.style.height = Math.round(baseW / aspect) + 'px';
+  svg.style.width = Math.round(baseW * S.viewZoom) + 'px';
+  $('zoomPct').textContent = Math.round(S.viewZoom * 100) + '%';
+}
+function setZoom(z, cx, cy) {
+  const old = S.viewZoom; z = clamp(z, 0.25, 4);
+  if (z === old) return;
+  const r = vp.getBoundingClientRect();
+  const ax = cx == null ? r.width / 2 : cx - r.left, ay = cy == null ? r.height / 2 : cy - r.top;
+  const fx = (vp.scrollLeft + ax) / old, fy = (vp.scrollTop + ay) / old;
+  S.viewZoom = z; layoutView();
+  vp.scrollLeft = fx * z - ax; vp.scrollTop = fy * z - ay;
+  save();
+}
+$('zoomIn').onclick = () => setZoom(S.viewZoom * 1.25);
+$('zoomOut').onclick = () => setZoom(S.viewZoom / 1.25);
+$('zoomFit').onclick = () => { S.viewZoom = 1; layoutView(); vp.scrollLeft = vp.scrollTop = 0; save(); };
+vp.addEventListener('wheel', e => {
+  if (!e.ctrlKey && !e.metaKey) return;
+  e.preventDefault();
+  setZoom(S.viewZoom * Math.exp(-e.deltaY * 0.002), e.clientX, e.clientY);
+}, { passive: false });
+window.addEventListener('resize', layoutView);
+
+// ---------- boot ----------
+syncControls();
+if (S.img) setBackground(S.img);
+update();
+layoutView();
+document.fonts.ready.then(() => { render(); layoutView(); });
+})();
+</script>

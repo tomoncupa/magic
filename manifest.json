@@ -1,7 +1,7 @@
 {
-  "name": "Kitchen Table Magic",
-  "short_name": "Kitchen Table",
-  "description": "A Magic playmat across two devices.",
+  "name": "Magic",
+  "short_name": "Magic",
+  "description": "Every Magic app in one place: the Kitchen Table, Brewing Station, Card Scanner, Sealed and the Playmat Designer.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
