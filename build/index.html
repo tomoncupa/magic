@@ -1238,8 +1238,8 @@ var TYPE_GROUPS = ['Creature', 'Planeswalker', 'Instant', 'Sorcery', 'Artifact',
 var GROUP_PLURAL = { Creature:'Creatures', Planeswalker:'Planeswalkers', Instant:'Instants', Sorcery:'Sorceries',
   Artifact:'Artifacts', Enchantment:'Enchantments', Battle:'Battles', Land:'Lands', Other:'Other' };
 function listView(){
-  var v = { g:'job', p:0 };
-  try { var s = JSON.parse(localStorage.getItem('forge.listView') || '{}'); if(s.g === 'type') v.g = 'type'; if(s.p) v.p = 1; } catch(e){}
+  var v = { g:'type', p:0 };
+  try { var s = JSON.parse(localStorage.getItem('forge.listView') || '{}'); if(s.g === 'job') v.g = 'job'; if(s.p) v.p = 1; } catch(e){}
   return v;
 }
 function setListView(k, val){
