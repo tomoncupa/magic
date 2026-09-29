@@ -43,6 +43,7 @@ button{background:none;border:0;cursor:pointer;touch-action:manipulation}
 .spacer{flex:1}
 .back{font-family:var(--disp);font-size:var(--t2);letter-spacing:var(--cap);color:var(--ink2);min-height:var(--tap);padding:0 var(--s3);display:flex;align-items:center;text-decoration:none}
 .back:hover{color:var(--ink)}
+.back.home{flex:none;width:var(--tap);margin-left:-12px;justify-content:center;padding:0;font-size:28px;line-height:1}
 .steps{display:flex;gap:2px;max-width:980px;margin:var(--s3) auto 0;overflow-x:auto;scrollbar-width:none}
 .steps::-webkit-scrollbar{display:none}
 .stepbtn{flex:1 0 auto;min-height:var(--tap);padding:0 var(--s4);font-family:var(--disp);font-weight:600;font-size:var(--t2);letter-spacing:var(--cap);text-transform:uppercase;color:var(--ink3);border-bottom:2px solid transparent;white-space:nowrap}
@@ -133,6 +134,8 @@ td.num,th.num{text-align:right;font-family:var(--num);font-variant-numeric:tabul
 .tag.gc{color:var(--danger);border-color:rgba(255,107,129,.4);background:rgba(255,107,129,.08)}
 .tag.combo{color:var(--info);border-color:rgba(126,232,250,.4);background:rgba(126,232,250,.08)}
 .tag.must{color:var(--good);border-color:rgba(110,231,168,.4);background:rgba(110,231,168,.08)}
+.tag.job{color:var(--ink2);border-color:var(--line2);background:var(--bg3)}
+.tpick .qty{position:absolute;right:6px;bottom:6px;font-family:var(--num);font-weight:700;font-size:var(--t3);color:var(--ink);background:rgba(8,11,16,.85);border:1px solid var(--line2);border-radius:4px;padding:2px 8px}
 .x{width:var(--tap);height:var(--tap);border-radius:var(--r-sm);color:var(--ink3);font-size:18px;border:1px solid transparent}
 .x:hover{background:var(--bg3);border-color:var(--line);color:var(--ink)}
 .repl{grid-column:1/-1;background:var(--bg3);border:1px solid var(--line);border-radius:var(--r-sm);padding:var(--s3)}
@@ -219,10 +222,10 @@ pre.out{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r
 <body>
 <header class="top">
   <div class="toprow">
+    <a class="back home" href="../" aria-label="All Magic apps">‹</a>
     <div class="brand">Brewing Station<small>Commander builder</small></div>
     <div class="spacer"></div>
     <button class="back" id="decksBtn">Decks</button>
-    <a class="back" href="../">Back to the table</a>
   </div>
   <nav class="steps" id="steps"></nav>
 </header>
@@ -1189,22 +1192,29 @@ function drawList(){
   var dropped = (S.dropped || []).filter(function(t){ return !consN.some(function(n){ return t.indexOf(n + ' (') === 0; }); });
   if(dropped.length) h += '<p class="bad" style="margin-top:8px">Left out of your must-includes: ' + esc(dropped.join(', ')) + '.</p>';
   h += '<div class="suggest" style="margin-top:12px"><input type="text" id="addIn" placeholder="Add a card by name" autocomplete="off"><ul id="addList" hidden></ul></div>';
-  groups.forEach(function(g){
-    var items = S.deck.filter(function(d){ return d.role === g; }).sort(function(a, b){ return a.mv - b.mv || a.n.localeCompare(b.n); });
-    if(!items.length && g !== 'lands') return;
-    var tgt = g === 'synergy' ? '' : ' <span class="target">target ' + S.quotas[g] + '</span>';
-    h += '<details class="cat" open><summary>' + ROLE_NAMES[g] + ' <span class="ct">' + items.length + '</span>' + tgt + '</summary>';
-    var basics = {};
-    items.forEach(function(d){
-      if(d.basic){ basics[d.n] = (basics[d.n] || 0) + 1; return; }
-      h += cardRow(d);
+  var lv = listView();
+  h += '<div class="row" style="gap:var(--s3)"><div class="seg"><button data-lv="g:job"' + (lv.g === 'job' ? ' class="on"' : '') + '>By job</button>' +
+    '<button data-lv="g:type"' + (lv.g === 'type' ? ' class="on"' : '') + '>Moxfield types</button></div>' +
+    '<div class="seg"><button data-lv="p:0"' + (!lv.p ? ' class="on"' : '') + '>List</button><button data-lv="p:1"' + (lv.p ? ' class="on"' : '') + '>Pictures</button></div></div>';
+  if(lv.g === 'type'){
+    var byType = {};
+    S.deck.forEach(function(d){ var t = typeGroup(d); (byType[t] = byType[t] || []).push(d); });
+    var cmds = [S.cmd].concat(S.partner ? [S.partner] : []);
+    h += '<details class="cat" open><summary>Commander <span class="ct">' + cmds.length + '</span></summary>' +
+      (lv.p ? '<div class="deal">' + cmds.map(function(c){ return picTile(c, c.n, 'Commander', 1, true); }).join('') + '</div>'
+            : cmds.map(function(c){ return '<div class="card"><span class="mv">' + (c.mv || 0) + '</span><div><div class="nm">' + esc(c.n) + '</div><div class="why">' + esc(c.type || 'Commander') + '</div></div><span></span></div>'; }).join('')) +
+      '</details>';
+    TYPE_GROUPS.forEach(function(t){
+      var items = (byType[t] || []).sort(function(a, b){ return a.n.localeCompare(b.n); });
+      if(items.length) h += groupBlock(GROUP_PLURAL[t] || t, '', items, lv.p, true);
     });
-    Object.keys(basics).forEach(function(n){
-      h += '<div class="card"><span class="mv">0</span><div><div class="nm">' + basics[n] + ' ' + esc(n) + '</div><div class="why">Basic land.</div></div>' +
-        '<span class="row" style="gap:2px"><button class="x" data-basic="' + esc(n) + '" data-d="-1" aria-label="One fewer">&minus;</button><button class="x" data-basic="' + esc(n) + '" data-d="1" aria-label="One more">+</button></span></div>';
+  } else {
+    groups.forEach(function(g){
+      var items = S.deck.filter(function(d){ return d.role === g; }).sort(function(a, b){ return a.mv - b.mv || a.n.localeCompare(b.n); });
+      if(!items.length && g !== 'lands') return;
+      h += groupBlock(ROLE_NAMES[g], g === 'synergy' ? '' : ' <span class="target">target ' + S.quotas[g] + '</span>', items, lv.p, false);
     });
-    h += '</details>';
-  });
+  }
   var cons = considering();
   if(cons.length){
     h += '<details class="cat" open><summary>Considering <span class="ct">' + cons.length + '</span> <span class="target">not out yet</span></summary>' +
@@ -1221,9 +1231,57 @@ function drawList(){
   msg(total === 100 ? '<span class="ok">100 cards.</span>' : '<span class="warn">' + total + ' cards; a Commander deck needs exactly 100.</span>');
   $('nextBtn').textContent = 'Next'; $('nextBtn').disabled = false;
 }
-function cardRow(d){
+/* Two ways to read the 99: by the job each card does (the builder's own groups), or by card
+   type the way Moxfield lays a deck out. Either one as rows or as card pictures. Kept for
+   every deck on this device, not per deck. */
+var TYPE_GROUPS = ['Creature', 'Planeswalker', 'Instant', 'Sorcery', 'Artifact', 'Enchantment', 'Battle', 'Land', 'Other'];
+var GROUP_PLURAL = { Creature:'Creatures', Planeswalker:'Planeswalkers', Instant:'Instants', Sorcery:'Sorceries',
+  Artifact:'Artifacts', Enchantment:'Enchantments', Battle:'Battles', Land:'Lands', Other:'Other' };
+function listView(){
+  var v = { g:'job', p:0 };
+  try { var s = JSON.parse(localStorage.getItem('forge.listView') || '{}'); if(s.g === 'type') v.g = 'type'; if(s.p) v.p = 1; } catch(e){}
+  return v;
+}
+function setListView(k, val){
+  var v = listView(); v[k] = k === 'p' ? +val : val;
+  try { localStorage.setItem('forge.listView', JSON.stringify(v)); } catch(e){}
+}
+function typeGroup(d){
+  if(d.basic) return 'Land';
+  var t = String((cardOf(d) || {}).type || '').split('//')[0];
+  for(var i = 0; i < TYPE_GROUPS.length - 1; i++) if(t.indexOf(TYPE_GROUPS[i]) >= 0) return TYPE_GROUPS[i];
+  return 'Other';
+}
+function groupBlock(title, tgt, items, pics, showJob){
+  var h = '<details class="cat" open><summary>' + title + ' <span class="ct">' + items.length + '</span>' + tgt + '</summary>';
+  var basics = {}, rest = [];
+  items.forEach(function(d){ if(d.basic) basics[d.n] = (basics[d.n] || 0) + 1; else rest.push(d); });
+  if(pics){
+    h += '<div class="deal">' + rest.map(function(d){ return picTile(cardOf(d) || {}, d.n, showJob ? ROLE_NAMES[d.role] : '', 1, false); }).join('') +
+      Object.keys(basics).map(function(n){ return picTile(cardOf({ n:n, basic:true }) || {}, n, 'Basic land', basics[n], false, true); }).join('') + '</div>';
+  } else {
+    rest.forEach(function(d){ h += cardRow(d, showJob); });
+    Object.keys(basics).forEach(function(n){ h += basicRow(n, basics[n]); });
+  }
+  return h + '</details>';
+}
+function basicRow(n, q){
+  return '<div class="card"><span class="mv">0</span><div><div class="nm">' + q + ' ' + esc(n) + '</div><div class="why">Basic land.</div></div>' +
+    '<span class="row" style="gap:2px"><button class="x" data-basic="' + esc(n) + '" data-d="-1" aria-label="One fewer">&minus;</button><button class="x" data-basic="' + esc(n) + '" data-d="1" aria-label="One more">+</button></span></div>';
+}
+function picTile(c, n, label, q, fixed, basic){
+  var img = c.img || '';
+  return '<div class="tile"><button class="tpick"' + (fixed || basic ? ' style="cursor:default"' : ' data-row="' + esc(n) + '" aria-label="Swap ' + esc(n) + '"') + '>' +
+    (img ? '<img loading="lazy" src="' + esc(img) + '" alt="' + esc(n) + '">' : '<span class="noimg">' + esc(n) + '</span>') +
+    (q > 1 ? '<span class="qty">&times;' + q + '</span>' : '') + '</button>' +
+    '<div class="tinfo"><b>' + esc(n) + '</b>' + (label ? '<span class="tw">' + esc(label) + '</span>' : '') + '</div>' +
+    (basic ? '<span class="row" style="gap:2px"><button class="x" data-basic="' + esc(n) + '" data-d="-1" aria-label="One fewer">&minus;</button><button class="x" data-basic="' + esc(n) + '" data-d="1" aria-label="One more">+</button></span>' : '') +
+    (img ? '<button class="zoom" data-zoom="' + esc(img) + '" aria-label="Read ' + esc(n) + '">Read</button>' : '') + '</div>';
+}
+function cardRow(d, showJob){
   var combo = (S.comboNames || {})[d.n];
   return '<div class="card" data-row="' + esc(d.n) + '"><span class="mv">' + d.mv + '</span><div><div class="nm">' + esc(d.n) +
+    (showJob ? '<span class="tag job">' + esc(ROLE_NAMES[d.role] || d.role) + '</span>' : '') +
     (d.gc ? '<span class="tag gc">Game Changer</span>' : d.gc0 ? '<span class="tag must">Game Changer, free pass</span>' : '') + (combo ? '<span class="tag combo">Combo piece</span>' : '') + (d.must ? '<span class="tag must">Must</span>' : '') +
     '</div><div class="why">' + esc(d.why) + '</div></div><button class="x sw" data-cut="' + esc(d.n) + '" aria-label="Swap ' + esc(d.n) + '">Swap</button></div>';
 }
@@ -1231,6 +1289,10 @@ function onBuildClick(e){
   var t = e.target;
   var v4 = t.closest('[data-v4]');
   if(v4){ S.v4 = v4.dataset.v4; save(); VIEW[4](); return; }
+  var lvb = t.closest('[data-lv]');
+  if(lvb){ var kv = lvb.dataset.lv.split(':'); setListView(kv[0], kv[1]); VIEW[4](); return; }
+  var zm = t.closest('[data-zoom]');
+  if(zm){ zoomCard(zm.dataset.zoom); return; }
   if(t.id === 'rebuild'){ if(confirm('Throw away this list and let the builder pick all 99?')){ buildDeck(); S.draft = newDraft(); S.v4 = 'list'; save(); VIEW[4](); } return; }
   var cut = t.closest('[data-cut]') || t.closest('[data-row]');
   if(cut){ openSwap(cut.dataset.cut || cut.dataset.row); return; }
@@ -2520,7 +2582,7 @@ function tableLink(){
   var name = S.cmd.n.split(',')[0] + (S.partner ? ' + ' + S.partner.n.split(',')[0] : '');
   var payload = JSON.stringify({ name:name, text:deckTxt() });
   var b64 = btoa(unescape(encodeURIComponent(payload))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  return '../#import=' + b64;
+  return '../table.html#import=' + b64;
 }
 function copy(text, done){
   (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(function(){ msg('<span class="ok">' + done + '</span>'); }, function(){
