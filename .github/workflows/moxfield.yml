@@ -1,0 +1,22 @@
+name: Refresh Moxfield decks
+on:
+  schedule: [{ cron: '30 20 * * *' }]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: { group: bot-push, cancel-in-progress: false }
+jobs:
+  decks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      # Exits non-zero on any Moxfield problem and leaves the last good file in place.
+      - run: python build/moxfield_decks.py amoncupa decks/moxfield.json
+      - run: |
+          git config user.name "combo-bot"
+          git config user.email "combo-bot@users.noreply.github.com"
+          git add decks/moxfield.json
+          git diff --cached --quiet || (git commit -m "Refresh Moxfield decks" && git pull --rebase origin "$GITHUB_REF_NAME" && git push origin "HEAD:$GITHUB_REF_NAME")

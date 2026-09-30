@@ -1,0 +1,267 @@
+/* Brewing Station pages (pages.css)
+
+   The few pieces the Analysis, Synergy, EDHREC, Upgrades and Compare pages
+   (pages.js) need on top of brew.css. Loads after brew.css. Every class here
+   starts with pg- and nothing restyles an old class or a bare element outside
+   .pg-root. Colours, sizes and fonts come from the :root tokens only (Block). */
+
+.pg-root{min-width:0}
+.pg-root [id]{scroll-margin-top:calc(var(--head-h,118px) + var(--s5))}
+
+/* ---------- "Show all": items past the first rows wait behind a button ---------- */
+[data-more]:not(.pg-all) > .pg-x{display:none!important}
+.pg-showall{margin-top:var(--s3)}
+.pg-pad{padding:0 var(--s5) var(--s3)}
+.pg-pad:empty{display:none}
+.pg-pad > .pg-fine{padding:var(--s4) 0 var(--s2)}
+
+/* ---------- small text pieces ---------- */
+.pg-fine{margin:0;font-size:var(--t2);line-height:1.5;color:var(--ink3)}
+.pg-legend{margin:0 0 var(--s4);max-width:84ch;font-size:var(--t2);line-height:1.5;color:var(--ink2)}
+.pg-legend b{font-weight:600;color:var(--ink)}
+.pg-pos{font-family:var(--num);font-weight:600;color:var(--good)}
+.pg-mt{margin-top:var(--s3)!important}
+.pg-mb{margin-bottom:var(--s4)!important}
+.pg-right{margin-left:auto}
+.pg-grow{flex:1 1 auto}
+.bs-ico.pg-i12{width:12px;height:12px;stroke-width:2.4}
+.bs-spin.pg-spin-sm{width:12px;height:12px;border-width:2px;vertical-align:-1px}
+.pg-note-line{margin:0 0 var(--s4)}
+.pg-statrow{margin-bottom:var(--s6)}
+.pg-root span.bs-crow-thumb{display:block}
+/* tiles in one row share a height; their buttons line up along the bottom */
+.pg-root .bs-ctile-acts{margin-top:auto}
+.pg-root .bs-callout{margin-bottom:var(--s4)}
+.pg-root .bs-callout:last-child{margin-bottom:0}
+.pg-root .bs-callout.pg-callout-act{flex-wrap:wrap;align-items:center}
+.pg-callout-act > p{flex:1 1 320px;min-width:0}
+.pg-callout-act > .bs-btn{flex:none}
+
+/* ---------- card names as small tappable pills (36px, 44px hit area) ---------- */
+.pg-names{display:flex;flex-wrap:wrap;gap:var(--s3) var(--s2);margin-top:var(--s3)}
+.pg-name{position:relative;display:inline-flex;align-items:center;min-height:36px;max-width:100%;padding:var(--s1) var(--s3);
+  border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg3);color:var(--ink);font-size:var(--t2);line-height:1.25;text-align:left}
+.pg-name::after{content:'';position:absolute;left:0;right:0;top:50%;height:var(--tap);transform:translateY(-50%)}
+.pg-name.pg-more{border-style:dashed;background:transparent;color:var(--ink2);font-family:var(--disp);font-weight:600;font-size:var(--t1);letter-spacing:var(--cap);text-transform:uppercase}
+
+/* a card name inside a line of text or a list line */
+.pg-linkname,.pg-inline{position:relative;padding:0;color:var(--ink2);font-size:inherit;text-align:left;text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px}
+.pg-linkname::after{content:'';position:absolute;left:0;right:0;top:50%;height:var(--tap);transform:translateY(-50%)}
+.pg-tall .bs-line{min-height:var(--tap);align-items:center}
+
+/* ---------- Analysis ---------- */
+.pg-overall{display:flex;flex-direction:column;gap:var(--s2);min-width:240px;padding:var(--s4) var(--s5);background:var(--bg2);border:1px solid var(--line);border-radius:var(--r-md)}
+.pg-overall .bs-score{margin-top:var(--s1)}
+.pg-overall-n{font-size:var(--t1);color:var(--ink3)}
+.pg-pillars{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s5);align-items:start}
+@media (min-width:640px){ .pg-pillars{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media (min-width:1180px){ .pg-pillars{grid-template-columns:repeat(4,minmax(0,1fr))} }
+.pg-what{margin:0;font-size:var(--t2);line-height:1.45;color:var(--ink3)}
+.pg-pillar .bs-verdict{color:var(--ink)}
+.pg-folds{margin-top:var(--s1)}
+.pg-part{padding:var(--s4) 0;border-top:1px solid var(--line)}
+.pg-part:first-child{border-top:0;padding-top:var(--s1)}
+.pg-part-top{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s3);margin-bottom:var(--s2)}
+.pg-part-k{font-weight:600;font-size:var(--t2);color:var(--ink)}
+.pg-part-v{font-size:var(--t1);color:var(--ink3);text-align:right}
+.pg-part-v b{font-family:var(--num);font-weight:600;font-size:var(--t3);color:var(--ink);font-variant-numeric:tabular-nums}
+.pg-part-note{margin:var(--s2) 0 0;font-size:var(--t1);line-height:1.45;color:var(--ink3)}
+.pg-part.pg-off .pg-part-k,.pg-part.pg-off .pg-part-v b{color:var(--ink3)}
+.pg-part .pg-names{margin-top:var(--s3)}
+.pg-raise{margin:0;padding-left:18px}
+.pg-raise li{margin:var(--s2) 0;line-height:1.45;color:var(--ink2)}
+.pg-kv{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s6);margin-bottom:var(--s5);font-size:var(--t2);color:var(--ink3)}
+.pg-kv b{margin-right:4px;font-weight:700;font-size:var(--t4);color:var(--ink)}
+.bs-side .pg-kv{gap:var(--s1) var(--s4);margin-bottom:var(--s4)}
+.pg-jobcards{padding:var(--s1) 0 var(--s4)}
+.pg-jobcards .pg-names{margin-top:0}
+.pg-jobs .bs-hbar{grid-template-columns:minmax(6em,8.5em) minmax(0,1fr) 4.5em 7.5em}
+.pg-hbar-also{font-size:var(--t1);color:var(--ink3);white-space:nowrap}
+.pg-alsohead{display:flex;align-items:baseline;gap:var(--s2);margin:var(--s4) 0 var(--s2)}
+.pg-alsohead + .pg-names{margin-top:0}
+.pg-checks{display:flex;flex-direction:column}
+.pg-check{padding:var(--s4) 0;border-bottom:1px solid var(--line)}
+.pg-check:first-child{padding-top:0}
+.pg-check:last-child{padding-bottom:0;border-bottom:0}
+.pg-check-top{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--s4)}
+.pg-check-k{display:flex;flex-direction:column;gap:2px;min-width:0}
+.pg-check-k b{font-weight:600;font-size:var(--t3);color:var(--ink)}
+.pg-check-k span{font-size:var(--t2);color:var(--ink3)}
+.pg-check-v{flex:none;display:flex;align-items:center;gap:var(--s3)}
+.pg-check-v > .bs-num{font-weight:700;font-size:var(--t4);color:var(--ink)}
+.pg-badcombos{margin:var(--s3) 0 var(--s2);padding-left:18px;font-size:var(--t2);color:var(--ink2)}
+.pg-bigprice{font-size:var(--t5);margin:var(--s1) 0 var(--s3)}
+
+/* ---------- controls rows (EDHREC filters, bracket pickers) ---------- */
+.pg-controls{display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--s4) var(--s6);margin-bottom:var(--s5)}
+.pg-ctl{display:flex;flex-direction:column;gap:var(--s2);min-width:0;max-width:100%}
+.pg-ctl-grow{flex:1 1 320px}
+.pg-controls > .pg-legend{margin:0;align-self:center}
+.pg-dotnote{font-family:var(--ui);font-weight:400;letter-spacing:0;text-transform:none;color:var(--ink3)}
+.pg-yours{display:inline-block;width:5px;height:5px;margin:0 0 8px 3px;border-radius:50%;background:currentColor}
+.bs-chip.pg-chipmore{border-style:dashed;background:transparent}
+.pg-tabsrow{margin-bottom:var(--s5)}
+.bs-seg.pg-seg3{max-width:640px}
+.pg-jump{display:flex;flex-wrap:wrap;gap:var(--s2);margin:0 0 var(--s2)}
+
+/* ---------- Synergy ---------- */
+.pg-theme .bs-panel-head{margin-bottom:var(--s2)}
+.pg-theme-title{margin:0;font-family:var(--disp);font-weight:600;font-size:var(--t4);line-height:1.2;letter-spacing:normal;text-transform:none;color:var(--ink)}
+.pg-theme-body{margin-top:var(--s5)}
+.pg-theme-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:var(--s5) var(--s7)}
+.pg-colhead{display:flex;align-items:baseline;gap:var(--s2);margin:0 0 var(--s3)}
+.bs-cgrid.pg-mini{--card-min:96px;gap:var(--s4) var(--s3)}
+.bs-cgrid.pg-mini .bs-ctile{gap:4px}
+.bs-cgrid.pg-mini .bs-ctile-n{font-weight:500;font-size:var(--t1);color:var(--ink2)}
+@media (max-width:420px){ .bs-cgrid.pg-mini{grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s3) var(--s2)} }
+
+.pg-engine{display:grid;grid-template-columns:88px minmax(0,1fr);gap:var(--s4);align-items:start}
+.pg-engine-pic,.pg-pic{position:relative;display:block;flex:none;aspect-ratio:488 / 680;padding:0;border-radius:4.75% / 3.4%;overflow:hidden;background:var(--bg3);transition:transform var(--dur-fast) var(--ease)}
+.pg-engine-pic{width:88px}
+.pg-engine-pic img,.pg-pic img{position:absolute;inset:0;display:block;width:100%;height:100%;object-fit:cover}
+.pg-engine-pic:focus-visible,.pg-pic:focus-visible{border-radius:4.75% / 3.4%}
+.pg-engine-body{min-width:0}
+.pg-engine-top{display:flex;align-items:center;gap:var(--s2);min-width:0}
+.pg-rank{flex:none;display:grid;place-items:center;min-width:24px;height:22px;padding:0 4px;border:1px solid var(--line);border-radius:4px;background:var(--bg3);font-weight:700;font-size:var(--t1);color:var(--ink2)}
+.pg-linkname.pg-engine-n{font-family:var(--disp);font-weight:600;font-size:var(--t3);line-height:1.25;color:var(--ink);text-decoration:none}
+.pg-engine-s{margin:2px 0 0;font-size:var(--t2);color:var(--ink3)}
+.pg-engine-s b{font-weight:600;color:var(--ink)}
+
+.pg-list .bs-crow{padding-left:var(--s5);padding-right:var(--s5)}
+.pg-list > .bs-crow:last-child{border-bottom:0}
+.pg-crow-open{display:flex;flex-direction:column;justify-content:center;min-width:0;min-height:var(--tap);padding:0;text-align:left;color:inherit}
+
+.pg-combo{display:flex;flex-direction:column;gap:var(--s3)}
+.pg-combo-pics{display:flex;flex-wrap:wrap;gap:var(--s2)}
+.pg-pic{width:72px}
+.pg-pic .bs-ctile-noimg{padding:4px;font-size:var(--t1)}
+.pg-combo-res{margin:0;font-weight:600;font-size:var(--t3);line-height:1.35;color:var(--ink)}
+.pg-combo-names{margin:0;font-size:var(--t2);color:var(--ink3)}
+.pg-badges{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s2)}
+.pg-combo .pg-badges{margin-top:auto}
+.pg-near{display:grid;grid-template-columns:132px minmax(0,1fr);gap:var(--s5);align-items:start}
+.pg-near-pic .bs-ctile-n{display:none}
+.pg-near-body{display:flex;flex-direction:column;gap:var(--s2);min-width:0}
+.pg-near-add{margin:0;font-size:var(--t2);color:var(--ink3)}
+.pg-near-add b{display:block;font-family:var(--disp);font-weight:600;font-size:var(--t4);line-height:1.2;color:var(--ink)}
+
+/* ---------- Upgrades ---------- */
+.bs-swap .pg-badges{margin:2px 0}
+.pg-swap-btns{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:var(--s3)}
+/* PC: Swap on top, Not for me under it, so the reasons get the width */
+@media (min-width:721px){
+  .pg-swap-btns{flex-direction:column-reverse;flex-wrap:nowrap;align-items:stretch;gap:var(--s1);margin-top:var(--s1)}
+  .pg-swap-btns .bs-btn{justify-content:center}
+}
+.pg-noprice{font-size:var(--t2);font-weight:600;color:var(--ink3)}
+
+/* ---------- Compare ---------- */
+.pg-prog{margin-bottom:var(--s5)}
+/* the table is as wide as its columns, not stretched across the page */
+.pg-cmp{width:max-content}
+.pg-cmp .bs-table{min-width:0}
+@media (min-width:1100px){
+  .pg-cmp.pg-fits{overflow:visible;max-height:none}
+  .pg-cmp.pg-fits thead th{top:var(--head-h)}
+  .pg-cmp.pg-fits thead th:first-child{border-top-left-radius:var(--r-md)}
+  .pg-cmp.pg-fits thead th:last-child{border-top-right-radius:var(--r-md)}
+  .pg-cmp.pg-fits tbody tr:last-child > :first-child{border-bottom-left-radius:var(--r-md)}
+  .pg-cmp.pg-fits tbody tr:last-child > :last-child{border-bottom-right-radius:var(--r-md)}
+}
+.pg-th-link{display:flex;flex-direction:column;gap:6px;min-width:0;color:inherit;text-decoration:none;border-radius:4px}
+.pg-th-noart{display:block;width:100%;aspect-ratio:16 / 7;border-radius:4px;background:var(--bg4)}
+.pg-th-meta{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s2)}
+.pg-th-sub{font-size:var(--t1);color:var(--ink3)}
+.bs-table td.pg-wrapcell{white-space:normal;line-height:1.5;color:var(--ink2)}
+.bs-table td.pg-diag{background-image:repeating-linear-gradient(135deg,var(--bg3) 0 4px,transparent 4px 8px)}
+.pg-heat tbody th{max-width:var(--firstw,110px);overflow:hidden;text-overflow:ellipsis}
+.pg-ab{display:inline-block;min-width:30px;font-weight:600;color:var(--ink3)}
+
+/* ---------- mouse only ---------- */
+@media (hover:hover) and (pointer:fine){
+  .pg-name:hover{border-color:var(--line2);background:var(--bg4)}
+  .pg-linkname:hover,.pg-inline:hover{color:var(--ink);text-decoration-color:var(--ink3)}
+  .pg-linkname.pg-engine-n:hover{text-decoration:underline;text-decoration-color:var(--ink3)}
+  .pg-crow-open:hover .bs-crow-n{text-decoration:underline;text-underline-offset:3px}
+  .pg-pic:hover,.pg-engine-pic:hover{transform:translateY(-2px)}
+  .pg-th-link:hover b{text-decoration:underline;text-underline-offset:3px}
+}
+
+/* ---------- phones ---------- */
+@media (max-width:699px){
+  .pg-jump{flex-wrap:nowrap;margin:0 calc(-1 * var(--gutter)) var(--s2);padding:4px var(--gutter);overflow-x:auto;scrollbar-width:none;
+    -webkit-mask-image:linear-gradient(90deg,var(--bg) calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,var(--bg) calc(100% - 28px),transparent)}
+  .pg-jump::-webkit-scrollbar{display:none}
+  .pg-jump .bs-chip{flex:none}
+}
+@media (max-width:559px){
+  .pg-overall{width:100%;min-width:0}
+  .pg-controls{gap:var(--s4)}
+  .pg-ctl{width:100%}
+  .pg-kv{gap:var(--s2) var(--s4)}
+  .pg-engine{grid-template-columns:72px minmax(0,1fr);gap:var(--s3)}
+  .pg-engine-pic{width:72px}
+  .pg-near{grid-template-columns:104px minmax(0,1fr);gap:var(--s4)}
+  .pg-list .bs-crow{padding-left:var(--s4);padding-right:var(--s4)}
+  .pg-check-top{flex-wrap:wrap}
+  .pg-jobs .bs-hbar{grid-template-columns:minmax(6em,8.5em) minmax(0,1fr) 4.5em}
+  .pg-hbar-also{display:none}
+  /* Upgrades / Downgrades / Interesting: the count sits under the word */
+  .bs-seg.pg-seg3 button{flex-direction:column;gap:0;min-height:48px;padding:4px 2px}
+}
+
+/* ---------- reduced motion: nothing moves ---------- */
+@media (prefers-reduced-motion:reduce){
+  .pg-pic,.pg-engine-pic{transition:none}
+  .pg-pic:hover,.pg-engine-pic:hover{transform:none}
+}
+/* Analysis: the price is one quiet line at the very end, folded away (round 3, part C) */
+.pg-pricefoot{margin-top:var(--s7);padding-top:var(--s3);border-top:1px solid var(--line);font-size:var(--t1);line-height:1.5;color:var(--ink3)}
+.pg-pricefoot > summary{display:flex;align-items:center;gap:var(--s2);min-height:var(--tap);cursor:pointer;list-style:none;color:var(--ink3)}
+.pg-pricefoot > summary::-webkit-details-marker{display:none}
+.pg-pricefoot > summary::after{content:'';width:6px;height:6px;margin-left:var(--s2);border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:translateY(-2px) rotate(45deg)}
+.pg-pricefoot[open] > summary::after{transform:translateY(1px) rotate(-135deg)}
+.pg-pricefoot > p{margin:0 0 var(--s2);max-width:90ch}
+.pg-pricefoot-n{font-family:var(--num);color:var(--ink3)}
+@media (hover:hover) and (pointer:fine){ .pg-pricefoot > summary:hover{color:var(--ink2)} }
+
+/* ---------- fix round (30 Sept) ---------- */
+/* Analysis: the title starts level with the Overall card, and the four pillars line up row by row
+   (title, meter, what it is, verdict, folds) even when one verdict runs to two lines. */
+.bs-pagehead:has(> .pg-overall){align-items:flex-start}
+@supports (grid-template-rows:subgrid){
+  @media (min-width:640px){
+    .pg-pillar{display:grid;grid-row:span 5;grid-template-rows:subgrid;row-gap:var(--s3);align-content:start}
+  }
+}
+/* Upgrades: Out and In each on their own labelled line, so every pair reads the same way */
+.pg-swapnames{display:flex;flex-direction:column;gap:2px;margin:0 0 var(--s2)}
+.pg-swapnames p{display:flex;align-items:baseline;gap:var(--s2);margin:0;min-width:0;font-weight:600}
+.pg-swapnames .bs-label{flex:none;width:2.4em}
+/* Synergy: card names in the small tiles wrap to two lines instead of being cut off */
+.bs-cgrid.pg-mini .bs-ctile-n,.bs-cgrid.pg-mini button.bs-ctile-n.bs-cardlink{white-space:normal;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-clamp:2;text-overflow:clip}
+/* Works with nothing: on a phone the Find a replacement button goes under the name */
+@media (max-width:559px){
+  .pg-list .bs-crow:has(> .bs-crow-end .bs-btn){grid-template-columns:auto minmax(0,1fr)}
+  .pg-list .bs-crow > .bs-crow-end:has(.bs-btn){grid-column:1 / -1;justify-content:flex-end}
+}
+/* EDHREC bracket buttons: 44px wide at least */
+.pg-ctl .bs-seg button{min-width:44px}
+/* Links out to Commander Spellbook inside a list line */
+.pg-sbl{display:inline-block;padding:13px 0;margin:-13px 0;color:var(--brass);white-space:nowrap}
+
+/* EDHREC: deck counts under the bracket numbers; EDHREC's own combo list */
+.pg-segn{display:block;font-family:var(--num);font-size:10px;line-height:1;color:var(--ink3);margin-left:4px}
+.pg-ctl .bs-seg button:has(.pg-segn){flex-direction:row;gap:2px}
+.pg-edhcombos{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:var(--s3);font-size:var(--t2);line-height:1.5}
+/* Phones: the deck count sits under the bracket number, so all six buttons fit without scrolling */
+@media (max-width:559px){
+  .pg-ctl .bs-seg button{padding:0 var(--s2)}
+  .pg-ctl .bs-seg button:has(.pg-segn){flex-direction:column;gap:1px}
+  .pg-segn{margin-left:0}
+  .pg-ctl .bs-seg button:has(.pg-segn) .pg-yours{position:absolute;top:5px;right:5px;margin:0}
+}
+
+/* Compare: which decks are in the table */
+.pg-cmp-pick{margin:0 0 var(--s4)}
+.pg-cmp-pick .bs-label{margin:0 0 var(--s2)}
