@@ -1,0 +1,3 @@
+# Moxfield users whose decks the nightly job fetches, one per line.
+# Each gets decks/moxfield-<name>.json and opens at tomoncupa.github.io/magic/build/?user=<name>
+# amoncupa is always fetched, to decks/moxfield.json.

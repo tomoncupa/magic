@@ -2455,6 +2455,17 @@ function swapOut(d, rep, reason, log){
 // On the Windows app the local server runs Claude. Anywhere else, the prompt is copied
 // to the Claude app and the answer pasted back.
 var LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+// Whose Moxfield decks the home shows. A link with ?user=<name> sets it and this browser keeps it,
+// so a friend's plain bookmark still opens their decks. The nightly job writes one file per name
+// listed in decks/users.txt.
+var MOXUSER = (function(){
+  var ok = /^[A-Za-z0-9_.-]{1,40}$/, u = '';
+  try{ u = new URLSearchParams(location.search).get('user') || ''; }catch(e){}
+  if(ok.test(u)){ try{ localStorage.setItem('forge.moxUser', u); }catch(e){} return u; }
+  try{ u = localStorage.getItem('forge.moxUser') || ''; }catch(e){ u = ''; }
+  return ok.test(u) ? u : 'amoncupa';
+})();
+function moxFeedFile(){ return MOXUSER.toLowerCase() === 'amoncupa' ? '../decks/moxfield.json' : '../decks/moxfield-' + MOXUSER.toLowerCase() + '.json'; }
 var CL = { status:null, busy:false, err:'' };
 function deckKey(){ return S.deck.map(function(d){ return d.n; }).sort().join('|'); }
 function claudePrompt(){
@@ -3229,7 +3240,7 @@ function feed(force){
       // The desktop server reads Moxfield live (about 7 s the first time, then kept 60 s).
       // A refresh asks it to skip that 60 s copy. Stuck for 25 s: use the nightly file instead.
       var ac = window.AbortController ? new AbortController() : null, tm = ac ? setTimeout(function(){ ac.abort(); }, 25000) : 0;
-      try{ var r = await fetch('/api/moxfield/decks?user=amoncupa' + (force ? '&fresh=1' : ''), { cache:'no-store', signal:ac ? ac.signal : undefined });
+      try{ var r = await fetch('/api/moxfield/decks?user=' + encodeURIComponent(MOXUSER) +(force ? '&fresh=1' : ''), { cache:'no-store', signal:ac ? ac.signal : undefined });
         if(r.ok && /json/.test(r.headers.get('content-type') || '')){ j = await r.json(); src = 'live'; } }catch(e){ j = null; }
       clearTimeout(tm);
       // The feed is exactly Moxfield's deck search for him. A deck read by its id cannot tell deleted
@@ -3237,7 +3248,8 @@ function feed(force){
       // keeps its copy here with the "Not on Moxfield now" badge; it is never read back in by id.
     }
     if(!j || !Array.isArray(j.decks)){
-      var r2 = await fetch('../decks/moxfield.json', { cache:'no-cache' });
+      var r2 = await fetch(moxFeedFile(), { cache:'no-cache' });
+      if(r2.status === 404) throw new Error('There is no deck list for Moxfield user ' + MOXUSER + ' yet. Lists are made every night for the names on the nightly list');
       if(!r2.ok) throw new Error('the deck list answered ' + r2.status);
       j = await r2.json(); src = 'file';
     }
@@ -3937,7 +3949,7 @@ function drawDecks(){
     '<button class="bs-btn" type="button" id="dkRefresh"' + (FEED.busy || IMPORT.busy ? ' disabled' : '') + '>' + (FEED.busy ? '<span class="bs-spin"></span>Checking Moxfield' : ico('refresh', 'bs-i16') + 'Refresh from Moxfield') + '</button>' +
     (PG('compare') ? '<a class="bs-btn" href="#compare">Compare</a>' : '') + importBtnHtml() +
     '<button class="bs-btn" type="button" id="dkNew">' + ico('plus', 'bs-i16') + 'New deck</button></div></div>';
-  if(FEED.tried && !f) h += '<div class="bs-callout bs-warn" style="margin-bottom:var(--s5)">' + ico('warn') + '<div class="sh-err"><p><b>Could not reach Moxfield.</b> Showing the decks already on this device. ' + esc(FEED.err) + '.</p><button class="bs-btn bs-sm" type="button" id="dkRetry">Try again</button></div></div>';
+  if(FEED.tried && !f) h += '<div class="bs-callout bs-warn" style="margin-bottom:var(--s5)">' + ico('warn') + '<div class="sh-err"><p><b>' + (/no deck list/.test(FEED.err) ? 'No Moxfield decks for this name yet.' : 'Could not reach Moxfield.') + '</b> Showing the decks already on this device. ' + esc(FEED.err) + '.</p><button class="bs-btn bs-sm" type="button" id="dkRetry">Try again</button></div></div>';
   if(!items.length && FEED.tried && !FEED.busy){
     h += '<div class="bs-empty">' + ico('deck') + '<h3 class="bs-empty-title">No decks yet</h3><p>Bring your decks in from Moxfield, import a list, or start a new one from a commander.</p>' +
       '<div class="bs-acts">' + importBtnHtml('dkImport2') + '<button class="bs-btn bs-primary" type="button" id="dkNew2">New deck</button></div></div>';
@@ -4591,7 +4603,7 @@ async function impReadLink(){
   K.busy = false;
   // One of his own decks that Moxfield's public list does not show (unlisted): it comes in linked,
   // like the others, so its changes can go back to Moxfield.
-  if(d && d.author && FEED.data && String(d.author).toLowerCase() === String(FEED.data.user || 'amoncupa').toLowerCase() && (d.commanders || []).length){
+  if(d && d.author && FEED.data && String(d.author).toLowerCase() === String(FEED.data.user || MOXUSER).toLowerCase() && (d.commanders || []).length){
     if(!feedDeck(d.id)){ d.unlisted = true; FEED.data.decks.push(d); }
     me.h.close();
     toast('<b>' + esc(d.name) + '</b> is one of your Moxfield decks. ' + (rowForMox(d.id) ? 'Opening it.' : 'Bringing it in, linked to Moxfield.'));
