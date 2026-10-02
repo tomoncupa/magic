@@ -780,7 +780,10 @@ function bodyMatch(lines, only) {
 // ("a burden counter on The One Ring"), in the plain font the title lacks.
 // Measured on a borderless The One Ring under glare: the title read as
 // nothing, the name in the rules text four times out of four. Only names of
-// eight letters or more count, and only when two lines name them.
+// two words and eight letters or more count, and only when two lines name
+// them: tried on the rules text of all 33,897 cards, one-word names picked
+// Sacrifice, Mountain or Flashback for 805 cards; with two words, 25 cards
+// name another card (Blaring Captain names Blaring Recruiter), 2,646 their own.
 function nameInText(lines) {
   if (!IDX || !lines.length) return null;
   const {faces, tri} = IDX;
@@ -798,8 +801,8 @@ function nameInText(lines) {
     for (const i of touched) {
       const e = faces[i], c = cnt[i];
       cnt[i] = 0;
-      if (e.k.length < 8 || e.k.length > t.length + 2 || c < Math.ceil(e.t * 0.6)) continue;
-      if (1 - editsInside(e.k, t) / e.k.length < 0.9) continue;
+      if (e.k.length < 8 || e.k.length > t.length + 2 || c < Math.ceil(e.t * 0.6) || !/[a-z] [a-z]/i.test(front(e.n))) continue;
+      if (1 - editsInside(e.k, t) / e.k.length < 0.92) continue;
       if (!hits.has(i)) hits.set(i, new Set());
       hits.get(i).add(li);
     }
