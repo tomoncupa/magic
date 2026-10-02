@@ -704,8 +704,10 @@ function grab(v, sx, sy, sw, sh, W, H) {
 function cropCard(v, pass) {
   const G = guideInVideo(v), k = 760 / G.w;
   const cv = grab(v, G.x, G.y, G.w, G.h, Math.round(G.w * k), Math.round(G.h * k));
-  if (!pass) return cv;
-  const flip = pass === 2;
+  if (pass) stretch(cv, pass === 2);
+  return cv;
+}
+function stretch(cv, flip) {
   const x = cv.getContext('2d', {willReadFrequently: true});
   const im = x.getImageData(0, 0, cv.width, cv.height), p = im.data, hist = new Uint32Array(256), n = p.length / 4;
   for (let i = 0; i < p.length; i += 4) { const g = (p[i] * 0.3 + p[i + 1] * 0.59 + p[i + 2] * 0.11) | 0; p[i] = g; hist[g]++; }
@@ -723,7 +725,138 @@ function cropCard(v, pass) {
 }
 // Only lines in the top fifth of the card count, so rules and flavour text
 // that mention another card are never read as the name.
-const topLines = (d, h) => (d.lines || []).filter(l => l.bbox && l.bbox.y0 < h * 0.22).map(l => l.text).join('\n');
+// Each pair of lines next to each other is tried as one too: a title in two
+// rows or spaced out letter by letter ("PHYREXIAN / A L T A R") reads as two.
+function topLines(d, h) {
+  const L = (d.lines || []).filter(l => l.bbox && l.bbox.y0 < h * 0.22).sort((a, b) => a.bbox.y0 - b.bbox.y0).map(l => l.text.trim());
+  return L.concat(L.slice(1).map((t, i) => L[i] + ' ' + t)).join('\n');
+}
+// The lines in the text box, for a name that will not read: a title in an odd
+// font, or under glare. Measured on a Secret Lair Phyrexian Altar in a sleeve:
+// the name read as nothing, its rules text word for word.
+const bodyLines = (d, h) => (d.lines || []).filter(l => l.bbox && l.bbox.y0 >= h * 0.45 && l.bbox.y0 < h * 0.93).map(l => letters(l.text)).filter(t => t.length >= 8);
+
+/* ---------- reading the rules text ----------
+   For the deck check: each card the deck knows is matched by its rules text,
+   kept on the phone after the first time. */
+let ORACLE = null;
+const oracleKey = t => letters(String(t || '').replace(/\{[^}]*\}/g, ' ').replace(/\([^)]*\)/g, ' '));
+async function loadOracle(names) {
+  if (!ORACLE) { const c = await DB.get('oracle'); ORACLE = c && c.map ? c.map : {}; }
+  const want = [...new Set(names.map(front))].filter(n => !(keyN(n) in ORACLE));
+  for (let i = 0; i < want.length; i += 75) {
+    const part = want.slice(i, i + 75);
+    const j = await api('/cards/collection', {identifiers: part.map(name => ({name}))});
+    if (!j) continue;
+    for (const c of j.data || []) {
+      const t = c.oracle_text != null ? c.oracle_text : (c.card_faces || []).map(f => f.oracle_text || '').join('\n');
+      ORACLE[keyN(c.name)] = oracleKey(t);
+    }
+    for (const n of part) if (!(keyN(n) in ORACLE)) ORACLE[keyN(n)] = '';
+    DB.set('oracle', {map: ORACLE});
+  }
+}
+// The card whose rules text holds the most of the lines read, well ahead of
+// the next. Lines a few letters off still count; "any color" alone does not
+// pick a card: it needs 18 letters matched and half again the runner-up.
+function bodyMatch(lines, only) {
+  if (!ORACLE || !only || !lines.length) return null;
+  let a = null, b = null;
+  for (const n of only) {
+    const o = ORACLE[keyN(n)];
+    if (!o) continue;
+    let got = 0;
+    for (const t of lines) if (1 - editsInside(t, o) / t.length >= 0.8) got += t.length;
+    if (!got) continue;
+    if (!a || got > a.got) { if (a && keyN(a.n) !== keyN(n)) b = a; a = {n, got}; }
+    else if (keyN(n) !== keyN(a.n) && (!b || got > b.got)) b = {n, got};
+  }
+  if (!a || a.got < 18) return null;
+  const nb = b ? b.got : 0;
+  return a.got >= nb * 1.5 && a.got - nb >= 10 ? a : null;
+}
+
+// A card's name in its own rules text. Most cards name themselves there
+// ("a burden counter on The One Ring"), in the plain font the title lacks.
+// Measured on a borderless The One Ring under glare: the title read as
+// nothing, the name in the rules text four times out of four. Only names of
+// two words and eight letters or more count, and only when two lines name
+// them: tried on the rules text of all 33,897 cards, one-word names picked
+// Sacrifice, Mountain or Flashback for 805 cards; with two words, 25 cards
+// name another card (Blaring Captain names Blaring Recruiter), 2,646 their own.
+function nameInText(lines) {
+  if (!IDX || !lines.length) return null;
+  const {faces, tri} = IDX;
+  if (!IDX.cnt || IDX.cnt.length < faces.length) IDX.cnt = new Uint16Array(faces.length + 256);
+  const cnt = IDX.cnt, hits = new Map();
+  lines.forEach((t, li) => {
+    const touched = [], seen = new Set();
+    for (let j = 0; j + 3 <= t.length; j++) {
+      const g = t.substr(j, 3);
+      if (seen.has(g)) continue;
+      seen.add(g);
+      const a = tri.get(g);
+      if (a) for (const i of a) if (cnt[i]++ === 0) touched.push(i);
+    }
+    for (const i of touched) {
+      const e = faces[i], c = cnt[i];
+      cnt[i] = 0;
+      if (e.k.length < 8 || e.k.length > t.length + 2 || c < Math.ceil(e.t * 0.6) || !/[a-z] [a-z]/i.test(front(e.n))) continue;
+      if (1 - editsInside(e.k, t) / e.k.length < 0.92) continue;
+      if (!hits.has(i)) hits.set(i, new Set());
+      hits.get(i).add(li);
+    }
+  });
+  const rank = [...hits].map(([i, s]) => ({e: faces[i], n: s.size})).filter(x => x.n >= 2)
+    .sort((a, b) => b.n - a.n || b.e.k.length - a.e.k.length);
+  if (!rank.length) return null;
+  const [a, b] = rank;
+  // A tie is fine only with a name inside the winner's, which every line naming the winner names too.
+  if (b && b.n === a.n && !a.e.k.includes(b.e.k)) return null;
+  return {n: a.e.n, f: a.e.f};
+}
+
+/* ---------- reading the collector number ----------
+   Cards since 2015 print the set code and number at the bottom left in a
+   plain font, whatever the art or title font. Measured on the same Phyrexian
+   Altar: read from the whole card it came out "R 0018 / gad"; cut out and
+   enlarged, "R 0016 SLC + EN" every time. */
+const LANGS = 'EN|DE|FR|IT|ES|SP|PT|JA|JP|RU|KO|ZHS|ZHT|CS|CT|PH';
+function parseCollector(text) {
+  const t = String(text || '').replace(/[|]/g, ' ');
+  const s = t.match(new RegExp(`\\b([A-Z0-9]{3,5})\\s*[^A-Za-z0-9\\s]{0,3}\\s*(?:${LANGS})\\b`));
+  if (!s || /^\d+$/.test(s[1])) return null;
+  // "R 0016" (2023 on), "251/274 L" (2015 to 2022), or a bare "0016".
+  const n = t.match(/\b[CURMSTLP]\s+(\d{1,5})\b/) || t.match(/\b(\d{1,4})\s*\/\s*\d{1,4}\b/) || t.match(/\b(0\d{3})\b/);
+  if (!n) return null;
+  return {set: s[1].toLowerCase(), cn: String(+n[1])};
+}
+// The bottom left of the frame, enlarged; grey with the contrast stretched every other try.
+function cropCollector(v, gray) {
+  const G = guideInVideo(v), sx = G.x, sy = G.y + G.h * 0.7, sw = G.w * 0.55, sh = G.h * 0.3, k = 1000 / sw;
+  const cv = grab(v, sx, sy, sw, sh, 1000, Math.round(sh * k));
+  if (gray) stretch(cv, false);
+  return cv;
+}
+// The deck's own printings, set and number to name, from Moxfield.
+function deckPrints(md) {
+  const m = new Map();
+  if (md) for (const l of [md.commanders, md.main, md.side, md.companions, md.maybe]) for (const c of l || []) if (c.set && c.cn) m.set(c.set + '|' + String(c.cn).replace(/^0+(?=.)/, ''), c.n);
+  return m;
+}
+const CN = new Map();
+function cardByNumber(set, cn) {
+  const k = set + '|' + cn;
+  if (CN.has(k)) return CN.get(k);
+  const p = api(`/cards/${encodeURIComponent(set)}/${encodeURIComponent(cn)}`).then(c => c && c.name ? {name: c.name, id: c.id, text: oracleKey(c.oracle_text != null ? c.oracle_text : (c.card_faces || []).map(f => f.oracle_text || '').join('\n'))} : null);
+  CN.set(k, p);
+  p.catch(() => CN.delete(k));
+  return p;
+}
+// A number read wrong lands on another real card, the same wrong way twice
+// in a row as often as not. So when the text box read anything, the card's
+// rules text has to hold some of it.
+const textAgrees = (lines, o) => !lines.length || lines.some(t => 1 - editsInside(t, o) / t.length >= 0.75);
 // The whole card and a little around it, small, for matching the printing.
 const CAPM = 0.08, CAPW = 186, CAPH = 259;
 function captureCard(v) {
@@ -834,9 +967,11 @@ async function pictureMatch(pool, face, cap) {
 }
 // Pick the printing: the set being scanned, then the picture, then what he
 // picked before, then the copy already in the list, then the newest normal one.
-async function resolvePrint(name, face, cap) {
+async function resolvePrint(name, face, cap, pid) {
   const prints = await getPrints(name);
   if (!prints.length) return null;
+  const read = pid && prints.find(x => x.id === pid);
+  if (read) return {p: read, how: 'number', sure: true};
   let pool = prints, how = null;
   if (S.set) {
     const inSet = prints.filter(p => p.set === S.set.code);
@@ -861,6 +996,7 @@ async function resolvePrint(name, face, cap) {
   return {p, how, sure: how !== 'newest' && how !== 'setguess'};
 }
 const HOW = {
+  number: 'Printing read from its set code and collector number.',
   picture: 'Printing matched by its picture.',
   set: 'Printing from the set you were scanning.',
   setguess: 'From the set you were scanning. Which version is a guess.',
@@ -1073,7 +1209,7 @@ function moxDeck(md, part) {
   return {src: 'mox', id: md.id, part, name: md.name, url: md.url, stamp: md.updated || null, seen: true, md,
     cards: part === 'side' ? pick(side) : cmd.map(c => ({n: c.n, q: c.q, c: 1})).concat(pick(main)),
     other: part === 'side' ? pick(cmd.concat(main)) : pick(side),
-    full: fullMap([cmd, main, side, md.companions, md.maybe])};
+    full: fullMap([cmd, main, side, md.companions, md.maybe]), prints: deckPrints(md)};
 }
 /* Which deck is picked, whatever its source: a Moxfield deck, the table's deck
    (kept under its Moxfield deck when it is the same deck, since it is the
@@ -1114,7 +1250,7 @@ async function stateDeck(sel) {
   const known = fullMap(lists);
   return {src: info.src, id: info.id, part, mode: 'state', key: info.key, name: info.name, recName: info.recName, md, t: info.t, art: info.art,
     url: md && md.url, stamp: null, seen: true, cards: [], other: [...known.values()].map(n => ({n, q: 1})), known: new Set(known.keys()),
-    full: fullMap(lists.concat(md ? [md.maybe] : []))};
+    full: fullMap(lists.concat(md ? [md.maybe] : [])), prints: deckPrints(md)};
 }
 async function loadDeck(sel) {
   if (!sel) return null;
@@ -1967,7 +2103,7 @@ async function runQueue() {
     const j = queue.shift();
     let it = null;
     try {
-      const r = await resolvePrint(j.name, j.face, j.cap);
+      const r = await resolvePrint(j.name, j.face, j.cap, j.pid);
       if (r) it = addItem(r.p, pickFinish(r.p, j.foil), r.how, r.sure);
       else toast(`Scryfall has no paper printing of ${front(j.name)}.`);
     } catch (e) {
@@ -2017,7 +2153,7 @@ async function startScan(mode) {
   $('#last').hidden = true;
   renderChips();
   $('.scantop').hidden = mode === 'deck';
-  scan = {on: true, mode: mode || 'col', block: null, blockFeat: null, cand: null, hits: 0, pass: 0, n: 0, pauseUntil: 0, stream: null, hist: []};
+  scan = {on: true, mode: mode || 'col', block: null, blockFeat: null, cand: null, hits: 0, pass: 0, miss: 0, cgray: false, n: 0, pauseUntil: 0, stream: null, hist: []};
   const me = scan;
   scanMsg('Starting the camera…');
   try {
@@ -2033,7 +2169,7 @@ async function startScan(mode) {
   await Promise.race([v.play().catch(() => {}), sleep(1500)]);
   scanMsg('Getting the list of every card name…');
   try { await ensureIndex(); } catch (e) { scanMsg('Could not get the card names. It needs a connection the first time.'); return; }
-  if (me.mode === 'deck') DECKONLY = deckOnly();
+  if (me.mode === 'deck') { DECKONLY = deckOnly(); loadOracle([...DECKONLY]).catch(() => {}); }
   else if (S.set && !SETNAMES) loadSetNames();
   ocrLog = m => { if (me.on && /load/.test(m.status || '') && m.progress != null) scanMsg(`Loading the name reader, first time only… ${Math.round(m.progress * 100)}%`); };
   scanMsg('Loading the name reader…');
@@ -2050,23 +2186,52 @@ async function startScan(mode) {
       if (corr(guideFeat(v), me.blockFeat) >= 0.55) { await sleep(150); continue; }
       me.block = null;
     }
-    let text = '';
-    try { const cv = cropCard(v, me.pass); text = topLines((await ocr.recognize(cv)).data, cv.height); } catch (e) { await sleep(300); continue; }
+    let text = '', body = [], seen = 0;
+    try {
+      const cv = cropCard(v, me.pass), d = (await ocr.recognize(cv)).data;
+      text = topLines(d, cv.height); body = bodyLines(d, cv.height); seen = letters(d.text || '').length;
+    } catch (e) { await sleep(300); continue; }
     if (!me.on) break;
+    // The name first; then, for a deck, the rules text; then a name the rules text repeats; then the collector number.
     const m = letters(text).length >= 4 ? bestOf(text, me.mode === 'deck' ? DECKONLY : SETNAMES, me.mode === 'deck') : null;
-    if (!m || m.score < m.min || m.margin < 0.07) { me.cand = null; me.hits = 0; me.pass = (me.pass + 1) % 3; continue; }
-    if (me.cand === m.n) me.hits++; else { me.cand = m.n; me.hits = 1; }
-    const strong = m.score >= 0.95 && m.margin >= 0.15 && m.k.length >= 8;
-    if (me.hits < 2 && !strong) continue;
+    let hit = m && m.score >= m.min && m.margin >= 0.07 ? {n: m.n, f: m.f, strong: m.score >= 0.95 && m.margin >= 0.15 && m.k.length >= 8} : null;
+    if (!hit && me.mode === 'deck') { const b = bodyMatch(body, DECKONLY); if (b) hit = {n: b.n, f: 0}; }
+    if (!hit) hit = nameInText(body);
+    if (!hit && seen >= 8) hit = await readNumber(v, me, body);
+    if (!me.on) break;
+    if (!hit) {
+      me.cand = null; me.hits = 0; me.pass = (me.pass + 1) % 3;
+      if (seen >= 8 && ++me.miss === 6) scanMsg('<b>Not reading this card.</b> Tilt it out of the glare, or hold it a little farther back so it is sharp.<br><span class="small">Still nothing? Press Done and type its name.</span>');
+      continue;
+    }
+    me.miss = 0;
+    const key = hit.n + '|' + (hit.pid || '');
+    if (me.cand === key) me.hits++; else { me.cand = key; me.hits = 1; }
+    if (me.hits < 2 && !hit.strong) continue;
     const cap = me.mode === 'deck' ? null : captureCard(v);
-    me.block = m.n; me.blockFeat = guideFeat(v); me.cand = null; me.hits = 0; me.n++;
+    me.block = hit.n; me.blockFeat = guideFeat(v); me.cand = null; me.hits = 0; me.n++;
     me.pauseUntil = Date.now() + 700;
     beep();
     const g = $('#guide'); g.classList.add('hit'); setTimeout(() => g.classList.remove('hit'), 500);
-    if (me.mode === 'deck') { const n = front(m.n); countDeck(n, 1); me.hist.push(n); showLastDeck(n); continue; }
-    scanMsg(`<b>${esc(front(m.n))}</b> · finding the printing…`);
-    enqueue({name: m.n, face: m.f, cap, foil: S.foil, via: 'scan'});
+    if (me.mode === 'deck') { const n = front(hit.n); countDeck(n, 1); me.hist.push(n); showLastDeck(n); continue; }
+    scanMsg(`<b>${esc(front(hit.n))}</b> · finding the printing…`);
+    enqueue({name: hit.n, face: hit.f, cap, foil: S.foil, via: 'scan', pid: hit.pid});
   }
+}
+// The collector number, read when nothing else would. A deck's own printing
+// is known without a connection; any other is looked up on Scryfall. Like a
+// name, it has to read the same twice in a row to count.
+async function readNumber(v, me, body) {
+  me.cgray = !me.cgray;
+  let c = null;
+  try { c = parseCollector((await ocr.recognize(cropCollector(v, me.cgray))).data.text); } catch (e) { return null; }
+  if (!c || !me.on) return null;
+  const own = me.mode === 'deck' && DECK && DECK.prints && DECK.prints.get(c.set + '|' + c.cn);
+  if (own) { const o = ORACLE && ORACLE[keyN(own)]; return !o || textAgrees(body, o) ? {n: own, f: 0} : null; }
+  let card = null;
+  try { card = await cardByNumber(c.set, c.cn); } catch (e) { return null; }
+  if (!card || (card.text && !textAgrees(body, card.text))) return null;
+  return {n: card.name, f: 0, pid: card.id};
 }
 function showLast(it) {
   if (!scan) return;
