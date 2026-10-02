@@ -776,6 +776,43 @@ function bodyMatch(lines, only) {
   return a.got >= nb * 1.5 && a.got - nb >= 10 ? a : null;
 }
 
+// A card's name in its own rules text. Most cards name themselves there
+// ("a burden counter on The One Ring"), in the plain font the title lacks.
+// Measured on a borderless The One Ring under glare: the title read as
+// nothing, the name in the rules text four times out of four. Only names of
+// eight letters or more count, and only when two lines name them.
+function nameInText(lines) {
+  if (!IDX || !lines.length) return null;
+  const {faces, tri} = IDX;
+  if (!IDX.cnt || IDX.cnt.length < faces.length) IDX.cnt = new Uint16Array(faces.length + 256);
+  const cnt = IDX.cnt, hits = new Map();
+  lines.forEach((t, li) => {
+    const touched = [], seen = new Set();
+    for (let j = 0; j + 3 <= t.length; j++) {
+      const g = t.substr(j, 3);
+      if (seen.has(g)) continue;
+      seen.add(g);
+      const a = tri.get(g);
+      if (a) for (const i of a) if (cnt[i]++ === 0) touched.push(i);
+    }
+    for (const i of touched) {
+      const e = faces[i], c = cnt[i];
+      cnt[i] = 0;
+      if (e.k.length < 8 || e.k.length > t.length + 2 || c < Math.ceil(e.t * 0.6)) continue;
+      if (1 - editsInside(e.k, t) / e.k.length < 0.9) continue;
+      if (!hits.has(i)) hits.set(i, new Set());
+      hits.get(i).add(li);
+    }
+  });
+  const rank = [...hits].map(([i, s]) => ({e: faces[i], n: s.size})).filter(x => x.n >= 2)
+    .sort((a, b) => b.n - a.n || b.e.k.length - a.e.k.length);
+  if (!rank.length) return null;
+  const [a, b] = rank;
+  // A tie is fine only with a name inside the winner's, which every line naming the winner names too.
+  if (b && b.n === a.n && !a.e.k.includes(b.e.k)) return null;
+  return {n: a.e.n, f: a.e.f};
+}
+
 /* ---------- reading the collector number ----------
    Cards since 2015 print the set code and number at the bottom left in a
    plain font, whatever the art or title font. Measured on the same Phyrexian
@@ -2152,10 +2189,11 @@ async function startScan(mode) {
       text = topLines(d, cv.height); body = bodyLines(d, cv.height); seen = letters(d.text || '').length;
     } catch (e) { await sleep(300); continue; }
     if (!me.on) break;
-    // The name first; then, for a deck, the rules text; then the collector number.
+    // The name first; then, for a deck, the rules text; then a name the rules text repeats; then the collector number.
     const m = letters(text).length >= 4 ? bestOf(text, me.mode === 'deck' ? DECKONLY : SETNAMES, me.mode === 'deck') : null;
     let hit = m && m.score >= m.min && m.margin >= 0.07 ? {n: m.n, f: m.f, strong: m.score >= 0.95 && m.margin >= 0.15 && m.k.length >= 8} : null;
     if (!hit && me.mode === 'deck') { const b = bodyMatch(body, DECKONLY); if (b) hit = {n: b.n, f: 0}; }
+    if (!hit) hit = nameInText(body);
     if (!hit && seen >= 8) hit = await readNumber(v, me, body);
     if (!me.on) break;
     if (!hit) {
