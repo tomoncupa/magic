@@ -265,3 +265,28 @@
 /* Compare: which decks are in the table */
 .pg-cmp-pick{margin:0 0 var(--s4)}
 .pg-cmp-pick .bs-label{margin:0 0 var(--s2)}
+
+/* ---------- mine.js: My deck now, Ask Claude (mn-) ---------- */
+.mn-dim{color:var(--ink3);font-size:var(--t1)}
+.mn-ask{display:flex;flex-direction:column;gap:var(--s5);max-width:860px}
+.mn-head{display:flex;align-items:flex-start;gap:var(--s4);flex-wrap:wrap}
+.mn-head > div{flex:1 1 320px;min-width:0}
+.mn-title{margin:0 0 var(--s2);font-family:var(--disp);font-size:var(--t4);font-weight:600;color:var(--ink)}
+.mn-starts{display:flex;flex-wrap:wrap;gap:var(--s3)}
+.mn-starts .bs-chip{height:auto;min-height:44px;padding:var(--s2) var(--s4);text-align:left;white-space:normal}
+.mn-thread{display:flex;flex-direction:column;gap:var(--s4)}
+.mn-thread:empty{display:none}
+.mn-q{align-self:flex-end;max-width:min(640px,92%);padding:var(--s3) var(--s4);border-radius:var(--r-md);background:var(--brass-soft);border:1px solid var(--brass-line);color:var(--ink);font-size:var(--t3);line-height:1.5;white-space:pre-wrap}
+.mn-a{padding:var(--s4) var(--s5);border-radius:var(--r-md);background:var(--bg2);border:1px solid var(--line);color:var(--ink2);font-size:var(--t3);line-height:1.6;min-width:0}
+.mn-a p{margin:0 0 var(--s3)}
+.mn-a p:last-child{margin-bottom:0}
+.mn-a ul,.mn-a ol{margin:0 0 var(--s3);padding-left:1.3em}
+.mn-a li{margin:0 0 var(--s1,4px)}
+.mn-a b{color:var(--ink);font-weight:600}
+.mn-a .mn-h{font-family:var(--num);color:var(--ink);font-weight:600}
+.mn-moves{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s4);padding-top:var(--s4);border-top:1px solid var(--line)}
+.mn-moves .bs-btn{height:auto;min-height:44px;white-space:normal;text-align:left}
+.mn-paste{display:flex;flex-direction:column;gap:var(--s3);align-items:flex-start}
+.mn-ta{width:100%;min-height:88px;font-size:16px;line-height:1.45;resize:vertical}
+.mn-form{display:flex;flex-direction:column;gap:var(--s3);align-items:flex-end;position:sticky;bottom:0;padding:var(--s3) 0;background:var(--bg)}
+.mn-form .bs-btn{min-width:120px}

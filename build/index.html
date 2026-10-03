@@ -2964,7 +2964,7 @@ function switchDeck(id){
 // Three levels: Decks / Compare at the top; an open deck's own tabs; the Build steps.
 // The location hash follows the view (#decks, #compare, #d=<deck>&p=<page>), so Back works.
 var APP = { view:'decks' }, RENDER_N = 0, LAST_HASH = null;
-var DECK_TABS = [['deck', 'Deck'], ['analysis', 'Analysis'], ['synergy', 'Synergy'], ['edhrec', 'EDHREC'], ['ideas', 'Upgrades'], ['build', 'Build']];
+var DECK_TABS = [['deck', 'Deck'], ['ask', 'Ask Claude'], ['analysis', 'Analysis'], ['synergy', 'Synergy'], ['edhrec', 'EDHREC'], ['ideas', 'Upgrades'], ['build', 'Build']];
 var ROLE_LIST = ['lands', 'ramp', 'tutor', 'draw', 'removal', 'wipes', 'protection', 'wincon', 'synergy'];
 // "Goblin Matron now counts as a tutor."
 var JOB_AS = { lands:'a land', ramp:'ramp', tutor:'a tutor', draw:'card draw', removal:'targeted removal', wipes:'a board wipe', protection:'protection', wincon:'a win condition', synergy:'synergy' };
@@ -3116,8 +3116,9 @@ function changeDeck(outName, inCard, why, undo, o){
       if(!withinCI(c)) return c.n + ' is outside the deck\'s colours.';
       if(!anyNumber(c) && S.deck.some(function(d, j){ return j !== i && (sameName(d.n, c.n) || sameName(c.n, d.n)); })) return c.n + ' is already in the deck.';
       var gcs = S.deck.filter(function(d){ return d.gc; }).length - (outD && outD.gc ? 1 : 0);
-      if(isGC(c) && gcs >= gcLimit()) return c.n + ' is a Game Changer and the deck is at its limit of ' + gcLimit() + '.';
-      if(!allowed(c)) return c.n + ' breaks a rule set for this deck (a refused card, mass land destruction at this bracket, or your own Game Changer picks).';
+      // o.trust: the card is already in his real deck (My deck now), so his own limits do not refuse it.
+      if(!o.trust && isGC(c) && gcs >= gcLimit()) return c.n + ' is a Game Changer and the deck is at its limit of ' + gcLimit() + '.';
+      if(!o.trust && !allowed(c)) return c.n + ' breaks a rule set for this deck (a refused card, mass land destruction at this bracket, or your own Game Changer picks).';
       e = entry(c, roleForIn(c, outD)); e.why = (why ? why + ' ' : 'Added by you. ') + e.why;
     }
   }
@@ -4819,6 +4820,7 @@ function onDeckClick(e){
     copy(moxPaste(b), { all:'Copied the whole deck with ' + heads.slice(0, -1).join(', ') + ' and ' + heads[heads.length - 1] + ' headings, for a new Moxfield deck or another site.',
     deck:'Copied the 99 for the Main Deck tab, no commander line.', side:'Copied the side deck for the Sideboard tab.', maybe:'Copied Considering for the Considering tab.' }[b] || 'Copied.'); return; }
   if(t.closest('#moxNewer')){ refreshOpenDeck(); return; }
+  if(t.closest('[data-now]')){ openNowSheet(); return; }
 }
 function basicStep(n, d){
   var r = d > 0 ? applyChange(null, basicCardOf(n), '') : applyChange(n, null);
@@ -4909,7 +4911,7 @@ function moxPanelHtml(){
       (fr ? '<p class="bs-panel-note" style="margin-bottom:var(--s3)">Imported from ' + (fr.author ? esc(fr.author) + '\'s deck' : 'a deck') + ' on Moxfield. Changes you make here do not go back to it.</p>'
         : S.src === 'paste' ? '<p class="bs-panel-note" style="margin-bottom:var(--s3)">Imported from a pasted list.</p>' : '') +
       '<p class="bs-panel-note">This deck is not linked to a Moxfield deck of yours. Copy it, then on Moxfield: New Deck, under Existing Deck List pick Paste in List and paste it. Pick the commander in the form\'s own commander box.</p>' +
-      '<div class="bs-stack" style="--gap:var(--s2);margin-top:var(--s4)"><button class="bs-btn bs-primary bs-block" type="button" data-copy-board="all">' + ico('copy', 'bs-i16') + 'Copy for a new Moxfield deck or another site</button>' +
+      '<div class="bs-stack" style="--gap:var(--s2);margin-top:var(--s4)">' + nowBtnHtml() + '<button class="bs-btn bs-primary bs-block" type="button" data-copy-board="all">' + ico('copy', 'bs-i16') + 'Copy for a new Moxfield deck or another site</button>' +
       (fr ? '<a class="bs-btn bs-quiet bs-block" href="' + esc(fr.url) + '" target="_blank" rel="noopener">' + ico('ext', 'bs-i16') + 'Open the original</a>' : '') +
       '<a class="bs-btn bs-quiet bs-block" href="https://moxfield.com/decks/new" target="_blank" rel="noopener">' + ico('ext', 'bs-i16') + 'Start a new deck on Moxfield</a></div></section>';
   }
@@ -4940,7 +4942,7 @@ function moxPanelHtml(){
   if(goneSure) h += '<div class="bs-stack" style="--gap:var(--s2);margin-top:var(--s4)">' +
     '<button class="bs-btn bs-primary bs-block" type="button" data-copy-board="all">' + ico('copy', 'bs-i16') + 'Copy for a new Moxfield deck or another site</button>' +
     '<a class="bs-btn bs-sm bs-quiet" href="https://moxfield.com/decks/new" target="_blank" rel="noopener">' + ico('ext', 'bs-i16') + 'Start a new deck on Moxfield</a></div></section>';
-  else h += '<div class="bs-stack" style="--gap:var(--s2);margin-top:var(--s4)">' +
+  else h += '<div class="bs-stack" style="--gap:var(--s2);margin-top:var(--s4)">' + nowBtnHtml() +
     '<div class="bs-acts" style="gap:var(--s3)"><button class="bs-btn bs-sm bs-primary" type="button" data-copy-board="deck">' + ico('copy', 'bs-i16') + 'Copy the Main Deck</button>' +
       ((B.side || []).length ? '<button class="bs-btn bs-sm" type="button" data-copy-board="side">' + ico('copy', 'bs-i16') + 'Copy the Sideboard</button>' : '') +
       ((B.maybe || []).length ? '<button class="bs-btn bs-sm" type="button" data-copy-board="maybe">' + ico('copy', 'bs-i16') + 'Copy Considering</button>' : '') + '</div>' +
@@ -5918,5 +5920,6 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
 </script>
 <script src="engine.js"></script>
 <script src="pages.js"></script>
+<script src="mine.js"></script>
 </body>
 </html>

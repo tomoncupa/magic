@@ -52,14 +52,16 @@ deck_lock = threading.Lock()    # separate, so one deck is not held up by a whol
 
 def find_claude():
     """The newest copy of the Claude command the desktop app has installed."""
-    pattern = os.path.join(os.environ.get("APPDATA", ""), "Claude", "claude-code", "*", "claude.exe")
+    # Since the app's 2026-10-02 update the command sits one folder deeper: <version>/<hash>/claude.exe.
+    root = os.path.join(os.environ.get("APPDATA", ""), "Claude", "claude-code")
+    hits = glob.glob(os.path.join(root, "*", "claude.exe")) + glob.glob(os.path.join(root, "*", "*", "claude.exe"))
 
     def version(path):
         try:
-            return tuple(int(x) for x in os.path.basename(os.path.dirname(path)).split("."))
+            return tuple(int(x) for x in os.path.relpath(path, root).split(os.sep)[0].split("."))
         except ValueError:
             return (0,)
-    hits = sorted(glob.glob(pattern), key=version)
+    hits = sorted(hits, key=version)
     return hits[-1] if hits else None
 
 
@@ -84,6 +86,10 @@ def claude_login():
     subprocess.Popen([exe, "auth", "login", "--claudeai"], creationflags=subprocess.CREATE_NEW_CONSOLE)
 
 
+SYSTEM = ("You are a Magic: The Gathering Commander deckbuilding expert working inside Brewing Station, "
+          "Tom's deck app. Follow the instructions in the message exactly.")
+
+
 def claude_ask(prompt):
     # Two Claude processes renewing the sign-in at once fails the second; it clears in seconds.
     try:
@@ -102,7 +108,11 @@ def claude_ask_once(prompt):
     work = tempfile.mkdtemp(prefix="brew_ai_")
     try:
         proc = subprocess.run(
-            [exe, "-p", "--output-format", "json", "--tools", "", "--no-session-persistence"],
+            # Only the page's own prompt: no CLAUDE.md files, MCP servers, skills or Claude Code's own
+            # system prompt. That cut one question from about 48,000 tokens of context to under 700.
+            [exe, "-p", "--output-format", "json", "--tools", "", "--no-session-persistence",
+             "--setting-sources", "project", "--settings", json.dumps({"claudeMdExcludes": ["**/*.md"]}),
+             "--strict-mcp-config", "--disable-slash-commands", "--system-prompt", SYSTEM],
             input=prompt, capture_output=True, text=True, encoding="utf-8", errors="replace",
             cwd=work, timeout=900, creationflags=NO_WINDOW)
     except subprocess.TimeoutExpired:
