@@ -310,5 +310,5 @@
 .pg-gfix-arr{color:var(--ink3)}
 .pg-gfix-why{grid-column:1 / -1;grid-row:2;margin:0;font-size:var(--t1);line-height:1.45;color:var(--ink2)}
 .pg-gfix-row > .bs-btn{grid-column:2;grid-row:1}
-.pg-gsrc{margin-left:auto;font-size:var(--t1);color:var(--ink3)}
+.pg-gsrc{font-size:var(--t1);color:var(--ink3)}
 .pg-trap-acts{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap}

@@ -528,8 +528,12 @@ function guideFixHtml(ctx, t){
       }) + ' aria-label="Swap ' + h(p.out) + ' out for ' + h(inn.n) + '">' + ico('swap', 'bs-i16') + 'Swap</button></div>';
   }).join('') + '</div>';
 }
+var STAPLES_ASKED = false;
 function guidesHtml(ctx, st){
-  var e = E(), list = e && e.guides ? safe(function(){ return e.guides(); }, []) : [];
+  var e = E();
+  // Staples load once (staples.json, then Scryfall through the card cache); the page draws again when they land.
+  if(e && e.loadStaples && !STAPLES_ASKED){ STAPLES_ASKED = true; e.loadStaples().then(function(){ if(e.staplesReady() && CURP && live(CURP.el)) redraw(); }); }
+  var list = e && e.guides ? safe(function(){ return e.guides(); }, []) : [];
   if(!list.length) return '';
   var srcs = e.sources ? e.sources() : {};
   var checked = list.filter(function(t){ return t.status !== 'habit'; }), habits = list.filter(function(t){ return t.status === 'habit'; });
@@ -537,7 +541,8 @@ function guidesHtml(ctx, st){
   checked.sort(function(a, z){ return order[a.status] - order[z.status] || a.n - z.n; });
   var nf = checked.filter(function(t){ return t.status === 'fix'; }).length, nw = checked.filter(function(t){ return t.status === 'watch'; }).length;
   function row(t){
-    var s = GUIDE_ST[t.status] || GUIDE_ST.habit, k = 'trap-' + t.key, open = !!st.open[k], src = srcs[t.src];
+    var s = GUIDE_ST[t.status] || GUIDE_ST.habit, k = 'trap-' + t.key, open = !!st.open[k];
+    var srcL = [].concat(t.src || []).map(function(id){ return srcs[id]; }).filter(Boolean);
     var mark = (t.status === 'fix' || t.status === 'watch' || t.off) ? '<button class="bs-btn bs-sm bs-quiet" type="button"' + ctx.act(function(){
         S.trapOff = S.trapOff || {};
         if(t.off) delete S.trapOff[t.key]; else S.trapOff[t.key] = 1;
@@ -546,7 +551,7 @@ function guidesHtml(ctx, st){
     // The swaps are worked out only while the row is open: they read the whole pool.
     var body = '<p class="pg-part-note">' + h(t.line) + '</p>' + (t.fix ? '<p class="pg-trap-fix"><b>Fix:</b> ' + h(t.fix) + '</p>' : '') +
       (t.cards.length ? nameList(ctx, t.cards, 12, k) : '') + (open && t.canFix ? guideFixHtml(ctx, t) : '') +
-      '<div class="pg-trap-acts">' + mark + (src ? '<a class="pg-gsrc" href="' + h(src.url) + '" target="_blank" rel="noopener">' + h(src.t) + '</a>' : '') + '</div>';
+      '<div class="pg-trap-acts">' + mark + srcL.map(function(x){ return '<a class="pg-gsrc" href="' + h(x.url) + '" target="_blank" rel="noopener">' + h(x.t) + '</a>'; }).join('') + '</div>';
     return '<details class="pg-trap" data-pg-open="' + k + '"' + (t.canFix ? ' data-pg-fix' : '') + (open ? ' open' : '') + '><summary>' +
       '<span class="pg-trap-n">' + t.n + '</span><span class="pg-trap-t">' + h(t.title) + '</span>' +
       '<span class="bs-badge ' + s[0] + '">' + (t.off ? 'You marked it fine' : s[1]) + '</span></summary>' + body + '</details>';

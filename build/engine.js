@@ -37,6 +37,8 @@ function has(){ return typeof S !== 'undefined' && S && S.cmd; }
 function fixOf(n){ var f = S.roleFix || {}; if(f[n]) return f[n]; for(var k in f) if(sameName(n, k) || sameName(k, n)) return f[k]; return ''; }
 function winsOk(){ return Array.isArray(S.wins); }
 function safeScore(c){
+  // A staple fetched from Scryfall has no EDHREC numbers for this commander: its staple rank stands in.
+  if(c && !c.stats && c.staple) return c.staple.v;
   if(!c || !c.stats) return 0.05;
   try{ return winsOk() ? score(c) : bestInc(c); }catch(e){ return 0.05; }
 }
@@ -1002,8 +1004,40 @@ function synergyLike(c, f){
 }
 var TUTOR_KEEP = { 1:1, 2:2, 3:4, 4:99, 5:99 };
 function candidatePool(X){
-  return (S.pool || []).filter(function(c){ return !inX(X, c.n) && okAdd(c) && !rejected(c.n); });
+  var p = S.pool || [], seen = {};
+  p.forEach(function(c){ seen[lc(c.n)] = 1; });
+  // Staples (staples.json) that are not on this commander's EDHREC page join the pool.
+  var extra = STAP.cards.filter(function(c){ return !seen[lc(c.n)]; });
+  return p.concat(extra).filter(function(c){ return !inX(X, c.n) && okAdd(c) && !rejected(c.n); });
 }
+/* ---------- staples: build/staples.json, curated from the sources it names ----------
+   Loaded once; the cards come from Scryfall through the page's card cache (sfCollection).
+   Each card carries c.staple = { job, note, src, rank, colour, v }, v standing in for its EDHREC score. */
+var STAP = { p:null, data:null, cards:[], by:{} };
+E.loadStaples = function(){
+  if(STAP.p) return STAP.p;
+  STAP.p = fetch('staples.json').then(function(r){ if(!r.ok) throw new Error('staples ' + r.status); return r.json(); }).then(function(d){
+    STAP.data = d;
+    var list = [];
+    Object.keys(d.staples || {}).forEach(function(col){
+      (d.staples[col] || []).forEach(function(x, i){ list.push({ n:x.name, meta:{ job:x.job, note:x.note || '', src:x.source || '', rank:i, colour:col, gc:!!x.gameChanger } }); });
+    });
+    if(typeof sfCollection !== 'function') return STAP;
+    return sfCollection(list.map(function(x){ return { n:x.n }; })).then(function(res){
+      list.forEach(function(x){
+        var c = res.cards[x.n.toLowerCase()]; if(!c) return;
+        var k = lc(c.n);
+        if(STAP.by[k]) return;
+        c = Object.assign({}, c, { staple:Object.assign({ v:clamp(0.3 - x.meta.rank * 0.006, 0.12, 0.3) }, x.meta) });
+        STAP.by[k] = c; STAP.by[front(c.n)] = c; STAP.cards.push(c);
+      });
+      return STAP;
+    });
+  }).catch(function(e){ STAP.err = e.message; return STAP; });
+  return STAP.p;
+};
+E.staplesReady = function(){ return !!(STAP.data && STAP.cards.length); };
+function stapleOf(n){ return STAP.by[lc(n)] || STAP.by[front(n)] || null; }
 
 /* ============ ENGINE.upgrades ============ */
 E.upgrades = function(opts){
@@ -1401,7 +1435,9 @@ E.price = function(){
    E.guideFix(key)       -> up to 5 swaps that move that guideline the right way, each with a reason
    Everything is counted per card (gBits), so a whole deck, a swap and a fix all read the same numbers.
    A guideline he marked "fine for this deck" (S.trapOff, the name kept so his marks survive) shows as good, marked off. */
-var GSRC = { cz767:{ t:'The Command Zone 767', url:'https://youtu.be/K5UGydfRKBw' } };
+var GSRC = { cz767:{ t:'The Command Zone 767', url:'https://youtu.be/K5UGydfRKBw' },
+  'edhrec-top-2y':{ t:'EDHREC top cards, past 2 years', url:'https://edhrec.com/top/year' },
+  cz658:{ t:'The Command Zone 658: deckbuilding template', url:'https://edhrec.com/articles/the-command-zone-commander-deckbuilding-template-for-the-new-era-the-command-zone-658-mtg-edh-magic-gathering/' } };
 var SEEN_N = 25;   // cards seen by turn 8: 7 in the opening hand, 8 draws, 10 more from card draw (cz767)
 // Chance of drawing at least k of K copies among SEEN_N cards from the 99 (hypergeometric).
 function seeAtLeast(K, k){
@@ -1468,6 +1504,8 @@ function gBits(r, K){
   if(/\/\/.*\bLand\b/.test(c.type || '')) b.mdfc = 1;
   if(/\b(?:basic )?(?:plains|island|swamp|mountain|forest|land)cycling \{1\}/.test(o)) b.cyc = 1;
   var dm2 = basicDemand(o); if(dm2) b.fetch = dm2;
+  if(j.ramp) b.rampAny = 1;
+  if(j.removal || f.counter || j.protection) b.inter = 1;
   if((j.removal || f.counter) && mv <= 2) b.cheapAns = 1;
   if(j.draw && f.drawW >= 0.75){ b.draw = 1; if(mv <= 3) b.drawCheap = 1; }
   else if(j.draw && f.drawW > 0) b.cantrip = 1;
@@ -1622,6 +1660,7 @@ E.guides = function(){
     out.push(gRow(10, 'draw', 'Card draw: 12', na < 9 ? 'fix' : (na < 12 || ncheap < 3) ? 'watch' : 'good',
       words(na, 'card') + ' that give more cards than they cost; 12 is the aim. ' + ncheap + ' of them cost 3 or less, the ones that dig for a land on turns 3 to 5.' + (v('cantrip') ? ' ' + (v('cantrip') === 1 ? '1 card that draws only one does' : v('cantrip') + ' cards that draw only one do') + ' not count.' : ''),
       rn(R.draw), na < 12 ? 'Add ' + words(12 - na, 'draw spell') + ', cheap ones first.' : ncheap < 3 ? 'Swap an expensive draw engine for a 2 or 3 mana draw spell.' : ''));
+    out[out.length - 1].src = ['cz767', 'cz658'];
 
     // 11. Ramp that lands the commander early
     var C = K.C, late = v('rampLate'), on = v('rampOn'), big = v('rampBig');
@@ -1653,6 +1692,17 @@ E.guides = function(){
       rn(R.mdfc).concat(rn(R.cyc)).concat(basicSt !== 'good' ? rn(R.fetch) : []),
       landSt !== 'good' ? 'Add ' + words(38 - landish, 'land') + ', or spells that are also lands. A missed land drop puts you a mana behind for the rest of the game.' : basicSt !== 'good' ? 'Swap a utility land for a basic.' : ''));
     out[out.length - 1].landsShort = landSt !== 'good';
+    out[out.length - 1].src = ['cz767', 'cz658'];
+
+    // 18 and 19: The Command Zone's template (658). Cards fill more than one job, so the totals pass 99.
+    var rampWant = K.C >= 4 ? 12 : 10, nr18 = v('rampAny');
+    out.push({ n:18, key:'ramp10', title:'Ramp: ' + rampWant, src:'cz658', status:nr18 < rampWant - 3 ? 'fix' : nr18 < rampWant ? 'watch' : 'good',
+      line:words(nr18, 'card') + ' that ramp. The template asks for 10, and 12 when the commander costs 4 or more' + (C ? ' (' + short() + ' costs ' + C + ')' : '') + '.',
+      cards:rn(R.rampAny), fix:nr18 < rampWant ? 'Add ' + words(rampWant - nr18, 'ramp card') + ', 2 mana or less first.' : '' });
+    var ni = v('inter');
+    out.push({ n:19, key:'inter12', title:'Targeted interaction: 12', src:'cz658', status:ni < 8 ? 'fix' : ni < 12 ? 'watch' : 'good',
+      line:words(ni, 'card') + ' that remove, counter or protect one thing. The template asks for 12.',
+      cards:rn(R.inter), fix:ni < 12 ? 'Add ' + words(12 - ni, 'answer') + ', cheap and instant speed first.' : '' });
 
     // 14 to 16: habits
     out.push(gRow(14, 'goldfish', 'Play it alone first', 'habit', 'Play the deck against nobody before buying cards. You spot too few lands, too little draw and a deck that stalls.' + (sm && sm.winTurn ? ' The test games here win on turn ' + sm.winTurn + ' on average.' : ''), [],
@@ -1666,21 +1716,55 @@ E.guides = function(){
     out.push(gRow(16, 'decks', 'A dozen decks you play', 'habit', 'Past about a dozen, decks sit unplayed and you forget what is in them.', [],
       'Take apart a deck you have not played in months. The list stays here, so it can come back.'));
 
+    // 17. Staples for your colours (staples.json)
+    var sr = stapleRead(X);
+    if(sr){
+      var shareS = sr.top ? sr.inDeck.length / sr.top : 1;
+      out.push({ n:17, key:'staples', title:'Staples for your colours', src:sr.src, status:shareS >= 0.5 || !sr.missing.length ? 'good' : 'watch',
+        line:'You run ' + sr.inDeck.length + ' of the ' + sr.top + ' most-played staples in ' + (S.ci && S.ci.length ? 'your colours' : 'colourless') + ' that fit this deck\'s bracket. Not in it yet: ' + sr.missing.slice(0, 8).map(function(c){ return c.n + ' (' + JOBW[c.staple.job] + ')'; }).join(', ') + (sr.missing.length > 8 ? ', and ' + (sr.missing.length - 8) + ' more' : '') + '.',
+        cards:sr.missing.slice(0, 12).map(function(c){ return c.n; }), fix:'Open a card to swap it in; the swap menu shows what each trade does to the deck.' });
+    }
+
     var off = S.trapOff || {};
     out.forEach(function(t){
-      t.canFix = (t.status === 'fix' || t.status === 'watch') && !!FIXERS[t.key];
+      // Staple swaps wait for whole-deck scoring: one card at a time they cut engine pieces (Patriar's Seal for Storm-Kiln Artist).
+      t.canFix = (t.status === 'fix' || t.status === 'watch') && !!FIXERS[t.key] && !FIXERS[t.key].off;
       if(off[t.key] && (t.status === 'fix' || t.status === 'watch')){ t.off = true; t.was = t.status; t.status = 'good'; t.canFix = false; }
     });
     return withNote(out, 'Each guideline names its source. Numbers the source gives are named; the rest are Brewing Station\'s own rules of thumb.');
   }catch(e){ return withNote([], 'Could not check the guidelines: ' + e.message); }
 };
-E.sources = function(){ return GSRC; };
+E.sources = function(){ var o = Object.assign({}, (STAP.data && STAP.data.sources) || {}); Object.keys(GSRC).forEach(function(k){ o[k] = GSRC[k]; }); return o; };
+
+// Staple jobs as the engine's jobs, and in words.
+var SJOB = { ramp:'ramp', draw:'draw', removal:'removal', counter:'removal', wipe:'wipes', protection:'protection', tutor:'tutor', recursion:'synergy', finisher:'wincon', utility:'synergy', land:'lands' };
+var JOBW = { ramp:'ramp', draw:'card draw', removal:'removal', counter:'counterspell', wipe:'board wipe', protection:'protection', tutor:'tutor', recursion:'recursion', finisher:'finisher', utility:'utility', land:'land' };
+// The top staples for the deck's colours: the first 10 of each colour it has, colourless and lands,
+// and the multicolour ones it can play. Only ones the deck could take (legal, on colour, bracket).
+function stapleRead(X){
+  if(!STAP.data || !STAP.cards.length) return null;
+  var ci = S.ci || [], picked = [], src = '';
+  STAP.cards.forEach(function(c){
+    var col = c.staple.colour;
+    var mine = col === 'colorless' || col === 'lands' || (col.length === 1 && ci.indexOf(col) >= 0) || (col === 'multi' && (c.ci || []).every(function(x){ return ci.indexOf(x) >= 0; }));
+    if(!mine || c.staple.rank >= 10) return;
+    // A land that fixes colours (Command Tower, Exotic Orchard) does nothing a basic does not in one colour.
+    if(ci.length <= 1 && isLand(c) && /any colou?r|commander's colou?r identity/.test(lc(c.o))) return;
+    if(!inX(X, c.n) && !okAdd(c)) return;
+    picked.push(c); if(!src) src = c.staple.src;
+  });
+  var inDeck = picked.filter(function(c){ return inX(X, c.n); }), missing = picked.filter(function(c){ return !inX(X, c.n) && !rejected(c.n); });
+  missing.sort(function(a, z){ return a.staple.rank - z.staple.rank; });
+  return { top:picked.length, inDeck:inDeck, missing:missing, src:STAP.data.stapleSource || src || 'staples' };
+}
 
 /* ---------- what one swap does to the counted numbers ---------- */
 // [key, label, which way is better, aim]. Only numbers that changed are reported.
 var GD = [
   ['cheapAns', 'Answers at 2 mana or less', 1, '4 or more'],
   ['draw', 'Card draw', 1, '12'],
+  ['rampAny', 'Ramp', 1, '10 to 12'],
+  ['inter', 'Targeted interaction', 1, '12'],
   ['landish', 'Lands', 1, '38'],
   ['high', 'Cards at 6+ mana', -1, '5 or fewer'],
   ['narrow', 'Answers to one thing only', -1, '3 or fewer'],
@@ -1748,6 +1832,10 @@ var FIXERS = {
   ramp:{ cut:function(b){ return b.rampLate || b.rampBig; }, only:true, add:function(b, c, K){ return b.ramp && (c.mv || 0) <= Math.max(2, K.C - 2); }, why:function(o, a){ return a.c.n + ' costs ' + (a.c.mv || 0) + ', so it gets the commander out a turn sooner than ' + o.n + ' (' + (o.c.mv || 0) + ').'; } },
   enablers:{ cut:function(b){ return b.pay && !b.feed; }, only:true, add:function(b){ return b.feed; }, why:function(o, a, K){ return a.c.n + ' ' + K.top.t.enW + '; ' + o.n + ' only rewards it.'; } },
   toomuch:{ cut:function(b, r, t){ return t.side === 'keep' ? b.keep && !b.sac : b.sac && !b.keep; }, only:true, add:function(b, c, K, t){ return t.side === 'keep' ? b.sac : b.keep; }, why:function(o, a, K, t){ return 'One plan: ' + (t.side === 'keep' ? 'sacrifice for value' : 'count your board') + '. ' + a.c.n + ' fits it; ' + o.n + ' pulls the other way.'; } },
+  staples:{ off:true, add:function(b, c, K, t){ return !!t.ok[lc(c.n)]; }, sameJob:true, stapleJob:true, prefer:function(){ return 0.3; },
+    why:function(o, a){ var st = stapleOf(a.c.n).staple; return a.c.n + ' is a staple (' + JOBW[st.job] + (st.note ? ': ' + st.note.replace(/\.$/, '') : '') + '). ' + o.n + ' does the same job.'; } },
+  ramp10:{ add:function(b, c){ var f = feats(c); return b.rampAny && !oneShotMana(c, f) && (bk() >= 4 || !f.fast); }, maxMv:3, why:function(o, a){ return a.c.n + ' ramps for ' + (a.c.mv || 0) + ' mana.'; } },
+  inter12:{ maxMv:3, add:function(b){ return b.inter && !b.narrow; }, prefer:function(b){ return b.cheapAns ? 0.1 : 0; }, why:function(o, a){ return a.c.n + ' answers or protects one thing for ' + (a.c.mv || 0) + ' mana.'; } },
   hyper:{ cut:function(b, r, t){ return b[t.hate]; }, only:true, add:function(b, c, K, t){ return !b[t.hate] && (t.hate === 'cmdDep' ? b.spell : b.aeRem && !b.etb); }, why:function(o, a, K, t){ return a.c.n + (t.hate === 'cmdDep' ? ' works without the commander.' : ' answers the hate card and is not switched off by it.'); } }
 };
 E.guideFix = function(key){
@@ -1760,6 +1848,8 @@ E.guideFix = function(key){
     if(key === 'toomuch') t.side = (G.T.keep || 0) <= (G.T.sac || 0) ? 'keep' : 'sac';
     if(key === 'redundant'){ var w = ONE_OF.map(function(g){ return { k:g.k, n:(G.T['one:' + g.k] || 0) - g.most }; }).sort(function(a, z){ return z.n - a.n; })[0]; t.worst = w && w.n > 0 ? w.k : ''; }
     if(key === 'hyper') t.hate = me.hate || 'etb';
+    // Staples: exactly the ones the guideline lists as missing (on colour, useful in this many colours).
+    if(key === 'staples'){ t.ok = {}; var sr = stapleRead(X); (sr ? sr.missing : []).forEach(function(c){ t.ok[lc(c.n)] = 1; }); }
     var bitsOf = {};
     var rows = X.rows.filter(function(r){ return !r.cmd && !r.basic && !r.must && !r.missing && !prot[lc(r.n)] && !prot[front(r.n)]; });
     rows.forEach(function(r){ bitsOf[r.n] = gBits(r, K); });
@@ -1778,7 +1868,11 @@ E.guideFix = function(key){
       .filter(function(a){ return F.add(a.b, a.c, K, t) && (!F.maxMv || (a.c.mv || 0) <= F.maxMv); })
       .map(function(a){ a.v = valueOf(a.c, X, false).v + (F.prefer ? F.prefer(a.b) : 0) + (ownedIn(a.c.n) ? 0.05 : 0); return a; })
       .sort(function(a, z){ return z.v - a.v; });
-    if(F.sameJob) pool.forEach(function(a){ a.need = function(o){ var j = jobFor(o); return doesJob(j, a.c, a.r.f); }; });
+    if(F.sameJob) pool.forEach(function(a){ a.need = function(o){ var j = jobFor(o);
+      if(F.stapleJob){ var sj = SJOB[(stapleOf(a.c.n) || {}).staple ? stapleOf(a.c.n).staple.job : ''] || ''; return sj === 'lands' ? !!o.f.land : sj === j || (sj && o.jobs[sj]); }
+      return doesJob(j, a.c, a.r.f); }; });
+    // Staples swap any card of their job, lands included, but never a card another guideline needs.
+    if(key === 'staples') cuts = X.rows.filter(function(r){ return !r.cmd && !r.basic && !r.must && !r.missing && !prot[lc(r.n)] && !prot[front(r.n)] && !stapleOf(r.n) && (r.f.land || safeCut(gBits(r, K))); }).sort(function(a, z){ return val(a) - val(z); });
     if(F.basics && !pool.length){
       var col = (S.ci || [])[0], bn = col ? BASICS[col] : 'Wastes';
       pool = [{ c:{ n:bn, type:'Basic Land — ' + bn, o:'', cost:'', mv:0, ci:[], prod:[col || 'C'], legal:'legal', kw:[], basic:true, stats:{} }, b:{ land:1 }, v:0 }];
