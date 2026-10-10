@@ -502,6 +502,37 @@ function checkRow(label, desc, count, status, extra){
     '<div class="pg-check-v"><span class="bs-num">' + count + '</span>' + (status ? '<span class="bs-badge ' + status[0] + '">' + status[1] + '</span>' : '') + '</div></div>' + (extra || '') + '</div>';
 }
 
+// The Command Zone's 16 deckbuilding traps (episode 767), checked against this deck.
+var TRAP_ST = { caught:['bs-bad', 'Caught'], watch:['bs-warn', 'Watch'], clear:['bs-good', 'Clear'], habit:['', 'Habit'] };
+function trapsHtml(ctx, st){
+  var e = E(), list = e && e.traps ? safe(function(){ return e.traps(); }, []) : [];
+  if(!list.length) return '';
+  var checked = list.filter(function(t){ return t.status !== 'habit'; }), habits = list.filter(function(t){ return t.status === 'habit'; });
+  var order = { caught:0, watch:1, clear:2 };
+  checked.sort(function(a, z){ return order[a.status] - order[z.status] || a.n - z.n; });
+  var nc = checked.filter(function(t){ return t.status === 'caught'; }).length, nw = checked.filter(function(t){ return t.status === 'watch'; }).length;
+  function row(t){
+    var s = TRAP_ST[t.status] || TRAP_ST.habit, k = 'trap-' + t.key, open = !!st.open[k];
+    var mark = (t.status === 'caught' || t.status === 'watch' || t.off) ? '<button class="bs-btn bs-sm bs-quiet" type="button"' + ctx.act(function(){
+        S.trapOff = S.trapOff || {};
+        if(t.off) delete S.trapOff[t.key]; else S.trapOff[t.key] = 1;
+        quietSave(); redraw();
+      }) + '>' + (t.off ? 'Check it again' : 'Not a trap for this deck') + '</button>' : '';
+    var body = '<p class="pg-part-note">' + h(t.line) + '</p>' + (t.fix ? '<p class="pg-trap-fix"><b>Fix:</b> ' + h(t.fix) + '</p>' : '') +
+      (t.cards.length ? nameList(ctx, t.cards, 12, k) : '') + (mark ? '<div class="pg-trap-acts">' + mark + '</div>' : '');
+    return '<details class="pg-trap" data-pg-open="' + k + '"' + (open ? ' open' : '') + '><summary>' +
+      '<span class="pg-trap-n">' + t.n + '</span><span class="pg-trap-t">' + h(t.title) + '</span>' +
+      '<span class="bs-badge ' + s[0] + '">' + (t.off ? 'You marked it fine' : s[1]) + '</span></summary>' + body + '</details>';
+  }
+  return '<section class="bs-panel pg-traps">' +
+    '<div class="bs-panel-head"><h3 class="bs-panel-title">Deckbuilding traps</h3><a class="bs-count pg-right" href="https://youtu.be/K5UGydfRKBw" target="_blank" rel="noopener">The Command Zone 767</a></div>' +
+    '<p class="bs-panel-note pg-mb">' + (nc || nw ? (nc ? words(nc, 'trap') + ' caught' : '') + (nc && nw ? ', ' : '') + (nw ? nw + ' to watch' : '') + '. ' : 'No trap caught. ') +
+      'Open a row for the numbers and the cards. Numbers the episode gives are named; the rest are rules of thumb.</p>' +
+    checked.map(row).join('') +
+    details('trap-habits', 'Habits a deck list cannot show (' + habits.length + ')', habits.map(row).join('')) +
+  '</section>';
+}
+
 function drawAnalysis(ctx, st){
   var e = E(), el = ctx.el, b = bk(), br = BR(b);
   var cb = combosNow(ctx);
@@ -670,7 +701,7 @@ function drawAnalysis(ctx, st){
 
   // Jobs and the bracket check are long lists; the curve, colours and test games are short
   // panels, so on a PC they stack in the right-hand column beside them.
-  H += '<div class="bs-cols bs-section"><div class="bs-main">' + jobsHtml + brHtml + '</div>' +
+  H += '<div class="bs-cols bs-section"><div class="bs-main">' + trapsHtml(ctx, st) + jobsHtml + brHtml + '</div>' +
     '<aside class="bs-side bs-sticky" aria-label="Mana curve, colours and test games">' + curveHtml + colHtml + games + '</aside></div>' + priceFoot;
   el.innerHTML = wrap(H);
 }
