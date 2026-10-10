@@ -290,3 +290,25 @@
 .mn-ta{width:100%;min-height:88px;font-size:16px;line-height:1.45;resize:vertical}
 .mn-form{display:flex;flex-direction:column;gap:var(--s3);align-items:flex-end;position:sticky;bottom:0;padding:var(--s3) 0;background:var(--bg)}
 .mn-form .bs-btn{min-width:120px}
+
+/* ---------- deckbuilding traps (The Command Zone 767) ---------- */
+.pg-traps{margin-bottom:var(--s4)}
+.pg-trap{border-top:1px solid var(--line)}
+.pg-trap > summary{display:flex;align-items:center;gap:var(--s3);min-height:var(--tap);cursor:pointer;list-style:none}
+.pg-trap > summary::-webkit-details-marker{display:none}
+.pg-trap > summary::after{content:'';flex:none;width:6px;height:6px;margin-left:var(--s1);border-right:1.5px solid var(--ink3);border-bottom:1.5px solid var(--ink3);transform:translateY(-2px) rotate(45deg)}
+.pg-trap[open] > summary::after{transform:translateY(1px) rotate(-135deg)}
+.pg-trap-n{flex:none;width:2ch;text-align:right;font-family:var(--num);color:var(--ink3)}
+.pg-trap-t{flex:1;min-width:0}
+.pg-trap > :not(summary){margin-left:calc(2ch + var(--s3))}
+.pg-trap-fix{margin:var(--s2) 0;line-height:1.45;color:var(--ink2)}
+.pg-trap-acts{margin:var(--s2) 0 var(--s3)}
+.pg-traps .bs-more{margin-top:var(--s2)}
+.pg-gfix{display:flex;flex-direction:column;gap:var(--s2);margin:var(--s2) 0}
+.pg-gfix-row{display:grid;grid-template-columns:1fr auto;gap:var(--s1) var(--s3);align-items:center;padding:var(--s2) 0;border-top:1px dashed var(--line)}
+.pg-gfix-pair{min-width:0}
+.pg-gfix-arr{color:var(--ink3)}
+.pg-gfix-why{grid-column:1 / -1;grid-row:2;margin:0;font-size:var(--t1);line-height:1.45;color:var(--ink2)}
+.pg-gfix-row > .bs-btn{grid-column:2;grid-row:1}
+.pg-gsrc{font-size:var(--t1);color:var(--ink3)}
+.pg-trap-acts{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap}

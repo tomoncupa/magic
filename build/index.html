@@ -3060,9 +3060,20 @@ function afterEdit(){
 // Undo (undoChange) puts the deck, the side deck and Considering back exactly.
 var LASTCHG = null;
 function applyChange(outName, inCard, why, o){
+  // What the swap does to the deckbuilding guidelines, read before the deck changes; the toast says it.
+  var gd = guideDeltaText(outName, inCard, false);
   var r = changeDeck(outName, inCard, why, true, o);
-  if(r === true) afterEdit();
+  if(r === true){ if(LASTCHG) LASTCHG.guide = gd; afterEdit(); }
   return r;
+}
+// "Card draw 7 → 8 (aim 12)" for each guideline number a swap moves. html: coloured for the swap menu.
+function guideDeltaText(outName, inCard, html){
+  if(!window.ENGINE || !ENGINE.guideDelta || !S.cmd) return '';
+  var list = []; try{ list = ENGINE.guideDelta(outName || null, inCard || null) || []; }catch(e){ return ''; }
+  return list.map(function(x){
+    var t = esc(x.label) + ' <b class="bs-num">' + x.from + ' &rarr; ' + x.to + '</b>' + (x.aim ? ' (aim ' + esc(x.aim) + ')' : '');
+    return html ? '<span class="' + (x.better ? 'bs-pos' : 'bs-neg') + '">' + t + '</span>' : t;
+  }).join(', ');
 }
 // The role a card coming in takes: his own pick, else a land is a land, else the job of the card it
 // replaces when it can do that job, else its own main job (so a ramp card that replaces a synergy
@@ -3091,6 +3102,7 @@ function changeToast(x){
   }
   if(x.maybe) t += ' ' + i + ' stays in Considering, marked In the deck.';
   if(x.basicDrop) t += ' Basic lands are not kept in the side deck, so the ' + esc(x.out) + ' just leaves.';
+  if(x.guide) t += ' Guidelines: ' + x.guide + '.';
   return t;
 }
 function changeDeck(outName, inCard, why, undo, o){
@@ -5559,6 +5571,8 @@ function swmChanges(r, M){
   if(A.gcs !== B.gcs) parts.push('Game Changers <b class="bs-num">' + B.gcs + ar + A.gcs + '</b>' + (B.lim === Infinity ? '' : ' of ' + B.lim));
   // Where the cards go is said once, in the header; only a basic land is different.
   if(d.basic) parts.push('the ' + esc(d.n) + ' just leaves (basic lands are not kept)');
+  // The deckbuilding guidelines this swap moves, green when it moves toward the aim.
+  var gd = guideDeltaText(d.n, r.inC, true); if(gd) parts.push(gd);
   if(!parts.length) return '';
   return parts.map(function(x){ return x.charAt(0).toUpperCase() + x.slice(1); }).join('. ') + '.';
 }

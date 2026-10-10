@@ -1,0 +1,1848 @@
+{
+"generated": "2026-10-10",
+"stapleSource": "edhrec-top-2y",
+"sources": {
+"cz658": {
+"t": "Commander Deckbuilding Template for the New Era (The Command Zone #658)",
+"url": "https://edhrec.com/articles/the-command-zone-commander-deckbuilding-template-for-the-new-era-the-command-zone-658-mtg-edh-magic-gathering/",
+"date": "2025-02"
+},
+"cz658-note": {
+"t": "Japanese write-up of Command Zone #658 template (note.com)",
+"url": "https://note.com/black777cat/n/n588a5c571b7d",
+"date": null
+},
+"farseek-2026": {
+"t": "How to Analyze Your Commander Deck: A Step-by-Step EDH Checklist (Farseek)",
+"url": "https://farseek.ai/blog/how-to-analyze-your-commander-deck",
+"date": "2026-04"
+},
+"wotc-brackets-2025-02": {
+"t": "Introducing Commander Brackets Beta (Wizards of the Coast)",
+"url": "https://magic.wizards.com/en/news/announcements/introducing-commander-brackets-beta",
+"date": "2025-02"
+},
+"wotc-brackets-2025-10": {
+"t": "Commander Brackets Beta Update, October 21, 2025 (Wizards of the Coast)",
+"url": "https://magic.wizards.com/en/news/announcements/commander-brackets-beta-update-october-21-2025",
+"date": "2025-10"
+},
+"wotc-brackets-2026-02": {
+"t": "Commander Brackets Beta Update, February 9, 2026 (Wizards of the Coast)",
+"url": "https://magic.wizards.com/en/news/announcements/commander-brackets-beta-update-february-9-2026",
+"date": "2026-02"
+},
+"scryfall-gc": {
+"t": "Scryfall search is:gamechanger (current Game Changers, 53 cards)",
+"url": "https://scryfall.com/search?q=is%3Agamechanger",
+"date": "2026-10"
+},
+"scryfall-banned": {
+"t": "Scryfall search banned:commander (current Commander banned list, 83 cards)",
+"url": "https://scryfall.com/search?q=banned%3Acommander",
+"date": "2026-10"
+},
+"edhrec-top-2y": {
+"t": "EDHREC Top Cards, past 2 years, overall and per colour (/top/year, /top/white ... /top/colorless, /top/multicolor, /top/lands)",
+"url": "https://edhrec.com/top/year",
+"date": "2026-10"
+},
+"edhrec-top-month": {
+"t": "EDHREC Top Cards, past month (cross-check of the 2-year ranking)",
+"url": "https://edhrec.com/top/month",
+"date": "2026-10"
+},
+"draftsim-lands-2026": {
+"t": "How Many Lands in MTG (Draftsim, David Royale)",
+"url": "https://draftsim.com/mtg-how-many-lands/",
+"date": "2026-06"
+},
+"draftsim-gc-2026": {
+"t": "Everything You Need to Know About Commander's Game Changers (Draftsim)",
+"url": "https://draftsim.com/mtg-edh-game-changers/",
+"date": "2026-05"
+},
+"karsten-lands": {
+"t": "How Many Lands Do You Need in Your Deck? An Updated Analysis (Frank Karsten)",
+"url": "https://www.tcgplayer.com/content/article/How-Many-Lands-Do-You-Need-in-Your-Deck-An-Updated-Analysis/cc3ca10b-27b7-479e-a3dd-e4785d7cf8d6/",
+"date": null
+},
+"commanderbrackets-changelog": {
+"t": "Commander Brackets Update History (commanderbrackets.com, third party)",
+"url": "https://commanderbrackets.com/changelog",
+"date": "2026-06"
+},
+"edhrec-mana-abilities-2026": {
+"t": "Top 10 Cards Affected by the New Mana Abilities Change (EDHREC)",
+"url": "https://edhrec.com/articles/top-10-cards-affected-by-the-new-mana-abilities-change/",
+"date": "2026-08"
+}
+},
+"staples": {
+"colorless": [
+{
+"name": "Sol Ring",
+"job": "ramp",
+"note": "Two extra mana for one; in most decks",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 83.3
+},
+{
+"name": "Command Tower",
+"job": "land",
+"note": "Taps for any commander colour; near universal",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 73.7
+},
+{
+"name": "Arcane Signet",
+"job": "ramp",
+"note": "Two-mana rock making any commander colour",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 71.8
+},
+{
+"name": "Exotic Orchard",
+"job": "land",
+"note": "Usually taps for any colour you need",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 36.8
+},
+{
+"name": "Reliquary Tower",
+"job": "land",
+"note": "No maximum hand size for draw decks",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 29.3
+},
+{
+"name": "Swiftfoot Boots",
+"job": "protection",
+"note": "Hexproof and haste for the commander",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 26.8
+},
+{
+"name": "Lightning Greaves",
+"job": "protection",
+"note": "Free-equip shroud and haste for the commander",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 24.6
+},
+{
+"name": "Path of Ancestry",
+"job": "land",
+"note": "Commander-colour land with scry upside",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 22.4
+},
+{
+"name": "Fellwar Stone",
+"job": "ramp",
+"note": "Cheap two-mana rock that usually fixes",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 20.4
+},
+{
+"name": "Rogue's Passage",
+"job": "land",
+"note": "Makes the commander unblockable",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 20.0
+},
+{
+"name": "Evolving Wilds",
+"job": "land",
+"note": "Budget fetch for basics",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 19.7
+},
+{
+"name": "Thought Vessel",
+"job": "ramp",
+"note": "Two-mana rock plus no maximum hand size",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 17.0
+},
+{
+"name": "Terramorphic Expanse",
+"job": "land",
+"note": "Budget fetch for basics",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 14.4
+},
+{
+"name": "Myriad Landscape",
+"job": "land",
+"note": "Fetches two basics; land ramp",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 13.9
+},
+{
+"name": "Mind Stone",
+"job": "ramp",
+"note": "Two-mana rock that cashes in for a card",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 13.6
+},
+{
+"name": "Polluted Delta",
+"job": "land",
+"note": "Premium fetch for fixing and landfall",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 12.1
+},
+{
+"name": "Skullclamp",
+"job": "draw",
+"note": "Draws two per small creature dying",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 11.3
+},
+{
+"name": "Solemn Simulacrum",
+"job": "ramp",
+"note": "Fetches a land, draws a card on death",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 11.3
+},
+{
+"name": "Fabled Passage",
+"job": "land",
+"note": "Fetches any basic, untapped late",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 11.1
+},
+{
+"name": "Commander's Sphere",
+"job": "ramp",
+"note": "Three-mana rock making commander colours",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 10.1
+},
+{
+"name": "Ancient Tomb",
+"job": "land",
+"note": "Two colourless mana from a land",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 9.1
+},
+{
+"name": "Urborg, Tomb of Yawgmoth",
+"job": "land",
+"note": "Every land taps for black",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 8.8
+},
+{
+"name": "Temple of the False God",
+"job": "land",
+"note": "Two colourless once you have five lands",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 8.4
+},
+{
+"name": "Chromatic Lantern",
+"job": "ramp",
+"note": "Rock that fixes every colour",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 8.3
+},
+{
+"name": "The One Ring",
+"job": "draw",
+"note": "Turn of protection then a growing card engine",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 7.9
+},
+{
+"name": "City of Brass",
+"job": "land",
+"note": "Any colour, untapped, for life",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 7.9
+},
+{
+"name": "Cavern of Souls",
+"job": "land",
+"note": "Uncounterable creatures of one type",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 7.2
+},
+{
+"name": "Mana Confluence",
+"job": "land",
+"note": "Any colour, untapped, for life",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 7.1
+},
+{
+"name": "Lotus Petal",
+"job": "ramp",
+"note": "Free one-shot burst of any colour",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 7.0
+},
+{
+"name": "Urza's Saga",
+"job": "land",
+"note": "Makes constructs, then tutors a cheap artifact",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 7.0
+},
+{
+"name": "Wayfarer's Bauble",
+"job": "ramp",
+"note": "Colourless land ramp for any deck",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 6.6
+},
+{
+"name": "Ashnod's Altar",
+"job": "utility",
+"note": "Free sac outlet that makes mana",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 6.1
+},
+{
+"name": "Mana Vault",
+"job": "ramp",
+"note": "Explosive fast mana, three for one",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 5.7
+},
+{
+"name": "Herald's Horn",
+"job": "utility",
+"note": "Tribal cost reducer and card filter",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 5.7
+},
+{
+"name": "Chrome Mox",
+"job": "ramp",
+"note": "Free fast mana for a card",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 5.6
+},
+{
+"name": "Idol of Oblivion",
+"job": "draw",
+"note": "Cheap draw engine for token decks",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 4.8
+},
+{
+"name": "Thran Dynamo",
+"job": "ramp",
+"note": "Four-mana rock adding three",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 4.7
+},
+{
+"name": "Sensei's Divining Top",
+"job": "utility",
+"note": "Repeatable top-of-library control",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 4.4
+},
+{
+"name": "Everflowing Chalice",
+"job": "ramp",
+"note": "Scalable rock for any deck",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 4.1
+},
+{
+"name": "Mox Diamond",
+"job": "ramp",
+"note": "Turns a land into fast mana",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 4.1
+}
+],
+"W": [
+{
+"name": "Swords to Plowshares",
+"job": "removal",
+"note": "One-mana exile for any creature",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 60.9
+},
+{
+"name": "Path to Exile",
+"job": "removal",
+"note": "One-mana instant creature exile",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 47.8
+},
+{
+"name": "Generous Gift",
+"job": "removal",
+"note": "Destroys any permanent at instant speed",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 20.2
+},
+{
+"name": "Smothering Tithe",
+"job": "ramp",
+"note": "Treasure whenever opponents draw",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 19.8
+},
+{
+"name": "Esper Sentinel",
+"job": "draw",
+"note": "One-drop that taxes or draws off noncreature spells",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 18.5
+},
+{
+"name": "Teferi's Protection",
+"job": "protection",
+"note": "Phases out your whole board for a turn",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 15.6
+},
+{
+"name": "Enlightened Tutor",
+"job": "tutor",
+"note": "Finds any artifact or enchantment",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 14.4
+},
+{
+"name": "Ghostly Prison",
+"job": "utility",
+"note": "Taxes attacks to protect you",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 11.9
+},
+{
+"name": "Austere Command",
+"job": "wipe",
+"note": "Modal wipe; choose what dies",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 11.2
+},
+{
+"name": "Flawless Maneuver",
+"job": "protection",
+"note": "Free indestructible for your creatures",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 11.1
+},
+{
+"name": "Farewell",
+"job": "wipe",
+"note": "Exile-based modal board reset",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 11.0
+},
+{
+"name": "Akroma's Will",
+"job": "finisher",
+"note": "Team-wide evasion, protection and double strike",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 10.4
+},
+{
+"name": "Stroke of Midnight",
+"job": "removal",
+"note": "Instant answer to any nonland permanent",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 10.0
+},
+{
+"name": "Grand Abolisher",
+"job": "protection",
+"note": "Opponents cannot respond on your turn",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 8.8
+},
+{
+"name": "Witch Enchanter // Witch-Blessed Meadow",
+"job": "removal",
+"note": "Artifact/enchantment removal that is also a land",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 7.9
+},
+{
+"name": "Sun Titan",
+"job": "recursion",
+"note": "Returns cheap permanents every attack",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 7.6
+},
+{
+"name": "Authority of the Consuls",
+"job": "utility",
+"note": "Opponents' creatures enter tapped",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 7.5
+},
+{
+"name": "Loran of the Third Path",
+"job": "removal",
+"note": "Kills an artifact or enchantment, then draws",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 7.1
+},
+{
+"name": "Land Tax",
+"job": "ramp",
+"note": "Thins basics into hand every turn",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 6.9
+},
+{
+"name": "Dawn's Truce",
+"job": "protection",
+"note": "Two-mana hexproof or indestructible for your board",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 6.9
+},
+{
+"name": "Anointed Procession",
+"job": "utility",
+"note": "Doubles every token you make",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 6.8
+},
+{
+"name": "Ephemerate",
+"job": "utility",
+"note": "Cheap flicker to save or reuse creatures",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 6.1
+},
+{
+"name": "Mother of Runes",
+"job": "protection",
+"note": "Repeatable protection for key creatures",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 5.5
+}
+],
+"U": [
+{
+"name": "Counterspell",
+"job": "counter",
+"note": "Two-mana hard counter",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 42.0
+},
+{
+"name": "An Offer You Can't Refuse",
+"job": "counter",
+"note": "One-mana counter for noncreature spells",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 26.6
+},
+{
+"name": "Rhystic Study",
+"job": "draw",
+"note": "Draws unless opponents pay one",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 22.1
+},
+{
+"name": "Arcane Denial",
+"job": "counter",
+"note": "Two-mana counter for any spell",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 20.7
+},
+{
+"name": "Negate",
+"job": "counter",
+"note": "Cheap counter for noncreature spells",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 20.1
+},
+{
+"name": "Cyclonic Rift",
+"job": "wipe",
+"note": "Overloaded one-sided bounce of opponents' permanents",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 20.1
+},
+{
+"name": "Swan Song",
+"job": "counter",
+"note": "One-mana counter for key spells",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 18.7
+},
+{
+"name": "Brainstorm",
+"job": "draw",
+"note": "One-mana instant card selection",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 18.1
+},
+{
+"name": "Fierce Guardianship",
+"job": "counter",
+"note": "Free counter when commander is out",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 17.1
+},
+{
+"name": "Frantic Search",
+"job": "draw",
+"note": "Free loot that untaps lands",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 15.6
+},
+{
+"name": "Mystic Remora",
+"job": "draw",
+"note": "Early draw engine off opponents' spells",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 15.5
+},
+{
+"name": "Propaganda",
+"job": "utility",
+"note": "Taxes attacks to protect you",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 14.6
+},
+{
+"name": "Mana Drain",
+"job": "counter",
+"note": "Counter that refunds the mana",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 14.3
+},
+{
+"name": "Ponder",
+"job": "draw",
+"note": "One-mana card selection",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 11.7
+},
+{
+"name": "Pongify",
+"job": "removal",
+"note": "One-mana creature removal",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 11.4
+},
+{
+"name": "Windfall",
+"job": "draw",
+"note": "Wheel that refills your hand",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 11.3
+},
+{
+"name": "Mystical Tutor",
+"job": "tutor",
+"note": "Puts any instant or sorcery on top",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 11.1
+},
+{
+"name": "Sink into Stupor // Soporific Springs",
+"job": "removal",
+"note": "Bounce spell that is also a land",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 10.7
+},
+{
+"name": "Force of Will",
+"job": "counter",
+"note": "Free counter for any spell",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 9.5
+},
+{
+"name": "Rapid Hybridization",
+"job": "removal",
+"note": "One-mana instant creature removal",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 9.4
+},
+{
+"name": "Preordain",
+"job": "draw",
+"note": "One-mana card selection",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 9.2
+},
+{
+"name": "Force of Negation",
+"job": "counter",
+"note": "Free counter on opponents' turns",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 7.9
+}
+],
+"B": [
+{
+"name": "Bojuka Bog",
+"job": "land",
+"note": "Land that exiles a graveyard",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 30.0
+},
+{
+"name": "Dark Ritual",
+"job": "ramp",
+"note": "One-mana burst into three black",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 25.9
+},
+{
+"name": "Reanimate",
+"job": "recursion",
+"note": "One-mana reanimation of any creature",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 19.9
+},
+{
+"name": "Demonic Tutor",
+"job": "tutor",
+"note": "Two-mana tutor for any card",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 18.5
+},
+{
+"name": "Toxic Deluge",
+"job": "wipe",
+"note": "Cheap, flexible creature wipe",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 18.2
+},
+{
+"name": "Feed the Swarm",
+"job": "removal",
+"note": "Kills creature or enchantment",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 15.7
+},
+{
+"name": "Phyrexian Arena",
+"job": "draw",
+"note": "Extra card every turn",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 14.8
+},
+{
+"name": "Deadly Rollick",
+"job": "removal",
+"note": "Free exile with commander out",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 14.7
+},
+{
+"name": "Vampiric Tutor",
+"job": "tutor",
+"note": "One-mana instant tutor to top",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 14.0
+},
+{
+"name": "Black Market Connections",
+"job": "draw",
+"note": "Flexible cards, treasure or bodies each turn",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 12.8
+},
+{
+"name": "Victimize",
+"job": "recursion",
+"note": "Returns two creatures for three mana",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 12.8
+},
+{
+"name": "Deadly Dispute",
+"job": "draw",
+"note": "Sac for two cards and a treasure",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 12.7
+},
+{
+"name": "Blood Artist",
+"job": "finisher",
+"note": "Drains on every creature death",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 11.4
+},
+{
+"name": "Night's Whisper",
+"job": "draw",
+"note": "Two cards for two mana",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 10.0
+},
+{
+"name": "Fell the Profane // Fell Mire",
+"job": "removal",
+"note": "Creature removal that is also a land",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 9.2
+},
+{
+"name": "Village Rites",
+"job": "draw",
+"note": "One-mana sac for two cards",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 9.2
+},
+{
+"name": "Animate Dead",
+"job": "recursion",
+"note": "Two-mana reanimation",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 8.8
+},
+{
+"name": "Pitiless Plunderer",
+"job": "ramp",
+"note": "Treasure on every creature death",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 8.7
+},
+{
+"name": "Sign in Blood",
+"job": "draw",
+"note": "Two cards for two mana",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 8.5
+},
+{
+"name": "Zulaport Cutthroat",
+"job": "finisher",
+"note": "Drains on your creature deaths",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 8.5
+},
+{
+"name": "Gray Merchant of Asphodel",
+"job": "finisher",
+"note": "Big drain in heavy-black decks",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 8.3
+},
+{
+"name": "Orcish Bowmasters",
+"job": "removal",
+"note": "Punishes extra draws, pings small creatures",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 7.9
+},
+{
+"name": "Infernal Grasp",
+"job": "removal",
+"note": "Two-mana instant kill",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 7.8
+},
+{
+"name": "Bolas's Citadel",
+"job": "draw",
+"note": "Play cards off the top with life",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 7.6
+},
+{
+"name": "Necropotence",
+"job": "draw",
+"note": "Pay life for huge card advantage",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 5.0
+}
+],
+"R": [
+{
+"name": "Blasphemous Act",
+"job": "wipe",
+"note": "Often one-mana creature wipe",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 33.9
+},
+{
+"name": "Chaos Warp",
+"job": "removal",
+"note": "Red's answer to any permanent",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 28.9
+},
+{
+"name": "Deflecting Swat",
+"job": "protection",
+"note": "Free redirect with commander out",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 17.7
+},
+{
+"name": "Faithless Looting",
+"job": "draw",
+"note": "Cheap card filtering",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 15.5
+},
+{
+"name": "Vandalblast",
+"job": "removal",
+"note": "One-sided artifact wipe or single kill",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 15.3
+},
+{
+"name": "Jeska's Will",
+"job": "ramp",
+"note": "Burst of mana plus impulse draw",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 15.0
+},
+{
+"name": "Big Score",
+"job": "draw",
+"note": "Two cards and two treasures",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 11.9
+},
+{
+"name": "Abrade",
+"job": "removal",
+"note": "Kills a creature or artifact",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 11.6
+},
+{
+"name": "Lightning Bolt",
+"job": "removal",
+"note": "One-mana instant damage",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 11.2
+},
+{
+"name": "Storm-Kiln Artist",
+"job": "ramp",
+"note": "Treasure on every instant or sorcery",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 9.4
+},
+{
+"name": "Impact Tremors",
+"job": "finisher",
+"note": "Damage on every creature entering",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 9.4
+},
+{
+"name": "Professional Face-Breaker",
+"job": "draw",
+"note": "Treasure from combat, then impulse draw",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 9.3
+},
+{
+"name": "Thrill of Possibility",
+"job": "draw",
+"note": "Cheap instant loot for two",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 9.1
+},
+{
+"name": "Hexing Squelcher",
+"job": "protection",
+"note": "Makes your spells uncounterable",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 8.7
+},
+{
+"name": "Gamble",
+"job": "tutor",
+"note": "One-mana tutor with a discard risk",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 8.5
+},
+{
+"name": "Untimely Malfunction",
+"job": "removal",
+"note": "Flexible artifact kill or redirect",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 8.0
+},
+{
+"name": "Unexpected Windfall",
+"job": "draw",
+"note": "Two cards and two treasures",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 7.8
+},
+{
+"name": "Etali, Primal Storm",
+"job": "utility",
+"note": "Casts free spells off library tops",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 7.7
+},
+{
+"name": "Ragavan, Nimble Pilferer",
+"job": "ramp",
+"note": "One-drop that steals cards and treasure",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 7.6
+},
+{
+"name": "Goldspan Dragon",
+"job": "ramp",
+"note": "Haste flier that makes treasure",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 6.3
+},
+{
+"name": "Underworld Breach",
+"job": "recursion",
+"note": "Recast spells from graveyard; combo engine",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 6.1
+}
+],
+"G": [
+{
+"name": "Cultivate",
+"job": "ramp",
+"note": "Two basics: one to play, one to hand",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 41.5
+},
+{
+"name": "Farseek",
+"job": "ramp",
+"note": "Two-mana land ramp that fetches duals",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 35.9
+},
+{
+"name": "Beast Within",
+"job": "removal",
+"note": "Instant answer to any permanent",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 32.6
+},
+{
+"name": "Nature's Lore",
+"job": "ramp",
+"note": "Untapped Forest-type land for two",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 31.9
+},
+{
+"name": "Rampant Growth",
+"job": "ramp",
+"note": "Two-mana basic land ramp",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 31.7
+},
+{
+"name": "Heroic Intervention",
+"job": "protection",
+"note": "Hexproof and indestructible for your board",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 31.3
+},
+{
+"name": "Birds of Paradise",
+"job": "ramp",
+"note": "One-drop dork tapping for any colour",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 28.3
+},
+{
+"name": "Kodama's Reach",
+"job": "ramp",
+"note": "Two basics: one to play, one to hand",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 25.0
+},
+{
+"name": "Three Visits",
+"job": "ramp",
+"note": "Untapped Forest-type land for two",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 24.7
+},
+{
+"name": "Llanowar Elves",
+"job": "ramp",
+"note": "One-mana mana dork",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 21.6
+},
+{
+"name": "Garruk's Uprising",
+"job": "draw",
+"note": "Trample plus draws off big creatures",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 17.4
+},
+{
+"name": "Elvish Mystic",
+"job": "ramp",
+"note": "One-mana mana dork",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 16.4
+},
+{
+"name": "Sakura-Tribe Elder",
+"job": "ramp",
+"note": "Chump blocker that ramps a land",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 15.5
+},
+{
+"name": "Eternal Witness",
+"job": "recursion",
+"note": "Returns any card from graveyard",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 15.1
+},
+{
+"name": "Delighted Halfling",
+"job": "ramp",
+"note": "Dork that protects legendary spells",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 12.4
+},
+{
+"name": "Worldly Tutor",
+"job": "tutor",
+"note": "Puts any creature on top",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 11.4
+},
+{
+"name": "Return of the Wildspeaker",
+"job": "draw",
+"note": "Big draw or overrun finisher",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 11.1
+},
+{
+"name": "Tireless Provisioner",
+"job": "ramp",
+"note": "Treasure on every landfall",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 10.6
+},
+{
+"name": "Beast Whisperer",
+"job": "draw",
+"note": "Draws on every creature cast",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 9.8
+},
+{
+"name": "Crop Rotation",
+"job": "tutor",
+"note": "Instant tutor for any land",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 9.8
+},
+{
+"name": "The Great Henge",
+"job": "draw",
+"note": "Cheap-to-cast engine drawing on creatures",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 9.5
+},
+{
+"name": "Sylvan Library",
+"job": "draw",
+"note": "Card selection or extra cards for life",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 8.7
+},
+{
+"name": "Seedborn Muse",
+"job": "utility",
+"note": "Untap your permanents every turn",
+"gameChanger": true,
+"source": "edhrec-top-2y",
+"edhrecPct": 8.2
+},
+{
+"name": "Craterhoof Behemoth",
+"job": "finisher",
+"note": "Wide-board game-ending pump",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 7.9
+},
+{
+"name": "Finale of Devastation",
+"job": "tutor",
+"note": "Creature tutor that can end games",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 7.8
+}
+],
+"multi": [
+{
+"name": "Breeding Pool",
+"job": "land",
+"note": "Untapped GU dual, fetchable",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 43.2
+},
+{
+"name": "Watery Grave",
+"job": "land",
+"note": "Untapped UB dual, fetchable",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 42.5
+},
+{
+"name": "Overgrown Tomb",
+"job": "land",
+"note": "Untapped BG dual, fetchable",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 42.4
+},
+{
+"name": "Godless Shrine",
+"job": "land",
+"note": "Untapped WB dual, fetchable",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 42.3
+},
+{
+"name": "Stomping Ground",
+"job": "land",
+"note": "Untapped RG dual, fetchable",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 42.2
+},
+{
+"name": "Hallowed Fountain",
+"job": "land",
+"note": "Untapped WU dual, fetchable",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 41.3
+},
+{
+"name": "Temple Garden",
+"job": "land",
+"note": "Untapped GW dual, fetchable",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 40.8
+},
+{
+"name": "Steam Vents",
+"job": "land",
+"note": "Untapped UR dual, fetchable",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 39.7
+},
+{
+"name": "Blood Crypt",
+"job": "land",
+"note": "Untapped BR dual, fetchable",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 39.4
+},
+{
+"name": "Sacred Foundry",
+"job": "land",
+"note": "Untapped RW dual, fetchable",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 38.0
+},
+{
+"name": "Clifftop Retreat",
+"job": "land",
+"note": "RW check land, usually untapped",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 37.1
+},
+{
+"name": "Sulfur Falls",
+"job": "land",
+"note": "UR check land, usually untapped",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 36.9
+},
+{
+"name": "Dragonskull Summit",
+"job": "land",
+"note": "BR check land, usually untapped",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 36.2
+},
+{
+"name": "Isolated Chapel",
+"job": "land",
+"note": "WB check land, usually untapped",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 35.5
+},
+{
+"name": "Glacial Fortress",
+"job": "land",
+"note": "WU check land, usually untapped",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 35.0
+},
+{
+"name": "Hinterland Harbor",
+"job": "land",
+"note": "GU check land, usually untapped",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 34.9
+},
+{
+"name": "Woodland Cemetery",
+"job": "land",
+"note": "BG check land, usually untapped",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 33.8
+},
+{
+"name": "Talisman of Dominance",
+"job": "ramp",
+"note": "Two-mana UB rock",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 32.3
+},
+{
+"name": "Assassin's Trophy",
+"job": "removal",
+"note": "Two-mana instant answer to any permanent",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 32.2
+},
+{
+"name": "Rootbound Crag",
+"job": "land",
+"note": "RG check land, usually untapped",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 30.2
+},
+{
+"name": "Drowned Catacomb",
+"job": "land",
+"note": "UB check land, usually untapped",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 30.2
+},
+{
+"name": "Sunpetal Grove",
+"job": "land",
+"note": "GW check land, usually untapped",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 29.9
+},
+{
+"name": "Ketria Triome",
+"job": "land",
+"note": "Three-colour fetchable tapped land",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 29.6
+},
+{
+"name": "Talisman of Creativity",
+"job": "ramp",
+"note": "Two-mana UR rock",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 28.1
+},
+{
+"name": "Talisman of Indulgence",
+"job": "ramp",
+"note": "Two-mana BR rock",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 27.9
+},
+{
+"name": "Jetmir's Garden",
+"job": "land",
+"note": "Three-colour fetchable tapped land",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 27.6
+},
+{
+"name": "Talisman of Hierarchy",
+"job": "ramp",
+"note": "Two-mana WB rock",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 26.9
+},
+{
+"name": "Indatha Triome",
+"job": "land",
+"note": "Three-colour fetchable tapped land",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 26.7
+},
+{
+"name": "Zagoth Triome",
+"job": "land",
+"note": "Three-colour fetchable tapped land",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 26.6
+},
+{
+"name": "Spara's Headquarters",
+"job": "land",
+"note": "Three-colour fetchable tapped land",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 26.6
+},
+{
+"name": "Talisman of Progress",
+"job": "ramp",
+"note": "Two-mana WU rock",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 25.9
+},
+{
+"name": "Ignoble Hierarch",
+"job": "ramp",
+"note": "Jund one-drop dork with exalted",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 25.0
+},
+{
+"name": "Anguished Unmaking",
+"job": "removal",
+"note": "Instant exile of any nonland permanent",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 25.0
+},
+{
+"name": "Talisman of Conviction",
+"job": "ramp",
+"note": "Two-mana RW rock",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 24.4
+},
+{
+"name": "Rakdos Signet",
+"job": "ramp",
+"note": "Two-mana BR rock",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 23.4
+},
+{
+"name": "Dimir Signet",
+"job": "ramp",
+"note": "Two-mana UB rock",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 23.4
+},
+{
+"name": "Izzet Signet",
+"job": "ramp",
+"note": "Two-mana UR rock",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 22.9
+},
+{
+"name": "Orzhov Signet",
+"job": "ramp",
+"note": "Two-mana WB rock",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 22.3
+},
+{
+"name": "Boros Charm",
+"job": "protection",
+"note": "Indestructible board, double strike or burn",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 22.0
+},
+{
+"name": "Rhythm of the Wild",
+"job": "utility",
+"note": "Haste and uncounterable creatures",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 21.2
+},
+{
+"name": "Azorius Signet",
+"job": "ramp",
+"note": "Two-mana WU rock",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 20.3
+},
+{
+"name": "Growth Spiral",
+"job": "ramp",
+"note": "Draw plus extra land drop",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 19.8
+},
+{
+"name": "Terminate",
+"job": "removal",
+"note": "Two-mana unconditional creature kill",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 19.1
+},
+{
+"name": "Dovin's Veto",
+"job": "counter",
+"note": "Uncounterable counter for noncreature spells",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 19.0
+},
+{
+"name": "Boros Signet",
+"job": "ramp",
+"note": "Two-mana RW rock",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 18.6
+},
+{
+"name": "Ruinous Ultimatum",
+"job": "wipe",
+"note": "One-sided nonland permanent wipe",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 18.4
+},
+{
+"name": "Putrefy",
+"job": "removal",
+"note": "Instant kill for creature or artifact",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 15.9
+},
+{
+"name": "Noble Hierarch",
+"job": "ramp",
+"note": "Bant one-drop dork with exalted",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 15.8
+},
+{
+"name": "Temur Ascendancy",
+"job": "draw",
+"note": "Haste and draws off big creatures",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 15.2
+},
+{
+"name": "Rakdos Charm",
+"job": "utility",
+"note": "Graveyard exile, artifact kill or punisher",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 14.9
+},
+{
+"name": "Damn",
+"job": "wipe",
+"note": "Spot kill or overloaded wrath",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 14.9
+},
+{
+"name": "Void Rend",
+"job": "removal",
+"note": "Uncounterable kill for any nonland permanent",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 14.9
+},
+{
+"name": "Kutzil, Malamet Exemplar",
+"job": "protection",
+"note": "Stops opponents casting on your turn",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 14.5
+},
+{
+"name": "Despark",
+"job": "removal",
+"note": "Exiles any big permanent",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 13.2
+},
+{
+"name": "Baleful Strix",
+"job": "removal",
+"note": "Deathtouch blocker that draws a card",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 13.1
+},
+{
+"name": "Lotho, Corrupt Shirriff",
+"job": "ramp",
+"note": "Treasure when players double-spell",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 12.9
+},
+{
+"name": "Talisman of Resilience",
+"job": "ramp",
+"note": "Two-mana BG rock",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 12.4
+},
+{
+"name": "Faeburrow Elder",
+"job": "ramp",
+"note": "Dork scaling with your colours",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 12.3
+},
+{
+"name": "Talisman of Curiosity",
+"job": "ramp",
+"note": "Two-mana GU rock",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 12.2
+},
+{
+"name": "Avacyn's Pilgrim",
+"job": "ramp",
+"note": "One-drop dork making white",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 12.2
+},
+{
+"name": "Supreme Verdict",
+"job": "wipe",
+"note": "Uncounterable creature wipe",
+"gameChanger": false,
+"source": "edhrec-top-2y",
+"edhrecPct": 11.8
+}
+]
+},
+"notes": [
+"Game Changers list is 53 cards as of 2026-10-10 (Scryfall is:gamechanger).",
+"Feb 9, 2026: Farewell and Biorhythm added to Game Changers; Biorhythm unbanned straight onto the list (Wizards).",
+"Feb 9, 2026: Lutri, the Spellchaser unbanned, but still banned as a companion (Wizards, secondary detail).",
+"Feb 9, 2026: no bracket rule changes; panel said none until after a MagicCon; brackets still labelled beta.",
+"Oct 21, 2025: tutor limits removed from all brackets; the best tutors are policed by the Game Changers list instead.",
+"Oct 21, 2025: ten cards left Game Changers: Expropriate; Jin-Gitaxias, Core Augur; Sway of the Stars; Vorinclex, Voice of Hunger; Kinnan, Bonder Prodigy; Urza, Lord High Artificer; Winota, Joiner of Forces; Yuriko, the Tiger's Shadow; Deflecting Swat; Food Chain.",
+"Oct 21, 2025: each bracket now has a minimum game length (9/8/6/4 turns, any in cEDH); Bracket 2 no longer means 'a precon'.",
+"Bracket rules still in force: no mass land denial in Brackets 1-3; no intentional two-card infinite combos in 1-2; no extra-turn cards in 1; extra turns not chained in 2-3.",
+"Banned list (83 cards) still includes the Sept 2024 bans: Dockside Extortionist; Jeweled Lotus; Mana Crypt; Nadu, Winged Wisdom.",
+"March, May and June 2026 ban announcements had no Commander changes (secondary sources). Nothing found for July-October 2026.",
+"Aug 7, 2026 rules change: abilities that add mana and also move a card to or from the library are no longer mana abilities (about ten cards, e.g. Odyssey Eggs).",
+"Staples are ranked by EDHREC inclusion over the past 2 years; edhrecPct = share of eligible decks that play the card.",
+"Dual and tri lands sit in 'multi'; colourless-identity lands (Command Tower, fetches, utility lands) sit in 'colorless'."
+]
+}
