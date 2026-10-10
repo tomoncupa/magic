@@ -1392,257 +1392,414 @@ E.price = function(){
   }catch(e){ return { usd:null, php:'', known:0, unknown:[], top:[], note:'Could not price the deck: ' + e.message }; }
 };
 
-/* ============ ENGINE.traps ============
-   The 16 deckbuilding traps from The Command Zone, episode 767 ("Stop Falling for these
-   Commander Deckbuilding Traps"). Where the episode gives a number it is used and named
-   (25 cards seen in an 8-turn game, 12 card advantage, 38 lands, 25-30 enablers, five
-   cards at 6+ mana); every other line is Brewing Station's own rule of thumb and says so.
-   Each trap: { n, key, title, status:'caught'|'watch'|'clear'|'habit', line, cards, fix }.
-   'habit' is a trap a deck list cannot show (how he builds, not what is in it).
-   A trap he marked "not a trap for this deck" (S.trapOff) comes back as 'clear', marked off:true. */
-var SEEN_N = 25;   // cards seen by turn 8: 7 in the opening hand, 8 draws, 10 more from card draw (the episode's count)
+/* ============ ENGINE.guides: deckbuilding guidelines ============
+   Each guideline is checked against the open deck and names the source it came from, so new videos
+   and guides Tom feeds in add or tune guidelines here, not new screens. Numbers a source gives are
+   named as that source's; every other line is Brewing Station's own rule of thumb and says so.
+   E.guides()            -> [{ n, key, title, src, status:'fix'|'watch'|'good'|'habit', line, cards, fix, canFix }]
+   E.guideDelta(out, in) -> what one swap does to the counted numbers (the swap menu and the toast use it)
+   E.guideFix(key)       -> up to 5 swaps that move that guideline the right way, each with a reason
+   Everything is counted per card (gBits), so a whole deck, a swap and a fix all read the same numbers.
+   A guideline he marked "fine for this deck" (S.trapOff, the name kept so his marks survive) shows as good, marked off. */
+var GSRC = { cz767:{ t:'The Command Zone 767', url:'https://youtu.be/K5UGydfRKBw' } };
+var SEEN_N = 25;   // cards seen by turn 8: 7 in the opening hand, 8 draws, 10 more from card draw (cz767)
 // Chance of drawing at least k of K copies among SEEN_N cards from the 99 (hypergeometric).
 function seeAtLeast(K, k){
   var N = 99, n = SEEN_N, p = 1, below = 0;
   if(K <= 0) return 0;
-  for(var j = 0; j < n; j++) p *= (N - K - j) / (N - j);   // none of them
-  for(var i = 0; i < k; i++){
-    below += p;
-    p = p * (K - i) * (n - i) / ((i + 1) * (N - K - n + i + 1));
-  }
+  for(var j = 0; j < n; j++) p *= (N - K - j) / (N - j);
+  for(var i = 0; i < k; i++){ below += p; p = p * (K - i) * (n - i) / ((i + 1) * (N - K - n + i + 1)); }
   return clamp(1 - below, 0, 1);
 }
 // Effects where a second copy in play does nothing. Read off the rules text.
 var ONE_OF = [
-  { k:'fog', label:'Fogs', rx:/prevent all (?:combat )?damage that would be dealt this turn/, most:2,
-    why:'You only want to cast one in a game. The episode: one fog in a deck, not five.' },
-  { k:'gyLands', label:'Play lands from the graveyard', rx:/play lands? (?:cards? )?from your graveyard/, most:6,
-    why:'Once one is out, a second does nothing.' },
-  { k:'overrun', label:'Team pumps that end the game', rx:/creatures you control (?:gain trample and )?get \+(?:x|[2-9])\/\+(?:x|[2-9])[^.]*?until end of turn|creatures you control get \+[^.]*?and gain trample until end of turn/, most:6,
-    why:'You cast one and win; the second sits in your hand.' },
-  { k:'evasion', label:'Make the team unblockable or flying', rx:/creatures you control (?:can't be blocked|(?:have|gain) [^.]*?\b(?:flying|shadow)\b)|creatures can't block/, most:6,
-    why:'Once your creatures cannot be blocked, a second one adds nothing.' },
-  { k:'haste', label:'Give the team haste', rx:/(?:^|[.\n] ?)creatures you control (?:have|gain) haste/, most:6,
-    why:'One haste enabler on the board is all you need.' }
+  { k:'fog', label:'Fogs', rx:/prevent all (?:combat )?damage that would be dealt this turn/, most:2, keep:'one', why:'You only want to cast one in a game: one fog in a deck, not five.' },
+  { k:'gyLands', label:'Play lands from the graveyard', rx:/play lands? (?:cards? )?from your graveyard/, most:6, keep:'five', why:'Once one is out, a second does nothing.' },
+  { k:'overrun', label:'Team pumps that end the game', rx:/creatures you control (?:gain trample and )?get \+(?:x|[2-9])\/\+(?:x|[2-9])[^.]*?until end of turn|creatures you control get \+[^.]*?and gain trample until end of turn/, most:6, keep:'five', why:'You cast one and win; the second sits in your hand.' },
+  { k:'evasion', label:'Make the team unblockable or flying', rx:/creatures you control (?:can't be blocked|(?:have|gain) [^.]*?\b(?:flying|shadow)\b)|creatures can't block/, most:6, keep:'five', why:'Once your creatures cannot be blocked, a second one adds nothing.' },
+  { k:'haste', label:'Give the team haste', rx:/(?:^|[.\n] ?)creatures you control (?:have|gain) haste/, most:6, keep:'five', why:'One haste enabler on the board is all you need.' }
 ];
-function trapRow(n, key, title, status, line, cards, fix){ return { n:n, key:key, title:title, status:status, line:line, cards:cards || [], fix:fix || '' }; }
+var KEEP_O = /for each (?:other )?(?:creature|artifact|token|[a-z]+) you control|number of (?:creatures|artifacts|tokens|[a-z]+s) you control|creatures you control get \+x\/\+x/;
+var SAC_O = /sacrifice (?:a|an|another|any number of|x) (?:other )?(?:creature|artifact|token|[a-z]+)s?[^.:"]*?:|whenever (?:a|another|one or more) (?:other )?(?:nontoken )?(?:creatures?|artifacts?|[a-z]+s?) you control (?:dies|die|is put into)|whenever you sacrifice/;
+var NARROW_O = /exile (?:all cards from )?target (?:player|opponent)'s graveyard|exile (?:all|each opponent's) graveyards?|exile (?:up to \w+ )?target cards? from (?:a|an opponent's) graveyard|cards in graveyards can't|if a card (?:or token )?would be put into an opponent's graveyard|can't be sacrificed|players can't (?:search|cast spells from)|creatures entering (?:the battlefield )?don't cause/;
+var AE_REM = /(?:destroy|exile) (?:up to one )?target (?:artifact|enchantment|noncreature|nonland|permanent)|(?:destroy|exile) target [^.]*?\b(?:artifact|enchantment)\b|counter target (?:noncreature |artifact |enchantment )?spell/;
 function basicDemand(o){
   var m = o.match(/search your library for (?:up to )?(a|an|one|two|three|x)? ?basic lands? cards?/);
   if(!m) return 0;
   return { two:2, three:3, x:2 }[m[1]] || 1;
 }
-E.traps = function(){
+function isBasicN(n){ return /^(?:snow-covered )?(?:plains|island|swamp|mountain|forest)$|^wastes$/i.test(n || ''); }
+// A row for a card that is not in the deck yet, read the way ctx() reads deck rows.
+function mkRow(c){
+  var r = { n:c.n, q:1, c:c, role:'', cmd:false, basic:isBasicN(c.n) || (c.type ? isBasic(c) : false), must:false, d:null, missing:false };
+  r.f = r.basic ? { land:true, en:{}, pay:{}, drawW:0, rec:0 } : feats(c); r.jobs = r.basic ? { lands:1 } : jobsOf(r);
+  return r;
+}
+// What the deck's plan is, worked out once per deck picture.
+var GK = { key:'', v:null };
+function gCtx(X){
+  if(GK.key === X.key) return GK.v;
+  var cmdR = X.rows.filter(function(r){ return r.cmd; });
+  var act = X.themes.filter(function(h){ return h.active; });
+  var top = act.slice().sort(function(a, z){ return (z.cmd ? 1 : 0) - (a.cmd ? 1 : 0) || z.rank - a.rank; })[0] || null;
+  var tribeRx = null;
+  if(top && top.t.tribe){
+    // A tribe's payoffs reward having the type (lords, "for each Goblin"), not every card that names it:
+    // Goblin Matron searches for one and rewards nothing.
+    var tw = '(?:' + rxEsc(lc(top.t.tribe)) + '|' + rxEsc(lc(top.t.label)) + ')';
+    tribeRx = new RegExp('\\b' + tw + ' (?:creatures )?you control\\b|other ' + tw + ' (?:get|have)|for each (?:other )?' + tw + '|number of ' + tw + '|whenever (?:a|an|another|one or more) (?:other )?(?:nontoken )?' + tw + '\\b[^.]*?(?:enters?|attacks?|dies|deals)');
+  }
+  var K = { X:X, cmdR:cmdR, act:act, top:top, tribeRx:tribeRx,
+    C:Math.max.apply(null, cmdR.map(function(r){ return r.c.mv || 0; }).concat([0])),
+    cmdNames:cmdR.map(function(r){ return lc(r.n.split(',')[0]); }).filter(function(n){ return n.length >= 4; }) };
+  GK = { key:X.key, v:K };
+  return K;
+}
+// Every number the guidelines count, for one card. Counted with copies; the commander only for the
+// keys in CMD_KEYS (his draw, his plan), never as a land, a spell or a cut.
+var CMD_KEYS = { draw:1, feed:1, pay:1, keep:1, sac:1 };
+function gBits(r, K){
+  var b = {}, c = r.c, o = r.basic || r.missing ? '' : tx(c), mv = c.mv || 0, f = r.f || {}, j = r.jobs || {};
+  if(r.missing) return b;
+  if(r.basic){ b.land = 1; b.basic = 1; return b; }
+  var land = f.land || j.lands;
+  if(land){ b.land = 1; var dm = basicDemand(o); if(dm) b.fetch = dm; return b; }
+  b.spell = 1;
+  if(/\/\/.*\bLand\b/.test(c.type || '')) b.mdfc = 1;
+  if(/\b(?:basic )?(?:plains|island|swamp|mountain|forest|land)cycling \{1\}/.test(o)) b.cyc = 1;
+  var dm2 = basicDemand(o); if(dm2) b.fetch = dm2;
+  if((j.removal || f.counter) && mv <= 2) b.cheapAns = 1;
+  if(j.draw && f.drawW >= 0.75){ b.draw = 1; if(mv <= 3) b.drawCheap = 1; }
+  else if(j.draw && f.drawW > 0) b.cantrip = 1;
+  // A card that makes itself cheaper (Blasphemous Act, Embercleave) is not a real 6-drop.
+  if(mv >= 6 && !/~ costs \{\d+\} less|costs \{\d+\} less to cast for each|costs \{x\} less/.test(o)) b.high = 1;
+  if(/\{X\}/.test(c.cost || '')) b.xs = 1;
+  if((f.removal && f.remW < 1 && /if (?:it's|it is) (?:blue|black|red|green|white)|target (?:blue|black|red|green|white) /.test(o)) || NARROW_O.test(o)) b.narrow = 1;
+  // Ramp that is in the deck to be ramp. A creature, or a card that rewards a live plan (Ashnod's
+  // Altar, a goblin cost reducer), is there for something else and its cost is not the point.
+  var planCard = K.act.some(function(h){ return payOf(h.t, c); });
+  if(j.ramp && !/\bCreature\b/.test(c.type || '') && !planCard && !j.wincon && !j.draw){
+    b.ramp = 1; if(mv >= 4) b.rampBig = 1;
+    if(K.C >= 4 && K.C <= 7){ if(mv >= K.C - 1) b.rampLate = 1; else b.rampOn = 1; }
+  }
+  if(K.top){
+    if(enOf(K.top.t, c)) b.feed = 1;
+    if(payOf(K.top.t, c) && (!K.tribeRx || r.cmd || K.tribeRx.test(o))) b.pay = 1;
+  }
+  if(KEEP_O.test(o)) b.keep = 1;
+  if(SAC_O.test(o)) b.sac = 1;
+  if(/\bCreature\b/.test(c.type || '') && /\bwhen ~ enters\b|whenever (?:another )?(?:nontoken )?creature (?:you control )?enters/.test(o)) b.etb = 1;
+  if(f.rec > 0 || payOf(THK.graveyard, c)) b.gy = 1;
+  // Only cards whose own text needs the commander. Sharing his plan (a goblin in a Krenko deck) works without him.
+  if(/\byour commander\b|commanders? you control|\bcommander creature/.test(o) || K.cmdNames.some(function(n){ return o.indexOf(n) >= 0; })) b.cmdDep = 1;
+  if(j.removal && AE_REM.test(o)){ b.aeRem = 1; if(b.etb) b.aeRemEtb = 1; }
+  ONE_OF.forEach(function(g){ if(g.rx.test(o)) b['one:' + g.k] = 1; });
+  return b;
+}
+function gTotals(X, K){
+  var T = {}, R = {};
+  X.rows.forEach(function(r){
+    var b = gBits(r, K);
+    Object.keys(b).forEach(function(k){
+      if(r.cmd && !CMD_KEYS[k]) return;
+      T[k] = (T[k] || 0) + b[k] * r.q;
+      if(!r.basic) (R[k] = R[k] || []).push(r);
+    });
+  });
+  T.landish = (T.land || 0) + (T.mdfc || 0) + (T.cyc || 0);
+  return { T:T, R:R };
+}
+function gRow(n, key, title, status, line, cards, fix){ return { n:n, key:key, title:title, src:'cz767', status:status, line:line, cards:cards || [], fix:fix || '' }; }
+function rn(rows){ return (rows || []).map(function(r){ return r.n; }); }
+E.guides = function(){
   try{
     var X = ctx();
     if(!X.ok) return withNote([], X.why || 'Card data is not loaded yet.');
-    var P = E.pillars(), b = bk(), sm = sim(X), out = [];
-    var main = X.rows.filter(function(r){ return !r.cmd && !r.missing; });
-    var spells = main.filter(function(r){ return !r.f.land && !r.jobs.lands; });
-    var cmdR = X.rows.filter(function(r){ return r.cmd; });
-    var names = function(rows){ return rows.map(function(r){ return r.n; }); };
-    var T = function(r){ return tx(r.c); };
+    var P = E.pillars(), b = bk(), sm = sim(X), K = gCtx(X), G = gTotals(X, K), T = G.T, R = G.R, out = [];
+    var v = function(k){ return T[k] || 0; };
 
-    // 1. Too many of an effect that does not stack
-    var hits = ONE_OF.map(function(g){ var rows = main.filter(function(r){ return g.rx.test(T(r)); }); return { g:g, rows:rows, k:rows.length }; });
-    var over = hits.filter(function(x){ return x.k > x.g.most; });
-    var worst = over.sort(function(a, z){ return z.k - a.k; })[0];
-    if(worst){
-      out.push(trapRow(1, 'redundant', 'Too many of an effect that does not stack', 'caught',
-        worst.g.label + ': ' + worst.k + ' cards. In a typical game you see about 25 cards, so you draw one ' + pc(seeAtLeast(worst.k, 1)) + ' of the time and two or more ' + pc(seeAtLeast(worst.k, 2)) + '. ' + worst.g.why +
-          (over.length > 1 ? ' Also over: ' + over.slice(1).map(function(x){ return x.g.label.toLowerCase() + ' (' + x.k + ')'; }).join(', ') + '.' : ''),
-        names(worst.rows), 'Keep about ' + (worst.g.k === 'fog' ? 'one' : 'five') + ' (five gives ' + pc(seeAtLeast(5, 1)) + ' to draw one and ' + pc(seeAtLeast(5, 2)) + ' to draw two) and spend the rest on card draw or cards that do two jobs.'));
-    } else {
+    // 1. Effects that do not stack
+    var hits = ONE_OF.map(function(g){ return { g:g, k:v('one:' + g.k), rows:R['one:' + g.k] || [] }; });
+    var over = hits.filter(function(x){ return x.k > x.g.most; }).sort(function(a, z){ return z.k - a.k; }), worst = over[0];
+    if(worst) out.push(gRow(1, 'redundant', 'Effects that do not stack: keep a few', 'fix',
+      worst.g.label + ': ' + worst.k + ' cards. In a typical game you see about 25 cards, so you draw one ' + pc(seeAtLeast(worst.k, 1)) + ' of the time and two or more ' + pc(seeAtLeast(worst.k, 2)) + '. ' + worst.g.why +
+        (over.length > 1 ? ' Also over: ' + over.slice(1).map(function(x){ return x.g.label.toLowerCase() + ' (' + x.k + ')'; }).join(', ') + '.' : ''),
+      rn(worst.rows), 'Keep about ' + worst.g.keep + ' (five gives ' + pc(seeAtLeast(5, 1)) + ' to draw one and ' + pc(seeAtLeast(5, 2)) + ' to draw two) and spend the rest on card draw.'));
+    else {
       var seen = hits.filter(function(x){ return x.k; });
-      out.push(trapRow(1, 'redundant', 'Too many of an effect that does not stack', 'clear',
+      out.push(gRow(1, 'redundant', 'Effects that do not stack: keep a few', 'good',
         seen.length ? seen.map(function(x){ return x.g.label + ': ' + x.k; }).join(', ') + '. Under the line where two in hand gets likely.' : 'No fogs, team pumps, haste or evasion pieces stacked up.',
-        names([].concat.apply([], seen.map(function(x){ return x.rows; })))));
+        rn([].concat.apply([], seen.map(function(x){ return x.rows; })))));
     }
 
-    // 2. Copying EDHREC's commander page as it is
+    // 2. Build from one EDHREC theme
     var built = !S.mox && !S.src, themed = (S.themes && S.themes.length) || S.theme || lc(S.themeText).trim();
     out.push(built && !themed
-      ? trapRow(2, 'edhrec', 'Copying EDHREC\'s page as it is', 'watch', 'This deck was built from EDHREC\'s page for the whole commander, with no theme picked. That page mixes every way people build ' + short() + '.', [],
+      ? gRow(2, 'edhrec', 'Build from one EDHREC theme', 'watch', 'This deck was built from EDHREC\'s page for the whole commander, with no theme picked. That page mixes every way people build ' + short() + '.', [],
         'Pick one or two themes on Build step 2 and build again, so the cards come from one plan.')
-      : trapRow(2, 'edhrec', 'Copying EDHREC\'s page as it is', 'habit', built ? 'Built from the themes you picked, not the whole commander page.' : 'Brought in from ' + (S.mox ? 'Moxfield' : 'a list') + ', so how it was built is not on record.', [],
+      : gRow(2, 'edhrec', 'Build from one EDHREC theme', 'habit', built ? 'Built from the themes you picked, not the whole commander page.' : 'Brought in from ' + (S.mox ? 'Moxfield' : 'a list') + ', so how it was built is not on record.', [],
         'When you start from EDHREC, open a theme tag first, then question every card: does this fit my plan?'));
 
-    // 3. A plan with too many steps
+    // 3. A plan with two steps
     var cl = comboList(), finP = partOf(P.wincons, 'finishers');
-    var longCombos = cl.filter(function(o){ return o.cards.length >= 3; });
-    var shortCombos = cl.filter(function(o){ return o.cards.length < 3; });
-    if(longCombos.length && !shortCombos.length && finP && finP.have < 2)
-      out.push(trapRow(3, 'steps', 'A plan with too many steps', 'watch', 'The deck\'s wins are combos of three or more cards and it has ' + finP.have + ' other finishers. Three steps rarely all happen.', uniq([].concat.apply([], longCombos.map(function(o){ return o.cards; }))),
+    var longC = cl.filter(function(o){ return o.cards.length >= 3; }), shortC = cl.filter(function(o){ return o.cards.length < 3; });
+    if(longC.length && !shortC.length && finP && finP.have < 2)
+      out.push(gRow(3, 'steps', 'A plan with two steps', 'watch', 'The deck\'s wins are combos of three or more cards and it has ' + finP.have + ' other finishers. Three steps rarely all happen.', uniq([].concat.apply([], longC.map(function(o){ return o.cards; }))),
         'Make step one good on its own, and add finishers that win from a plain board.'));
-    else out.push(trapRow(3, 'steps', 'A plan with too many steps', 'habit', 'A list cannot show this. Count the steps from an empty board to a win: two is good, three or more and it rarely happens, because each step can be answered.', [],
+    else out.push(gRow(3, 'steps', 'A plan with two steps', 'habit', 'A list cannot show this. Count the steps from an empty board to a win: two is good, three or more and it rarely happens, because each step can be answered.', [],
       'If step three is the only way the deck wins, make steps one and two strong enough to win on their own.'));
 
-    // 4. Trying to do too much
-    var act = X.themes.filter(function(h){ return h.active && h.v >= 0.35; });
-    var strong = act.filter(function(h){ return h.v >= 0.7; });
-    var keepO = /for each (?:other )?(?:creature|artifact|token|goblin|[a-z]+) you control|number of (?:creatures|artifacts|tokens|[a-z]+s) you control|creatures you control get \+x\/\+x/;
-    var sacO = /sacrifice (?:a|an|another|any number of|x) (?:other )?(?:creature|artifact|token|[a-z]+)s?[^.:"]*?:|whenever (?:a|another|one or more) (?:other )?(?:nontoken )?(?:creatures?|artifacts?|[a-z]+s?) you control (?:dies|die|is put into)|whenever you sacrifice/;
-    var keepR = spells.filter(function(r){ return keepO.test(T(r)); }).concat(cmdR.filter(function(r){ return keepO.test(T(r)); }));
-    var sacR = spells.filter(function(r){ return sacO.test(T(r)); }).concat(cmdR.filter(function(r){ return sacO.test(T(r)); }));
-    if(keepR.length >= 4 && sacR.length >= 4)
-      out.push(trapRow(4, 'toomuch', 'Trying to do too much', 'watch', 'Pulling two ways: ' + words(keepR.length, 'card') + ' want a big board (they count what you control) and ' + words(sacR.length, 'card') + ' sacrifice it. Every sacrifice shrinks the counting cards. The episode\'s example: Craterhoof or Blood Artist, not both.',
-        names(keepR).concat(names(sacR)), 'Decide how the deck wins, then move the other side out: count your board, or sacrifice it for value.'));
+    // 4. One plan, not several
+    var act = K.act.filter(function(h){ return h.v >= 0.35; }), strong = act.filter(function(h){ return h.v >= 0.7; });
+    if(v('keep') >= 4 && v('sac') >= 4)
+      out.push(gRow(4, 'toomuch', 'One plan, not several', 'watch', 'Pulling two ways: ' + words(v('keep'), 'card') + ' want a big board (they count what you control) and ' + words(v('sac'), 'card') + ' sacrifice it. Every sacrifice shrinks the counting cards. Craterhoof or Blood Artist, not both.',
+        rn(R.keep).concat(rn(R.sac)), 'Decide how the deck wins, then move the other side out: count your board, or sacrifice it for value.'));
     else if(act.length >= 4 && !strong.length)
-      out.push(trapRow(4, 'toomuch', 'Trying to do too much', 'watch', words(act.length, 'plan') + ' at once and none of them strong: ' + act.slice(0, 5).map(function(h){ return h.t.label; }).join(', ') + '. Each extra plan takes cards from the others.', [],
+      out.push(gRow(4, 'toomuch', 'One plan, not several', 'watch', words(act.length, 'plan') + ' at once and none of them strong: ' + act.slice(0, 5).map(function(h){ return h.t.label; }).join(', ') + '. Each extra plan takes cards from the others.', [],
         'Pick the one or two plans that win, and cut the cards that only serve the rest.'));
-    else out.push(trapRow(4, 'toomuch', 'Trying to do too much', 'clear', act.length ? 'Plans: ' + act.slice(0, 3).map(function(h){ return h.t.label; }).join(', ') + (strong.length ? ', with ' + strong[0].t.label + ' strong.' : '.') : 'No competing plans found.', []));
+    else out.push(gRow(4, 'toomuch', 'One plan, not several', 'good', act.length ? 'Plans: ' + act.slice(0, 3).map(function(h){ return h.t.label; }).join(', ') + (strong.length ? ', with ' + strong[0].t.label + ' strong.' : '.') : 'No competing plans found.', []));
 
-    // 5. One hate card turns the deck off
-    var nonland = spells.reduce(function(s, r){ return s + r.q; }, 0) || 1;
-    var etbR = spells.filter(function(r){ return /\bCreature\b/.test(r.c.type || '') && /\bwhen ~ enters\b|whenever (?:another )?(?:nontoken )?creature (?:you control )?enters/.test(T(r)); });
-    var gyR = spells.filter(function(r){ return r.f.rec > 0 || payOf(THK.graveyard, r.c); });
-    var cmdNames = cmdR.map(function(r){ return lc(r.n.split(',')[0]); });
-    // Only cards whose own text needs the commander. Sharing his plan (a goblin in a Krenko deck) still works without him.
-    var cmdDepR = spells.filter(function(r){ var o = T(r); return /\byour commander\b|commanders? you control|\bcommander creature/.test(o) || cmdNames.some(function(n){ return n.length >= 4 && o.indexOf(n) >= 0; }); });
-    var hate = [
-      { what:'Torpor Orb (creatures entering do nothing)', rows:etbR },
-      { what:'Rest in Peace (no graveyard)', rows:gyR },
-      { what:'your commander being removed', rows:cmdDepR }
-    ].map(function(x){ x.share = x.rows.length / nonland; return x; }).sort(function(a, z){ return z.share - a.share; });
-    var hz = hate[0];
-    var aeRem = spells.filter(function(r){ return r.jobs.removal && /(?:destroy|exile) (?:up to one )?target (?:artifact|enchantment|noncreature|nonland|permanent)|(?:destroy|exile) target [^.]*?\b(?:artifact|enchantment)\b|counter target (?:noncreature |artifact |enchantment )?spell/.test(T(r)); });
-    var aeOk = hz.what.indexOf('Torpor') === 0 ? aeRem.filter(function(r){ return etbR.indexOf(r) < 0; }) : aeRem;
-    var hzLine = words(hz.rows.length, 'card') + ' of your ' + nonland + ' spells (' + pc(hz.share) + ') stop working against ' + hz.what + '.' +
-      (hz.what.indexOf('commander') < 0 ? ' Answers to an artifact or enchantment: ' + aeOk.length + (aeOk.length < aeRem.length ? ' (' + (aeRem.length - aeOk.length) + ' more stop working too)' : '') + '.' : '');
-    out.push(trapRow(5, 'hyper', 'One hate card turns the deck off', hz.share >= 0.4 ? 'caught' : hz.share >= 0.3 ? 'watch' : 'clear', hzLine + (hz.share >= 0.3 ? ' Rule of thumb: past 30% is fragile.' : ''),
-      names(hz.rows), hz.share >= 0.3 ? 'Keep a few cards that work without it, and answers that the same hate card does not switch off (a plain removal spell, not an enter-the-battlefield creature).' : ''));
+    // 5. Survives one hate card
+    var nonland = v('spell') || 1;
+    var hate = [{ k:'etb', what:'Torpor Orb (creatures entering do nothing)' }, { k:'gy', what:'Rest in Peace (no graveyard)' }, { k:'cmdDep', what:'your commander being removed' }]
+      .map(function(x){ x.n = v(x.k); x.share = x.n / nonland; return x; }).sort(function(a, z){ return z.share - a.share; });
+    var hz = hate[0], aeOk = hz.k === 'etb' ? v('aeRem') - v('aeRemEtb') : v('aeRem');
+    out.push(gRow(5, 'hyper', 'Survives one hate card', hz.share >= 0.4 ? 'fix' : hz.share >= 0.3 ? 'watch' : 'good',
+      words(hz.n, 'card') + ' of your ' + nonland + ' spells (' + pc(hz.share) + ') stop working against ' + hz.what + '.' +
+        (hz.k !== 'cmdDep' ? ' Answers to an artifact or enchantment: ' + aeOk + (aeOk < v('aeRem') ? ' (' + (v('aeRem') - aeOk) + ' more stop working too)' : '') + '.' : '') + (hz.share >= 0.3 ? ' Rule of thumb: past 30% is fragile.' : ''),
+      rn(R[hz.k]), hz.share >= 0.3 ? 'Keep a few cards that work without it, and answers that the same hate card does not switch off.' : ''));
+    out[out.length - 1].hate = hz.k;
 
-    // 6. Not interacting early
-    var cheapRem = spells.filter(function(r){ return (r.jobs.removal || r.f.counter) && (r.c.mv || 0) <= 2; });
-    var cr = cheapRem.length;
-    out.push(trapRow(6, 'early', 'Not interacting early', cr <= 1 ? 'caught' : cr <= 3 ? 'watch' : 'clear',
+    // 6. Cheap interaction
+    var cr = v('cheapAns');
+    out.push(gRow(6, 'early', 'Cheap interaction', cr <= 1 ? 'fix' : cr <= 3 ? 'watch' : 'good',
       words(cr, 'removal spell or counterspell', 'removal spells and counterspells') + ' at 2 mana or less. Removal held for when you are about to die comes too late; cheap answers slow the snowball early. Rule of thumb: 4 or more.',
-      names(cheapRem), cr <= 3 ? 'Swap an expensive answer for a 1 or 2 mana one.' : ''));
+      rn(R.cheapAns), cr <= 3 ? 'Swap an expensive answer for a 1 or 2 mana one.' : ''));
 
-    // 7. Trying to cover every base
-    var narrowR = spells.filter(function(r){ var o = T(r);
-      return (r.f.removal && r.f.remW < 1 && /if (?:it's|it is) (?:blue|black|red|green|white)|target (?:blue|black|red|green|white) /.test(o)) ||
-        /exile (?:all cards from )?target (?:player|opponent)'s graveyard|exile (?:all|each opponent's) graveyards?|exile (?:up to \w+ )?target cards? from (?:a|an opponent's) graveyard|cards in graveyards can't|if a card (?:or token )?would be put into an opponent's graveyard|can't be sacrificed|players can't (?:search|cast spells from)|creatures entering (?:the battlefield )?don't cause/.test(o); });
-    var nr = narrowR.length;
-    out.push(trapRow(7, 'everybase', 'Trying to cover every base', nr >= 6 ? 'caught' : nr >= 4 ? 'watch' : 'clear',
-      words(nr, 'card') + ' that only answer one kind of thing (graveyard hate, colour hosers, sacrifice stoppers). Rule of thumb: past 3, they start costing you games where that thing never shows up.',
-      names(narrowR), nr >= 4 ? 'Keep the ones for what your table really plays every game. Swap the rest for answers that hit anything.' : ''));
+    // 7. Answers that hit anything
+    var nr = v('narrow');
+    out.push(gRow(7, 'everybase', 'Answers that hit anything', nr >= 6 ? 'fix' : nr >= 4 ? 'watch' : 'good',
+      words(nr, 'card') + ' that only answer one kind of thing (graveyard hate, colour hosers, sacrifice stoppers). Rule of thumb: past 3, they cost you games where that thing never shows up.',
+      rn(R.narrow), nr >= 4 ? 'Keep the ones for what your table plays every game. Swap the rest for answers that hit anything.' : ''));
 
-    // 8. Editing one card at a time
+    // 8. Swap like for like
     var snap = S.mox && S.mox.snap && S.mox.snap.main;
-    var JOBK = [['lands', 'lands'], ['ramp', 'ramp'], ['draw', 'card draw'], ['removal', 'removal'], ['wipes', 'board wipes'], ['protection', 'protection']];
+    var JOBK = [['land', 'lands'], ['ramp', 'ramp'], ['draw', 'card draw'], ['removal', 'removal'], ['wipes', 'board wipes'], ['protection', 'protection']];
     function jobCount(list){
       var c = {}, unk = 0;
       list.forEach(function(x){
-        var card = pcard(x.n); if(!card){ if(/^(?:snow-covered )?(?:plains|island|swamp|mountain|forest)$|^wastes$/i.test(x.n)){ c.lands = (c.lands || 0) + (x.q || 1); } else unk++; return; }
-        var r = { n:x.n, c:card, d:null, role:'' }; r.f = feats(card); var j = jobsOf(r);
-        if(j.draw && !(r.f.drawW >= 0.75)) delete j.draw;
-        Object.keys(j).forEach(function(k){ c[k] = (c[k] || 0) + (x.q || 1); });
+        var card = pcard(x.n);
+        if(!card && isBasicN(x.n)){ c.land = (c.land || 0) + (x.q || 1); return; }
+        if(!card){ unk++; return; }
+        var r = mkRow(card), bb = gBits(r, K);
+        ['land', 'draw'].forEach(function(k){ if(bb[k]) c[k] = (c[k] || 0) + (x.q || 1); });
+        ['ramp', 'removal', 'wipes', 'protection'].forEach(function(k){ if(r.jobs[k]) c[k] = (c[k] || 0) + (x.q || 1); });
       });
       return { c:c, unk:unk };
     }
     if(snap && snap.length){
       var was = jobCount(snap), now = jobCount((S.deck || []).map(function(d){ return { n:d.n, q:1 }; }));
-      var down = JOBK.filter(function(k){ return (now.c[k[0]] || 0) < (was.c[k[0]] || 0); });
       var moved = JOBK.filter(function(k){ return (now.c[k[0]] || 0) !== (was.c[k[0]] || 0); });
-      var bad = down.filter(function(k){ return k[0] === 'lands' || (was.c[k[0]] || 0) - (now.c[k[0]] || 0) >= 2; });
+      var bad = moved.filter(function(k){ var d = (was.c[k[0]] || 0) - (now.c[k[0]] || 0); return d > 0 && (k[0] === 'land' || d >= 2); });
       out.push(moved.length
-        ? trapRow(8, 'drift', 'Editing one card at a time', bad.length ? 'watch' : 'clear', 'Since the Moxfield copy: ' + moved.map(function(k){ return k[1] + ' ' + (was.c[k[0]] || 0) + ' to ' + (now.c[k[0]] || 0); }).join(', ') + '.' + (was.unk ? ' ' + words(was.unk, 'cut card') + ' could not be read.' : ''), [],
+        ? gRow(8, 'drift', 'Swap like for like', bad.length ? 'watch' : 'good', 'Since the Moxfield copy: ' + moved.map(function(k){ return k[1] + ' ' + (was.c[k[0]] || 0) + ' to ' + (now.c[k[0]] || 0); }).join(', ') + '.' + (was.unk ? ' ' + words(was.unk, 'cut card') + ' could not be read.' : ''), [],
           bad.length ? 'Swap like for like: a ' + bad[0][1].replace(/s$/, '') + ' out, a ' + bad[0][1].replace(/s$/, '') + ' in.' : '')
-        : trapRow(8, 'drift', 'Editing one card at a time', 'clear', 'Your changes since the Moxfield copy keep every job\'s count the same.', []));
-    } else out.push(trapRow(8, 'drift', 'Editing one card at a time', 'habit', 'Small swaps over months add up: a land here, a removal spell there, and the deck stops working.', [],
-      'Swap like for like: a removal spell out, a removal spell in. Every few months, read the Jobs panel below as a whole.'));
+        : gRow(8, 'drift', 'Swap like for like', 'good', 'Your changes since the Moxfield copy keep every job\'s count the same.', []));
+    } else out.push(gRow(8, 'drift', 'Swap like for like', 'habit', 'Small swaps over months add up: a land here, a removal spell there, and the deck stops working.', [],
+      'A removal spell out, a removal spell in. The swap menu shows what each swap does to these numbers.'));
 
-    // 9. Cutting enablers for payoffs
-    var top = X.themes.filter(function(h){ return h.active; }).sort(function(a, z){ return (z.cmd ? 1 : 0) - (a.cmd ? 1 : 0) || z.rank - a.rank; })[0];
-    if(top){
-      // A tribe's payoffs are the cards that reward having the type (lords, "for each Goblin"), not every
-      // card that names it: Goblin Matron searches for one and rewards nothing.
-      var payR = top.payRows;
-      if(top.t.tribe){
-        var tw = '(?:' + rxEsc(lc(top.t.tribe)) + '|' + rxEsc(lc(top.t.label)) + ')';
-        var tribePay = new RegExp('\\b' + tw + ' (?:creatures )?you control\\b|other ' + tw + ' (?:get|have)|for each (?:other )?' + tw + '|number of ' + tw + '|whenever (?:a|an|another|one or more) (?:other )?(?:nontoken )?' + tw + '\\b[^.]*?(?:enters?|attacks?|dies|deals)');
-        payR = payR.filter(function(r){ return r.cmd || tribePay.test(T(r)); });
-      }
-      var ne = top.enRows.length, np = payR.length;
-      var st9 = ne <= np ? 'caught' : (ne < np * 1.5 || ne < 15) ? 'watch' : 'clear';
-      out.push(trapRow(9, 'enablers', 'Cutting enablers for payoffs', st9,
-        top.t.label + ': ' + words(ne, 'card') + ' ' + (ne === 1 ? top.t.enW : top.t.enN) + ' and ' + words(np, 'card') + ' ' + (np === 1 ? top.t.payW : top.t.payN) + '. Payoffs do nothing until something feeds them; the episode aims for 25 to 30 feeding cards.',
-        st9 === 'clear' ? [] : byStrength(top.enRows).slice(0, 12), st9 === 'clear' ? '' : 'Next swap: a payoff out, a card that ' + top.t.enW + ' in.'));
-    } else out.push(trapRow(9, 'enablers', 'Cutting enablers for payoffs', 'clear', 'No theme found with both cards that feed it and cards that reward it.', []));
+    // 9. More feeders than payoffs
+    if(K.top){
+      var ne = v('feed'), np = v('pay'), t9 = K.top.t;
+      var st9 = ne <= np ? 'fix' : (ne < np * 1.5 || ne < 15) ? 'watch' : 'good';
+      out.push(gRow(9, 'enablers', 'More feeders than payoffs', st9,
+        t9.label + ': ' + words(ne, 'card') + ' ' + (ne === 1 ? t9.enW : t9.enN) + ' and ' + words(np, 'card') + ' ' + (np === 1 ? t9.payW : t9.payN) + '. Payoffs do nothing until something feeds them; aim for 25 to 30 feeding cards.',
+        st9 === 'good' ? [] : byStrength(R.feed || []).slice(0, 12), st9 === 'good' ? '' : 'Next swap: a payoff out, a card that ' + t9.enW + ' in.'));
+    } else out.push(gRow(9, 'enablers', 'More feeders than payoffs', 'good', 'No plan found with both cards that feed it and cards that reward it.', []));
 
-    // 10. Not enough card draw, or the wrong kind
-    var adv = X.rows.filter(function(r){ return !r.basic && !r.missing && r.jobs.draw && r.f.drawW >= 0.75; });
-    var advCheap = adv.filter(function(r){ return (r.c.mv || 0) <= 3; });
-    var cantrip = X.rows.filter(function(r){ return !r.basic && !r.missing && r.jobs.draw && r.f.drawW > 0 && r.f.drawW < 0.75; });
-    var na = adv.length;
-    out.push(trapRow(10, 'draw', 'Not enough card draw, or the wrong kind', na < 9 ? 'caught' : (na < 12 || advCheap.length < 3) ? 'watch' : 'clear',
-      words(na, 'card') + ' that give more cards than they cost; the episode wants 12. ' + advCheap.length + ' of them cost 3 or less, the ones that dig for a land on turns 3 to 5.' + (cantrip.length ? ' ' + (cantrip.length === 1 ? '1 card that draws only one does' : cantrip.length + ' cards that draw only one do') + ' not count.' : ''),
-      names(adv), na < 12 ? 'Add ' + words(12 - na, 'draw spell') + ', cheap ones first.' : advCheap.length < 3 ? 'Swap an expensive draw engine for a 2 or 3 mana draw spell.' : ''));
+    // 10. Card draw: 12
+    var na = v('draw'), ncheap = v('drawCheap');
+    out.push(gRow(10, 'draw', 'Card draw: 12', na < 9 ? 'fix' : (na < 12 || ncheap < 3) ? 'watch' : 'good',
+      words(na, 'card') + ' that give more cards than they cost; 12 is the aim. ' + ncheap + ' of them cost 3 or less, the ones that dig for a land on turns 3 to 5.' + (v('cantrip') ? ' ' + (v('cantrip') === 1 ? '1 card that draws only one does' : v('cantrip') + ' cards that draw only one do') + ' not count.' : ''),
+      rn(R.draw), na < 12 ? 'Add ' + words(12 - na, 'draw spell') + ', cheap ones first.' : ncheap < 3 ? 'Swap an expensive draw engine for a 2 or 3 mana draw spell.' : ''));
 
-    // 11. The wrong ramp for the commander
-    var C = Math.max.apply(null, cmdR.map(function(r){ return r.c.mv || 0; }).concat([0]));
-    // Ramp that is in the deck to be ramp. A creature, or a card that rewards a live plan (Ashnod's
-    // Altar, a goblin cost reducer), is there for something else and its cost is not the point.
-    var planRows = []; X.themes.forEach(function(h){ if(h.active) planRows = planRows.concat(h.payRows); });
-    var rampR = spells.filter(function(r){ return r.jobs.ramp && !/\bCreature\b/.test(r.c.type || '') && planRows.indexOf(r) < 0 && !r.jobs.wincon && !r.jobs.draw; });
-    var onCurve = rampR.filter(function(r){ return (r.c.mv || 0) <= C - 2; }), late = rampR.filter(function(r){ return (r.c.mv || 0) >= C - 1; });
-    var big = rampR.filter(function(r){ return (r.c.mv || 0) >= 4; });
-    var xs = spells.filter(function(r){ return /\{X\}/.test(r.c.cost || ''); }).length, sixes = spells.filter(function(r){ return (r.c.mv || 0) >= 6; }).length;
-    var bigWhy = C >= 6 || xs >= 3 || sixes >= 6;
-    if(C >= 4 && C <= 7 && late.length >= 3 && late.length > onCurve.length)
-      out.push(trapRow(11, 'ramp', 'The wrong ramp for the commander', 'caught', short() + ' costs ' + C + '. ' + words(late.length, 'ramp card') + ' cost ' + (C - 1) + ' or more, so casting one does not get ' + short() + ' out a turn sooner. Only ' + onCurve.length + ' cost ' + (C - 2) + ' or less.',
-        names(late), 'Swap slow ramp for ' + (C - 2) + '-mana ramp: it lands the commander a turn early.'));
-    else if(big.length >= 2 && !bigWhy)
-      out.push(trapRow(11, 'ramp', 'The wrong ramp for the commander', 'watch', words(big.length, 'ramp card') + ' cost 4 or more, and the deck has nothing big to ramp into (no expensive commander, few X spells, few 6-drops).',
-        names(big), 'Put a 2-mana rock or a better spell in their place.'));
-    else out.push(trapRow(11, 'ramp', 'The wrong ramp for the commander', 'clear', (C ? short() + ' costs ' + C + '. ' : '') + words(onCurve.length, 'ramp card') + ' get it out early' + (late.length ? ', ' + late.length + ' come later' : '') + '.', []));
+    // 11. Ramp that lands the commander early
+    var C = K.C, late = v('rampLate'), on = v('rampOn'), big = v('rampBig');
+    var bigWhy = C >= 6 || v('xs') >= 3 || v('high') >= 6;
+    if(C >= 4 && C <= 7 && late >= 3 && late > on)
+      out.push(gRow(11, 'ramp', 'Ramp that lands the commander early', 'fix', short() + ' costs ' + C + '. ' + words(late, 'ramp card') + ' cost ' + (C - 1) + ' or more, so casting one does not get ' + short() + ' out a turn sooner. Only ' + on + ' cost ' + (C - 2) + ' or less.',
+        rn(R.rampLate), 'Swap slow ramp for ' + (C - 2) + '-mana ramp: it lands the commander a turn early.'));
+    else if(big >= 2 && !bigWhy)
+      out.push(gRow(11, 'ramp', 'Ramp that lands the commander early', 'watch', words(big, 'ramp card') + ' cost 4 or more, and the deck has nothing big to ramp into (no expensive commander, few X spells, few 6-drops).',
+        rn(R.rampBig), 'Put a 2-mana rock or a better spell in their place.'));
+    else out.push(gRow(11, 'ramp', 'Ramp that lands the commander early', 'good', (C ? short() + ' costs ' + C + '. ' : '') + words(on || v('ramp'), 'ramp card') + (on ? ' get it out early' : ' in the deck') + (late ? ', ' + late + ' come later' : '') + '.', []));
 
-    // 12. A high curve
-    var hi = spells.filter(function(r){ return (r.c.mv || 0) >= 6; }), nh = hi.reduce(function(s, r){ return s + r.q; }, 0);
-    out.push(trapRow(12, 'curve', 'A high mana curve', nh >= 8 ? 'caught' : nh >= 6 ? 'watch' : 'clear',
-      words(nh, 'card') + ' cost 6 or more. The episode\'s rule: get that down to about five. Unspent mana is a turn you played as if it were earlier.',
-      names(hi), nh >= 6 ? 'Cut ' + words(nh - 5, 'of them', 'of them') + ', the weakest when it resolves.' : ''));
+    // 12. Five cards or fewer at 6+ mana
+    var nh = v('high');
+    out.push(gRow(12, 'curve', 'Five or fewer cards at 6+ mana', nh >= 8 ? 'fix' : nh >= 6 ? 'watch' : 'good',
+      words(nh, 'card') + ' cost 6 or more; get that down to about five. Unspent mana is a turn played as if it were earlier.',
+      rn(R.high), nh >= 6 ? 'Cut ' + (nh - 5) + ' of them, the weakest when it resolves, for cheaper cards that do the same job.' : ''));
 
-    // 13. Too few lands, or too few basics
-    var lands = landCount(X);
-    var mdfc = spells.filter(function(r){ return /\/\/.*\bLand\b/.test(r.c.type || ''); });
-    var cyc = spells.filter(function(r){ return /\b(?:basic )?(?:plains|island|swamp|mountain|forest|land)cycling \{1\}/.test(T(r)); });
-    var landish = lands + mdfc.length + cyc.length;
-    var basics = X.rows.filter(function(r){ return r.basic; }).reduce(function(s, r){ return s + r.q; }, 0);
-    var fetchR = X.rows.filter(function(r){ return !r.basic && !r.missing && basicDemand(T(r)); });
-    var demand = fetchR.reduce(function(s, r){ return s + basicDemand(T(r)) * r.q; }, 0);
+    // 13. Lands: 38
+    var landish = v('landish'), basics = v('basic'), demand = v('fetch');
     var lp = partOf(P.efficiency, 'lands');
-    var landSt = b === 5 ? 'clear' : landish < 36 ? 'caught' : landish < 38 ? 'watch' : 'clear';
-    var basicSt = demand >= 2 && basics < demand ? 'caught' : demand >= 2 && basics < demand * 2 ? 'watch' : 'clear';
-    var rank13 = { clear:0, watch:1, caught:2 };
-    out.push(trapRow(13, 'lands', 'Too few lands', rank13[basicSt] > rank13[landSt] ? basicSt : landSt,
-      lands + ' lands' + (mdfc.length || cyc.length ? ' plus ' + (mdfc.length ? words(mdfc.length, 'spell that is also a land', 'spells that are also lands') : '') + (mdfc.length && cyc.length ? ' and ' : '') + (cyc.length ? words(cyc.length, 'one-mana landcycler') : '') + ' = ' + landish : '') +
-        '. The episode starts every deck at 38' + (b === 5 ? ', but bracket 5 does its own maths' : '') + '; the Efficiency score aims for ' + (lp ? lp.want : '?') + ' from your curve.' +
-        (demand >= 2 ? ' ' + words(basics, 'basic') + ' for ' + (fetchR.length === 1 ? '1 card that fetches ' : fetchR.length + ' cards that fetch ') + demand + ' of them' + (basicSt !== 'clear' ? ': late in the game they find nothing' : '') + '.' : ''),
-      names(mdfc).concat(names(cyc)).concat(basicSt !== 'clear' ? names(fetchR) : []),
-      landSt !== 'clear' ? 'Add ' + words(38 - landish, 'land') + ', or spells that are also lands. A missed land drop puts you a mana behind for the rest of the game.' : basicSt !== 'clear' ? 'Swap a utility land for a basic.' : ''));
+    var landSt = b === 5 ? 'good' : landish < 36 ? 'fix' : landish < 38 ? 'watch' : 'good';
+    var basicSt = demand >= 2 && basics < demand ? 'fix' : demand >= 2 && basics < demand * 2 ? 'watch' : 'good';
+    var rk = { good:0, watch:1, fix:2 };
+    out.push(gRow(13, 'lands', 'Lands: 38', rk[basicSt] > rk[landSt] ? basicSt : landSt,
+      v('land') + ' lands' + (v('mdfc') || v('cyc') ? ' plus ' + (v('mdfc') ? words(v('mdfc'), 'spell that is also a land', 'spells that are also lands') : '') + (v('mdfc') && v('cyc') ? ' and ' : '') + (v('cyc') ? words(v('cyc'), 'one-mana landcycler') : '') + ' = ' + landish : '') +
+        '. Start every deck at 38' + (b === 5 ? ', but bracket 5 does its own maths' : '') + '; the Efficiency score aims for ' + (lp ? lp.want : '?') + ' from your curve.' +
+        (demand >= 2 ? ' ' + words(basics, 'basic') + ' for ' + ((R.fetch || []).length === 1 ? '1 card that fetches ' : (R.fetch || []).length + ' cards that fetch ') + demand + ' of them' + (basicSt !== 'good' ? ': late in the game they find nothing' : '') + '.' : ''),
+      rn(R.mdfc).concat(rn(R.cyc)).concat(basicSt !== 'good' ? rn(R.fetch) : []),
+      landSt !== 'good' ? 'Add ' + words(38 - landish, 'land') + ', or spells that are also lands. A missed land drop puts you a mana behind for the rest of the game.' : basicSt !== 'good' ? 'Swap a utility land for a basic.' : ''));
+    out[out.length - 1].landsShort = landSt !== 'good';
 
-    // 14. Not goldfishing
-    out.push(trapRow(14, 'goldfish', 'Not playing it alone first', 'habit', 'Play the deck against nobody before buying cards. You spot too few lands, too little draw and a deck that stalls.' + (sm && sm.winTurn ? ' The test games here win on turn ' + sm.winTurn + ' on average.' : ''), [],
+    // 14 to 16: habits
+    out.push(gRow(14, 'goldfish', 'Play it alone first', 'habit', 'Play the deck against nobody before buying cards. You spot too few lands, too little draw and a deck that stalls.' + (sm && sm.winTurn ? ' The test games here win on turn ' + sm.winTurn + ' on average.' : ''), [],
       'Deal test hands on Build step 5 and play five turns. Note what you wished you had drawn.'));
-
-    // 15. Stronger than the table
     var turnT = (BRACKETS[b] || {}).turn;
     if(sm && sm.winTurn && turnT && sm.winTurn <= turnT - 2)
-      out.push(trapRow(15, 'table', 'Stronger than your table', 'watch', 'With nobody stopping it, the deck wins on turn ' + sm.winTurn + '. Bracket ' + b + ' games usually run to about turn ' + turnT + '.', [],
-        'Ask the table before bringing it. Taking power out of a deck later rarely feels good, so stop adding it before here.'));
-    else out.push(trapRow(15, 'table', 'Stronger than your table', 'habit', 'A list cannot show your table. If your games end on turn 7 and this deck wins on turn 5, it is too strong for them.' + (sm && sm.winTurn ? ' Test games win on turn ' + sm.winTurn + ' here.' : ''), [],
+      out.push(gRow(15, 'table', 'Matches your table', 'watch', 'With nobody stopping it, the deck wins on turn ' + sm.winTurn + '. Bracket ' + b + ' games usually run to about turn ' + turnT + '.', [],
+        'Ask the table before bringing it. Taking power out later rarely feels good, so stop adding it before here.'));
+    else out.push(gRow(15, 'table', 'Matches your table', 'habit', 'A list cannot show your table. If your games end on turn 7 and this deck wins on turn 5, it is too strong for them.' + (sm && sm.winTurn ? ' Test games win on turn ' + sm.winTurn + ' here.' : ''), [],
       'Before each upgrade, ask whether your friends will still want to play against it.'));
-
-    // 16. Too many decks
-    out.push(trapRow(16, 'decks', 'Building too many decks', 'habit', 'Past about a dozen, decks sit unplayed and you forget what is in them.', [],
+    out.push(gRow(16, 'decks', 'A dozen decks you play', 'habit', 'Past about a dozen, decks sit unplayed and you forget what is in them.', [],
       'Take apart a deck you have not played in months. The list stays here, so it can come back.'));
 
     var off = S.trapOff || {};
-    out.forEach(function(t){ if(off[t.key] && (t.status === 'caught' || t.status === 'watch')){ t.off = true; t.was = t.status; t.status = 'clear'; } });
-    return withNote(out, 'From The Command Zone, episode 767. Numbers the episode gives are named; the rest are Brewing Station\'s own rules of thumb.');
-  }catch(e){ return withNote([], 'Could not check the traps: ' + e.message); }
+    out.forEach(function(t){
+      t.canFix = (t.status === 'fix' || t.status === 'watch') && !!FIXERS[t.key];
+      if(off[t.key] && (t.status === 'fix' || t.status === 'watch')){ t.off = true; t.was = t.status; t.status = 'good'; t.canFix = false; }
+    });
+    return withNote(out, 'Each guideline names its source. Numbers the source gives are named; the rest are Brewing Station\'s own rules of thumb.');
+  }catch(e){ return withNote([], 'Could not check the guidelines: ' + e.message); }
 };
+E.sources = function(){ return GSRC; };
+
+/* ---------- what one swap does to the counted numbers ---------- */
+// [key, label, which way is better, aim]. Only numbers that changed are reported.
+var GD = [
+  ['cheapAns', 'Answers at 2 mana or less', 1, '4 or more'],
+  ['draw', 'Card draw', 1, '12'],
+  ['landish', 'Lands', 1, '38'],
+  ['high', 'Cards at 6+ mana', -1, '5 or fewer'],
+  ['narrow', 'Answers to one thing only', -1, '3 or fewer'],
+  ['rampLate', 'Ramp too slow for the commander', -1, ''],
+  ['feed', 'Cards that feed the plan', 1, '25 to 30']
+];
+E.guideDelta = function(outName, inCard){
+  try{
+    var X = ctx(); if(!X.ok) return [];
+    var K = gCtx(X), T = gTotals(X, K).T, d = {};
+    function add(b, s){ Object.keys(b).forEach(function(k){ d[k] = (d[k] || 0) + s * b[k]; }); var l = (b.land || 0) + (b.mdfc || 0) + (b.cyc || 0); if(l) d.landish = (d.landish || 0) + s * l; }
+    var o = outName ? rowOf(outName) : null;
+    if(o && !o.cmd) add(gBits(o, K), -1);
+    if(inCard) add(gBits(mkRow(inCard), K), 1);
+    var res = [];
+    GD.forEach(function(g){
+      var dv = d[g[0]] || 0; if(!dv) return;
+      if(g[0] === 'feed' && !K.top) return;
+      var a = T[g[0]] || 0;
+      // The plan's feeders only matter once the count is under the 25 to 30 aim.
+      if(g[0] === 'feed' && a >= 25 && a + dv >= 25) return;
+      res.push({ key:g[0], label:g[0] === 'feed' ? K.top.t.label + ' feeders' : g[0] === 'landish' && bk() === 5 ? 'Lands' : g[1], from:a, to:a + dv, better:dv * g[2] > 0, aim:g[0] === 'landish' && bk() === 5 ? '' : g[3] });
+    });
+    ONE_OF.forEach(function(g){
+      var dv = d['one:' + g.k] || 0, a = T['one:' + g.k] || 0;
+      if(dv && (a + dv > g.most || a > g.most)) res.push({ key:'one:' + g.k, label:g.label, from:a, to:a + dv, better:dv < 0, aim:g.most + ' or fewer' });
+    });
+    return res;
+  }catch(e){ return []; }
+};
+
+/* ---------- swaps that move one guideline the right way ---------- */
+// Cuts come first (weakest for the deck first, never the commander, a must-include, a combo piece the
+// deck runs, or a card counted by a guideline that needs it); each cut is paired with the best card
+// in the pool for the job. Like for like where the guideline allows it.
+function protectedNames(X){
+  var s = {}; comboList().forEach(function(o){ o.cards.forEach(function(n){ s[lc(n)] = 1; s[front(n)] = 1; }); }); return s;
+}
+function fixPairs(X, K, cuts, adds, why, max){
+  var used = {}, out = [];
+  var room = Math.max(0, gcLim() - X.gcs.length);
+  cuts.forEach(function(o){
+    if(out.length >= (max || 5)) return;
+    var pick = null;
+    for(var i = 0; i < adds.length; i++){
+      var a = adds[i];
+      if(used[a.c.n]) continue;
+      if(a.need && !a.need(o)) continue;
+      if(isGc(a.c) && !o.gc && room <= 0) continue;
+      pick = a; break;
+    }
+    if(!pick) return;
+    used[pick.c.n] = 1; if(isGc(pick.c) && !o.gc) room--;
+    out.push({ out:o.n, inn:pick.c, why:why(o, pick) });
+  });
+  return out;
+}
+var FIXERS = {
+  early:{ add:function(b){ return b.cheapAns && !b.narrow; }, cut:function(b, r){ return r.jobs.removal && (r.c.mv || 0) >= 4; }, why:function(o, a){ return a.c.n + ' answers a threat for ' + (a.c.mv || 0) + ' mana' + (o.jobs.removal ? '; ' + o.n + ' did it for ' + (o.c.mv || 0) + '.' : '.'); } },
+  draw:{ add:function(b){ return b.draw; }, prefer:function(b){ return b.drawCheap ? 0.1 : 0; }, why:function(o, a){ return a.c.n + ' draws more cards than it costs' + ((a.c.mv || 0) <= 3 ? ', for ' + (a.c.mv || 0) + ' mana.' : '.'); } },
+  lands:{ add:function(b, c){ return b.land || b.mdfc; }, cut:function(b, r){ return b.high && !r.jobs.removal && !r.jobs.wipes && !r.jobs.wincon; }, why:function(o, a){ return (a.b.mdfc ? a.c.n + ' is a spell that is also a land.' : a.c.n + ' is a land.') + (o.c.mv >= 6 ? ' ' + o.n + ' costs ' + o.c.mv + '.' : ''); }, basics:true },
+  curve:{ cut:function(b){ return b.high; }, only:true, add:function(b){ return b.spell && !b.high; }, sameJob:true, maxMv:4, why:function(o, a){ return a.c.n + ' does the same job as ' + o.n + ' for ' + (a.c.mv || 0) + ' mana instead of ' + (o.c.mv || 0) + '.'; } },
+  everybase:{ cut:function(b){ return b.narrow; }, only:true, add:function(b){ return b.cheapAns && !b.narrow; }, why:function(o, a){ return a.c.n + ' answers anything for ' + (a.c.mv || 0) + ' mana; ' + o.n + ' only answers one kind of thing.'; } },
+  redundant:{ cut:function(b, r, t){ return t.worst && b['one:' + t.worst]; }, only:true, add:function(b){ return b.draw; }, why:function(o, a){ return 'Fewer of an effect that does not stack, and ' + a.c.n + ' draws cards instead.'; } },
+  ramp:{ cut:function(b){ return b.rampLate || b.rampBig; }, only:true, add:function(b, c, K){ return b.ramp && (c.mv || 0) <= Math.max(2, K.C - 2); }, why:function(o, a){ return a.c.n + ' costs ' + (a.c.mv || 0) + ', so it gets the commander out a turn sooner than ' + o.n + ' (' + (o.c.mv || 0) + ').'; } },
+  enablers:{ cut:function(b){ return b.pay && !b.feed; }, only:true, add:function(b){ return b.feed; }, why:function(o, a, K){ return a.c.n + ' ' + K.top.t.enW + '; ' + o.n + ' only rewards it.'; } },
+  toomuch:{ cut:function(b, r, t){ return t.side === 'keep' ? b.keep && !b.sac : b.sac && !b.keep; }, only:true, add:function(b, c, K, t){ return t.side === 'keep' ? b.sac : b.keep; }, why:function(o, a, K, t){ return 'One plan: ' + (t.side === 'keep' ? 'sacrifice for value' : 'count your board') + '. ' + a.c.n + ' fits it; ' + o.n + ' pulls the other way.'; } },
+  hyper:{ cut:function(b, r, t){ return b[t.hate]; }, only:true, add:function(b, c, K, t){ return !b[t.hate] && (t.hate === 'cmdDep' ? b.spell : b.aeRem && !b.etb); }, why:function(o, a, K, t){ return a.c.n + (t.hate === 'cmdDep' ? ' works without the commander.' : ' answers the hate card and is not switched off by it.'); } }
+};
+E.guideFix = function(key){
+  try{
+    var X = ctx(); if(!X.ok) return withNote([], X.why);
+    var F = FIXERS[key]; if(!F) return withNote([], 'No automatic fix for this one.');
+    var K = gCtx(X), G = gTotals(X, K), cset = comboNameSet(), prot = protectedNames(X), t = {};
+    var gl = E.guides(), me = gl.filter(function(x){ return x.key === key; })[0] || {};
+    // Which side of a split plan to cut, which group is over, which hate card.
+    if(key === 'toomuch') t.side = (G.T.keep || 0) <= (G.T.sac || 0) ? 'keep' : 'sac';
+    if(key === 'redundant'){ var w = ONE_OF.map(function(g){ return { k:g.k, n:(G.T['one:' + g.k] || 0) - g.most }; }).sort(function(a, z){ return z.n - a.n; })[0]; t.worst = w && w.n > 0 ? w.k : ''; }
+    if(key === 'hyper') t.hate = me.hate || 'etb';
+    var bitsOf = {};
+    var rows = X.rows.filter(function(r){ return !r.cmd && !r.basic && !r.must && !r.missing && !prot[lc(r.n)] && !prot[front(r.n)]; });
+    rows.forEach(function(r){ bitsOf[r.n] = gBits(r, K); });
+    var val = function(r){ return valueOf(r.c, X, true, cset).v; };
+    // Cards a guideline counts that is short already: never offered as a cut for another one.
+    var keepK = { cheapAns:v6(), draw:(G.T.draw || 0) < 12, land:(G.T.landish || 0) < 38 };
+    function v6(){ return (G.T.cheapAns || 0) <= 3; }
+    function safeCut(b){ return !(keepK.cheapAns && b.cheapAns && key !== 'everybase') && !(keepK.draw && b.draw && key !== 'redundant') && !b.land; }
+    var cuts = rows.filter(function(r){ var b = bitsOf[r.n]; return F.cut ? F.cut(b, r, t) && (F.only || safeCut(b)) : false; });
+    if(!F.only){
+      // Then the weakest cards whose only job is the plan, like for like where possible.
+      var spare = rows.filter(function(r){ var b = bitsOf[r.n]; return cuts.indexOf(r) < 0 && !b.land && safeCut(b) && !r.jobs.ramp && !r.jobs.removal && !r.jobs.wipes && !r.jobs.protection && !r.jobs.wincon && !r.jobs.tutor; });
+      cuts = cuts.sort(function(a, z){ return val(a) - val(z); }).concat(spare.sort(function(a, z){ return val(a) - val(z); }));
+    } else cuts.sort(function(a, z){ return val(a) - val(z); });
+    var pool = candidatePool(X).map(function(c){ var r = mkRow(c); return { c:c, r:r, b:gBits(r, K) }; })
+      .filter(function(a){ return F.add(a.b, a.c, K, t) && (!F.maxMv || (a.c.mv || 0) <= F.maxMv); })
+      .map(function(a){ a.v = valueOf(a.c, X, false).v + (F.prefer ? F.prefer(a.b) : 0) + (ownedIn(a.c.n) ? 0.05 : 0); return a; })
+      .sort(function(a, z){ return z.v - a.v; });
+    if(F.sameJob) pool.forEach(function(a){ a.need = function(o){ var j = jobFor(o); return doesJob(j, a.c, a.r.f); }; });
+    if(F.basics && !pool.length){
+      var col = (S.ci || [])[0], bn = col ? BASICS[col] : 'Wastes';
+      pool = [{ c:{ n:bn, type:'Basic Land — ' + bn, o:'', cost:'', mv:0, ci:[], prod:[col || 'C'], legal:'legal', kw:[], basic:true, stats:{} }, b:{ land:1 }, v:0 }];
+      pool[0].need = null;
+    }
+    var pairs = fixPairs(X, K, cuts, pool, function(o, a){ return F.why(o, a, K, t); }, 5);
+    // Lands: when the pool runs out of lands, basics fill the rest.
+    if(F.basics && pairs.length < 5){
+      var col2 = (S.ci || [])[0], bn2 = col2 ? BASICS[col2] : 'Wastes', usedO = {};
+      pairs.forEach(function(p){ usedO[p.out] = 1; });
+      var need = Math.max(0, 38 - (G.T.landish || 0)) - pairs.length;
+      cuts.filter(function(o){ return !usedO[o.n]; }).slice(0, Math.min(need, 5 - pairs.length)).forEach(function(o){
+        pairs.push({ out:o.n, inn:{ n:bn2, type:'Basic Land — ' + bn2, o:'', cost:'', mv:0, ci:[], prod:[col2 || 'C'], legal:'legal', kw:[], basic:true, stats:{} }, why:bn2 + ' is a land.' + (o.c.mv >= 6 ? ' ' + o.n + ' costs ' + o.c.mv + '.' : '') });
+      });
+    }
+    pairs.forEach(function(p){ p.chg = E.guideDelta(p.out, p.inn); });
+    return withNote(pairs, pairs.length ? '' : 'Nothing in ' + short() + '\'s EDHREC pool fits this fix. Swap by hand from the cards listed above.');
+  }catch(e){ return withNote([], 'Could not work out a fix: ' + e.message); }
+};
+// The old name, for pages that still ask for traps.
+E.traps = E.guides;
 function partOf(p, key){ return ((p && p.parts) || []).filter(function(x){ return x.key === key; })[0] || null; }
 
 // A short fingerprint of the 100 (commander and every card, copies counted). A shelf
