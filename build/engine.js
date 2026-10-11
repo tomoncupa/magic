@@ -1002,7 +1002,6 @@ function synergyLike(c, f){
   if(/\bCreature\b/.test(c.type || '')) return !(f.ramp && f.mana && !f.fin);
   return !(f.ramp || f.drawW >= 1 || f.removal || f.wipe || f.protection);
 }
-var TUTOR_KEEP = { 1:1, 2:2, 3:4, 4:99, 5:99 };
 function candidatePool(X){
   var p = S.pool || [], seen = {};
   p.forEach(function(c){ seen[lc(c.n)] = 1; });
@@ -1067,7 +1066,6 @@ E.upgrades = function(opts){
       return { c:c, f:f, v:vv.v + bonus, links:vv.links, gc:isGc(c), own:own };
     });
     var extrasIn = X.rows.filter(function(r){ return r.f.extra; }).length;
-    var tutorsIn = X.rows.filter(function(r){ return !r.cmd && r.jobs.tutor; }).length, tutorKeep = TUTOR_KEEP[tb];
     var cand = [];
     outs.forEach(function(o){
       var list = [], oCmd = cmdLinked(o.r.c, X, o.r.n);
@@ -1088,13 +1086,11 @@ E.upgrades = function(opts){
       cand = cand.concat(list.slice(0, 6));
     });
     cand.sort(function(a, b){ return b.g - a.g; });
-    var usedO = {}, usedI = {}, added = 0, tutAdded = 0, out = [];
+    var usedO = {}, usedI = {}, added = 0, out = [];
     cand.forEach(function(p){
       if(out.length >= 20 || usedO[p.o.r.n] || usedI[p.i.c.n]) return;
       // Only additions are counted against the limit, so any subset of these swaps stays legal.
       if(p.i.gc && !p.o.r.gc){ if(added >= room) return; added++; }
-      // Tutors coming in count against the bracket's rule of thumb for tutors.
-      if(p.i.f.tutor && !p.o.r.jobs.tutor){ if(tutorsIn + tutAdded >= tutorKeep) return; tutAdded++; }
       usedO[p.o.r.n] = 1; usedI[p.i.c.n] = 1;
       out.push({ out:p.o.r.n, inn:p.i.c, role:p.o.job, gain:r2(p.g), why:upWhy(p, lim, gcNow + added, tb, cur), outCard:p.o.r.c, own:p.i.own || '' });
     });
@@ -1124,8 +1120,6 @@ E.downgrades = function(opts){
     if(!(tb >= 1)) return withNote([], 'There is no bracket below 1.');
     if(tb >= cur) return withNote([], 'Pick a bracket lower than ' + cur + ' to power the deck down.');
     var lim = BRACKETS[tb].gc, cset = comboNameSet();
-    // Tutors each target bracket keeps (rule of thumb: low brackets play them lightly).
-    var tutorKeep = { 1:1, 2:2, 3:4, 4:99, 5:99 }[tb];
     var all = X.rows.filter(function(r){ return !r.cmd && !r.basic && !r.must && !r.missing; });
     var rows = all.filter(function(r){ return !r.f.land; });
     var val = {}; all.forEach(function(r){ val[r.n] = valueOf(r.c, X, true, cset); });
@@ -1135,9 +1129,7 @@ E.downgrades = function(opts){
     var gcs = all.filter(function(r){ return r.gc; }).sort(function(a, b){ return val[b.n].v - val[a.n].v; });
     var gcCount = X.gcs.length;
     gcs.forEach(function(r){ if(gcCount > lim){ mark(r, 5, 'Game Changer: bracket ' + tb + ' allows ' + (lim === 0 ? 'none' : lim) + '.'); gcCount--; } });
-    // 2. Tutors past what the bracket keeps; the ones that find any card go first.
-    var tut = rows.filter(function(r){ return r.jobs.tutor; }).sort(function(a, b){ return (b.f.tutorAny - a.f.tutorAny) || (val[b.n].v - val[a.n].v); });
-    tut.slice(0, Math.max(0, tut.length - tutorKeep)).forEach(function(r){ mark(r, 4, 'Tutor: bracket ' + tb + ' decks keep tutors rare (this keeps ' + tutorKeep + ').'); });
+    // 2. Tutors are not cut for being tutors: Wizards took tutor limits out of every bracket (Oct 2025).
     // 3. Combos that break the target bracket: cut the weakest piece that is not the commander.
     comboList().forEach(function(o){
       if(!breaksAt(o, tb)) return;
@@ -1707,9 +1699,9 @@ E.guides = function(){
     // 14 to 16: habits
     out.push(gRow(14, 'goldfish', 'Play it alone first', 'habit', 'Play the deck against nobody before buying cards. You spot too few lands, too little draw and a deck that stalls.' + (sm && sm.winTurn ? ' The test games here win on turn ' + sm.winTurn + ' on average.' : ''), [],
       'Deal test hands on Build step 5 and play five turns. Note what you wished you had drawn.'));
-    var turnT = (BRACKETS[b] || {}).turn;
-    if(sm && sm.winTurn && turnT && sm.winTurn <= turnT - 2)
-      out.push(gRow(15, 'table', 'Matches your table', 'watch', 'With nobody stopping it, the deck wins on turn ' + sm.winTurn + '. Bracket ' + b + ' games usually run to about turn ' + turnT + '.', [],
+    var turnT = (BRACKETS[b] || {}).minNone ? 0 : (BRACKETS[b] || {}).turn;
+    if(sm && sm.winTurn && turnT && sm.winTurn < turnT)
+      out.push(gRow(15, 'table', 'Matches your table', 'watch', 'With nobody stopping it, the deck wins on turn ' + sm.winTurn + '. Wizards expects bracket ' + b + ' games to last at least ' + turnT + ' turns.', [],
         'Ask the table before bringing it. Taking power out later rarely feels good, so stop adding it before here.'));
     else out.push(gRow(15, 'table', 'Matches your table', 'habit', 'A list cannot show your table. If your games end on turn 7 and this deck wins on turn 5, it is too strong for them.' + (sm && sm.winTurn ? ' Test games win on turn ' + sm.winTurn + ' here.' : ''), [],
       'Before each upgrade, ask whether your friends will still want to play against it.'));
@@ -1894,6 +1886,92 @@ E.guideFix = function(key){
 };
 // The old name, for pages that still ask for traps.
 E.traps = E.guides;
+
+/* ============ ENGINE.answers: what the deck can answer, by kind of threat ============
+   E.answers() -> { rows:[{ k, label, n, cheapest, instant, t3, t5, cards:[{n, mv, instant, mass}] }], gaps:[text] }
+   Read off each card's rules text: which kinds of thing it removes, counters or exiles. A board wipe
+   counts for every kind it clears and once more on the whole-board row. */
+var ANS_K = [['creature', 'Creature'], ['artifact', 'Artifact'], ['enchantment', 'Enchantment'], ['planeswalker', 'Planeswalker'],
+  ['stack', 'Spell on the stack'], ['graveyard', 'Graveyard'], ['board', 'Whole board']];
+var ANS_PERM = ['creature', 'artifact', 'enchantment', 'planeswalker'];
+var ANS_GY = /exile (?:all cards from |all |each opponent's |target player's |target opponent's |(?:up to \w+ )?target cards? from )[^.]*?graveyards?|exile (?:all |each )?graveyards|cards in graveyards can't|if a (?:card|nontoken creature)[^.]*?would be put into (?:an opponent's|a) graveyard/;
+// Which permanent kinds a phrase names: "nonland permanent" is all four, "noncreature" takes creatures out.
+function ansKinds(seg){
+  var k = {};
+  if(/\bpermanents?\b/.test(seg)) ANS_PERM.forEach(function(x){ k[x] = 1; });
+  ANS_PERM.forEach(function(x){ if(new RegExp('\\b' + x + 's?\\b').test(seg)) k[x] = 1; });
+  if(/\bany target\b/.test(seg)){ k.creature = 1; k.planeswalker = 1; }
+  ANS_PERM.forEach(function(x){ if(new RegExp('\\bnon' + x + '\\b').test(seg)) delete k[x]; });
+  return k;
+}
+var ANS_VERB = /\b(?:destroy|exile)s? |\bdeals? (?:\d+|x|that much|damage)|\bgets? [−-](?:\d+|x)\/[−-]|\bfights?\b|to (?:its|their) owners?'? hand|on (?:the )?(?:top|bottom) of (?:its|their) owners?'? library|into (?:its|their) owners?'? library|\bphases? out\b|\btap target\b[^.]*?doesn't untap|\bloses all abilities\b|can't (?:attack|block)/;
+function ansHits(c, f, o){
+  var k = {}, mass = false;
+  if(!(f.removal || f.wipe || f.counter)) return { k:k, mass:false };
+  if(f.counter && /\bcounter target (?:[a-z]+ )*?spell|\bcounter (?:that|it)\b/.test(o)) k.stack = 1;
+  o.split(/\n|\.\s/).forEach(function(s){
+    if(/from (?:a|your|an opponent's|their|its owner's) graveyard/.test(s) && !/\bon the battlefield\b/.test(s)) return;
+    // Board wipes: everything of a kind, at once.
+    var mm = s.match(/\b(?:destroy|exile) (?:all|each)\b([^.]*)|\ball ([^.]*?) get [−-]|\bdeals? (?:\d+|x) damage to each (creature|[^.]*?creature)|\breturn all ([^.]*?) to (?:their|its) owners?'? hands?|sacrifices? (?:all|each) ([^.]*)|then sacrifices the rest/);
+    if(mm){
+      var seg = mm[1] || mm[2] || mm[3] || mm[4] || mm[5] || 'nonland permanents';
+      if(/\byou control\b/.test(seg) && !/don't control|opponents? controls?/.test(seg)) return;
+      var kk = ansKinds(seg);
+      if(Object.keys(kk).length){ Object.keys(kk).forEach(function(x){ k[x] = 1; }); mass = true; }
+      return;
+    }
+    // Edicts: an opponent picks what goes.
+    var ed = s.match(/(?:target (?:player|opponent)|each opponent|each player|defending player) sacrifices (?:a|an|one|two|x|\w+) ([^.,]*)/);
+    if(ed){ Object.keys(ansKinds(ed[1])).forEach(function(x){ k[x] = 1; }); return; }
+    if(!ANS_VERB.test(s) && !/^enchant /.test(s)) return;
+    // Every "target ..." in the sentence, up to the words that end the target.
+    var re = /\btarget ([^.;:]*)/g, m;
+    while((m = re.exec(s))){
+      var t = m[1].split(/ to | from | on the | into | gets? | deals? | fights? |, then |\bif\b|\bunless\b|\bwith\b|\bthat\b| and (?:put|draw|you|its|create|that|exile|destroy|return)/)[0];
+      if(/\byou control\b/.test(t) && !/don't control|opponents? controls?/.test(t)) continue;
+      if(/\bplayer\b|\bopponent\b/.test(t) && !/\bopponent controls\b/.test(t)) continue;
+      Object.keys(ansKinds(t)).forEach(function(x){ k[x] = 1; });
+    }
+    if(/\bany target\b/.test(s) && /\bdeals?\b/.test(s)){ k.creature = 1; k.planeswalker = 1; }
+  });
+  // Auras that shut a permanent down (Pacifism, Darksteel Mutation).
+  var en = o.match(/^enchant (creature|artifact|enchantment|planeswalker|permanent|nonland permanent|creature or planeswalker|artifact or creature)/);
+  if(en && /enchanted [a-z ]*?(?:can't attack|can't block|loses all abilities|doesn't untap|activated abilities can't)/.test(o)) Object.keys(ansKinds(en[1])).forEach(function(x){ k[x] = 1; });
+  return { k:k, mass:mass };
+}
+E.answers = function(){
+  try{
+    var X = ctx(); if(!X.ok) return { rows:[], gaps:[], note:X.why };
+    var by = {}; ANS_K.forEach(function(a){ by[a[0]] = []; });
+    X.rows.forEach(function(r){
+      if(r.basic || r.missing) return;
+      var c = r.c, o = tx(c), f = r.f || {};
+      var hit = f.land ? { k:{}, mass:false } : ansHits(c, f, o), any = false;
+      Object.keys(hit.k).forEach(function(x){ any = true; by[x].push({ n:r.n, mv:c.mv || 0, instant:!!(f.instant || (hit.k.stack && /\bInstant\b/.test(c.type || ''))), mass:hit.mass, cmd:r.cmd }); });
+      if(hit.mass && any) by.board.push({ n:r.n, mv:c.mv || 0, instant:!!f.instant, mass:true, cmd:r.cmd });
+      if(ANS_GY.test(o)) by.graveyard.push({ n:r.n, mv:f.land ? 0 : c.mv || 0, instant:/\bInstant\b/.test(c.type || '') || (c.kw || []).indexOf('Flash') >= 0 || /^[^:"]{0,70}: [^\n]*exile/m.test(o), mass:/all|each|can't|would be put/.test(o.match(ANS_GY)[0]), cmd:r.cmd });
+    });
+    var rows = ANS_K.map(function(a){
+      var L = by[a[0]].sort(function(x, z){ return x.mv - z.mv || (x.n < z.n ? -1 : 1); });
+      return { k:a[0], label:a[1], n:L.length, cheapest:L.length ? L[0].mv : null, instant:L.filter(function(x){ return x.instant; }).length,
+        t3:L.filter(function(x){ return x.mv <= 3; }).length, t5:L.filter(function(x){ return x.mv <= 5; }).length, cards:L };
+    });
+    var R = {}; rows.forEach(function(r){ R[r.k] = r; });
+    var gaps = [];
+    var KW = { creature:'a creature', artifact:'an artifact', enchantment:'an enchantment', planeswalker:'a planeswalker' };
+    ANS_PERM.forEach(function(x){
+      var r = R[x];
+      if(!r.n) gaps.push('Nothing removes ' + KW[x] + '.');
+      else if(r.n === 1) gaps.push('Only ' + r.cards[0].n + ' removes ' + KW[x] + '.');
+    });
+    if(R.creature.n && !R.creature.instant) gaps.push('No creature answer at instant speed: every one waits for your turn.');
+    if(R.creature.n && !R.creature.t3) gaps.push('No creature answer you can cast by turn 3.');
+    if(!R.stack.n && (S.ci || []).indexOf('U') >= 0) gaps.push('No counterspells in a blue deck.');
+    if(!R.graveyard.n) gaps.push('Nothing exiles a graveyard.');
+    if(!R.board.n && !X.goWide) gaps.push('No board wipe to come back from a board that got away.');
+    return { rows:rows, gaps:gaps, goWide:X.goWide };
+  }catch(e){ return { rows:[], gaps:[], note:'Could not read the answers: ' + e.message }; }
+};
 function partOf(p, key){ return ((p && p.parts) || []).filter(function(x){ return x.key === key; })[0] || null; }
 
 // A short fingerprint of the 100 (commander and every card, copies counted). A shelf

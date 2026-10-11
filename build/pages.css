@@ -312,3 +312,6 @@
 .pg-gfix-row > .bs-btn{grid-column:2;grid-row:1}
 .pg-gsrc{font-size:var(--t1);color:var(--ink3)}
 .pg-trap-acts{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap}
+/* What the deck can answer */
+.pg-ans td.pg-ans-gap{color:var(--danger)}
+.pg-ans-gaps{margin-bottom:var(--s4)}

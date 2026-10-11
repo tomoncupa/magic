@@ -528,6 +528,33 @@ function guideFixHtml(ctx, t){
       }) + ' aria-label="Swap ' + h(p.out) + ' out for ' + h(inn.n) + '">' + ico('swap', 'bs-i16') + 'Swap</button></div>';
   }).join('') + '</div>';
 }
+// What the deck can answer, by kind of threat, with the gaps named first.
+function answersHtml(ctx){
+  var e = E(), a = e && e.answers ? safe(function(){ return e.answers(); }, null) : null;
+  if(!a || !a.rows.length) return '';
+  var cell = function(v, warn){ return '<td class="bs-n' + (warn ? ' pg-ans-gap' : '') + '">' + v + '</td>'; };
+  var table = '<div class="bs-table-wrap"><table class="bs-table pg-ans" style="--colw:84px;--firstw:150px;--colw-sm:64px;--firstw-sm:112px"><thead><tr>' +
+    '<th scope="col">Answers to</th><th scope="col">Cards</th><th scope="col">Cheapest</th><th scope="col">Instant speed</th><th scope="col">By turn 3</th><th scope="col">By turn 5</th></tr></thead><tbody>' +
+    a.rows.map(function(r){
+      var none = !r.n;
+      return '<tr><th scope="row">' + h(r.label) + '</th>' + cell(r.n, none && r.k !== 'stack' && !(r.k === 'board' && a.goWide)) +
+        cell(r.cheapest == null ? '&ndash;' : r.cheapest) + cell(r.instant, r.n && !r.instant && r.k === 'creature') +
+        cell(r.t3, r.n && !r.t3 && r.k === 'creature') + cell(r.t5) + '</tr>';
+    }).join('') + '</tbody></table></div>';
+  var lists = a.rows.filter(function(r){ return r.n; }).map(function(r){
+    return '<p class="bs-label pg-alsohead">' + h(r.label) + ' <span class="bs-count">' + r.n + '</span></p>' +
+      nameList(ctx, r.cards.map(function(x){ return { n:x.n, t:x.n + ' · ' + x.mv, why:(x.mass ? 'Board wipe. ' : '') + (x.instant ? 'Instant speed.' : 'Your turn only.') + (x.cmd ? ' Your commander.' : '') }; }), 8, 'ans-' + r.k);
+  }).join('');
+  return '<section class="bs-panel pg-answers">' +
+    '<div class="bs-panel-head"><h3 class="bs-panel-title">What the deck can answer</h3></div>' +
+    (a.gaps.length ? '<ul class="pg-raise pg-ans-gaps">' + a.gaps.map(function(g){ return '<li>' + h(g) + '</li>'; }).join('') + '</ul>'
+      : '<p class="bs-panel-note pg-mb">No gaps: every kind of threat has at least two answers.</p>') +
+    table +
+    '<p class="bs-panel-note pg-mt">Read off each card\'s rules text. A board wipe counts for every kind it clears. By turn 3 and 5: costs 3 or less, 5 or less, so three or five land drops cast it.' +
+      (a.goWide ? ' This deck wins wide with ' + h(a.goWide) + ', so it skips board wipes on purpose.' : '') + '</p>' +
+    '<div class="pg-folds">' + details('ans-cards', 'Which cards', lists || '<p class="pg-fine">No answers found.</p>') + '</div>' +
+  '</section>';
+}
 var STAPLES_ASKED = false;
 function guidesHtml(ctx, st){
   var e = E();
@@ -685,7 +712,6 @@ function drawAnalysis(ctx, st){
   var tp = partOf(P && P.consistency, 'tutor');
   var tut = tp && tp.cards ? tp.cards.slice() : mainRows.filter(function(r){ return r.role === 'tutor' || rolesC(r.c).tutor; }).map(function(r){ return r.n; });
   var houseGc = hs.gc != null && hs.gc !== '';
-  var keep = { 1:1, 2:2, 3:4 }[b];
   var comboRow;
   if(!cb) comboRow = checkRow('Combos that win', 'Checking Commander Spellbook.', '<span class="bs-spin"></span>', null);
   else {
@@ -705,8 +731,8 @@ function drawAnalysis(ctx, st){
         (b <= 3 && extra.length > 1 && !hs.extra) ? ['bs-warn', 'Check'] : ['bs-good', 'OK'], nameList(ctx, extra, 12, 'chk-extra')) +
       checkRow('Destroys all lands', b <= 3 ? 'Not allowed at this bracket' + (hs.mld ? ', but your house rules allow it.' : '.') : 'Allowed at this bracket.', mld.length,
         (b <= 3 && mld.length && !hs.mld) ? ['bs-bad', 'Not allowed'] : ['bs-good', 'OK'], nameList(ctx, mld, 12, 'chk-mld')) +
-      checkRow('Tutors', keep ? 'Rule of thumb: about ' + keep + ' or fewer at this bracket.' : 'No limit at this bracket.', tut.length,
-        keep && tut.length > keep ? ['bs-warn', 'Many'] : ['bs-good', 'OK'], nameList(ctx, tut, 12, 'chk-tut')) +
+      checkRow('Tutors', 'No limit at any bracket since the Wizards update of October 2025.', tut.length,
+        ['bs-good', 'OK'], nameList(ctx, tut, 12, 'chk-tut')) +
     '</div>' +
     (br.desc ? '<p class="bs-panel-note pg-mt">' + h(br.desc) + '</p>' : '') +
   '</section>';
@@ -733,7 +759,7 @@ function drawAnalysis(ctx, st){
 
   // Jobs and the bracket check are long lists; the curve, colours and test games are short
   // panels, so on a PC they stack in the right-hand column beside them.
-  H += '<div class="bs-cols bs-section"><div class="bs-main">' + guidesHtml(ctx, st) + jobsHtml + brHtml + '</div>' +
+  H += '<div class="bs-cols bs-section"><div class="bs-main">' + answersHtml(ctx) + guidesHtml(ctx, st) + jobsHtml + brHtml + '</div>' +
     '<aside class="bs-side bs-sticky" aria-label="Mana curve, colours and test games">' + curveHtml + colHtml + games + '</aside></div>' + priceFoot;
   el.innerHTML = wrap(H);
 }
@@ -1174,7 +1200,7 @@ function drawIdeas(ctx, st){
       var opts = []; for(var v = cur - 1; v >= 1; v--) opts.push(v);
       H += '<div class="pg-controls"><div class="pg-ctl"><span class="bs-label">Power down to</span><div class="bs-seg" role="group" aria-label="Power down to">' + opts.map(function(v){
         var on = s.down === v; return '<button class="' + (on ? 'on' : '') + '" type="button" aria-pressed="' + on + '"' + ctx.act(function(){ if(s.down !== v){ s.down = v; redraw(); } }) + '><span>Bracket ' + v + '<span class="bs-nosm">: ' + h(BR(v).name) + '</span></span></button>';
-      }).join('') + '</div></div><p class="pg-legend pg-ctl-grow">For a table that plays at bracket ' + s.down + ': Game Changers over the limit, strong tutors, early combos and fast mana go first, then the strongest cards.</p></div>';
+      }).join('') + '</div></div><p class="pg-legend pg-ctl-grow">For a table that plays at bracket ' + s.down + ': Game Changers over the limit, early combos and fast mana go first, then the strongest cards.</p></div>';
       if(downs.note) H += callout('warn', h(downs.note));
       if(downs.length) H += '<div class="bs-swaps">' + downs.map(function(p){ return swapCard(ctx, p, 'down', s.down); }).join('') + '</div>';
       else H += empty('check', 'Nothing to power down', 'The deck already fits bracket ' + s.down + ', and no weaker card does the same jobs.');

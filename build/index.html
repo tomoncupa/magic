@@ -586,12 +586,14 @@ function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c
 function pipHtml(ci){ return (ci.length ? ci : ['C']).map(function(c){ return '<span class="pip ' + c + '">' + c + '</span>'; }).join(' '); }
 
 /* ============ brackets (Wizards, Feb 9 2026 update) ============ */
+// turn: the fewest turns Wizards expects a game at this bracket to last (Oct 21 2025 update). Bracket 5 has
+// no minimum (minNone); its 4 is only how far ahead the test games look for a win card.
 var BRACKETS = {
-  1:{ name:'Exhibition', gc:0, desc:'Theme first, winning second. No Game Changers, no two-card infinite combos, no mass land destruction, no chained extra turns.', turn:10, page:'exhibition' },
-  2:{ name:'Core', gc:0, desc:'Preconstructed-deck power. Same limits as Exhibition.', turn:9, page:'core' },
-  3:{ name:'Upgraded', gc:3, desc:'Tuned decks. Up to 3 Game Changers, no early two-card infinite combos, no mass land destruction, no chained extra turns.', turn:8, page:'upgraded' },
-  4:{ name:'Optimized', gc:Infinity, desc:'High power. No restrictions beyond the banned list.', turn:6, page:'optimized' },
-  5:{ name:'cEDH', gc:Infinity, desc:'Competitive. Built to win as fast as possible, with the tournament field in mind.', turn:4, page:'cedh' }
+  1:{ name:'Exhibition', gc:0, desc:'Theme first, winning second. No Game Changers, no two-card infinite combos, no mass land destruction, no chained extra turns.', turn:9, page:'exhibition' },
+  2:{ name:'Core', gc:0, desc:'Preconstructed-deck power. Same limits as Exhibition.', turn:8, page:'core' },
+  3:{ name:'Upgraded', gc:3, desc:'Tuned decks. Up to 3 Game Changers, no early two-card infinite combos, no mass land destruction, no chained extra turns.', turn:6, page:'upgraded' },
+  4:{ name:'Optimized', gc:Infinity, desc:'High power. No restrictions beyond the banned list.', turn:4, page:'optimized' },
+  5:{ name:'cEDH', gc:Infinity, desc:'Competitive. Built to win as fast as possible, with the tournament field in mind.', turn:4, minNone:true, page:'cedh' }
 };
 var BRACKET_SRC = '<a href="https://magic.wizards.com/en/news/announcements/commander-brackets-beta-update-february-9-2026" target="_blank" rel="noopener">Wizards, Commander Brackets update, 9 Feb 2026</a>';
 
@@ -2192,8 +2194,8 @@ async function validate(combos){
   var landOk = r.sim.t3 >= 0.75 && r.sim.p3 >= 0.4;
   (landOk ? r.passes : r.fails).push({ k:'lands7', t:'Opening 7 with 3 or more lands: ' + pct(r.sim.p3) + '; land drops or cheap ramp through turn 3: ' + pct(r.sim.t3) + (landOk ? '.' : '. Floors are 40% and 75% (rule of thumb).') });
   var turn = BRACKETS[S.bracket].turn;
-  var early = r.sim.winTurn && r.sim.winTurn < turn - 2 && S.bracket <= 3 && !house().fast;
-  (early ? r.fails : r.passes).push({ k:'speed', t:'Estimated goldfish win around turn ' + (r.sim.winTurn || '15+') + '; bracket ' + S.bracket + ' games usually run to about turn ' + turn + ' (estimate).' + (early ? ' Too fast for this bracket.' : '') });
+  var early = r.sim.winTurn && r.sim.winTurn < turn && S.bracket <= 3 && !house().fast;
+  (early ? r.fails : r.passes).push({ k:'speed', t:'Estimated goldfish win around turn ' + (r.sim.winTurn || '15+') + '; Wizards expects bracket ' + S.bracket + ' games to last at least ' + turn + ' turns.' + (early ? ' Too fast for this bracket.' : '') });
   S.check = { fails:r.fails.length };
   save();
   return r;
