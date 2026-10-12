@@ -586,12 +586,14 @@ function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c
 function pipHtml(ci){ return (ci.length ? ci : ['C']).map(function(c){ return '<span class="pip ' + c + '">' + c + '</span>'; }).join(' '); }
 
 /* ============ brackets (Wizards, Feb 9 2026 update) ============ */
+// turn: the fewest turns Wizards expects a game at this bracket to last (Oct 21 2025 update). Bracket 5 has
+// no minimum (minNone); its 4 is only how far ahead the test games look for a win card.
 var BRACKETS = {
-  1:{ name:'Exhibition', gc:0, desc:'Theme first, winning second. No Game Changers, no two-card infinite combos, no mass land destruction, no chained extra turns.', turn:10, page:'exhibition' },
-  2:{ name:'Core', gc:0, desc:'Preconstructed-deck power. Same limits as Exhibition.', turn:9, page:'core' },
-  3:{ name:'Upgraded', gc:3, desc:'Tuned decks. Up to 3 Game Changers, no early two-card infinite combos, no mass land destruction, no chained extra turns.', turn:8, page:'upgraded' },
-  4:{ name:'Optimized', gc:Infinity, desc:'High power. No restrictions beyond the banned list.', turn:6, page:'optimized' },
-  5:{ name:'cEDH', gc:Infinity, desc:'Competitive. Built to win as fast as possible, with the tournament field in mind.', turn:4, page:'cedh' }
+  1:{ name:'Exhibition', gc:0, desc:'Theme first, winning second. No Game Changers, no two-card infinite combos, no mass land destruction, no chained extra turns.', turn:9, page:'exhibition' },
+  2:{ name:'Core', gc:0, desc:'Preconstructed-deck power. Same limits as Exhibition.', turn:8, page:'core' },
+  3:{ name:'Upgraded', gc:3, desc:'Tuned decks. Up to 3 Game Changers, no early two-card infinite combos, no mass land destruction, no chained extra turns.', turn:6, page:'upgraded' },
+  4:{ name:'Optimized', gc:Infinity, desc:'High power. No restrictions beyond the banned list.', turn:4, page:'optimized' },
+  5:{ name:'cEDH', gc:Infinity, desc:'Competitive. Built to win as fast as possible, with the tournament field in mind.', turn:4, minNone:true, page:'cedh' }
 };
 var BRACKET_SRC = '<a href="https://magic.wizards.com/en/news/announcements/commander-brackets-beta-update-february-9-2026" target="_blank" rel="noopener">Wizards, Commander Brackets update, 9 Feb 2026</a>';
 
@@ -2192,8 +2194,8 @@ async function validate(combos){
   var landOk = r.sim.t3 >= 0.75 && r.sim.p3 >= 0.4;
   (landOk ? r.passes : r.fails).push({ k:'lands7', t:'Opening 7 with 3 or more lands: ' + pct(r.sim.p3) + '; land drops or cheap ramp through turn 3: ' + pct(r.sim.t3) + (landOk ? '.' : '. Floors are 40% and 75% (rule of thumb).') });
   var turn = BRACKETS[S.bracket].turn;
-  var early = r.sim.winTurn && r.sim.winTurn < turn - 2 && S.bracket <= 3 && !house().fast;
-  (early ? r.fails : r.passes).push({ k:'speed', t:'Estimated goldfish win around turn ' + (r.sim.winTurn || '15+') + '; bracket ' + S.bracket + ' games usually run to about turn ' + turn + ' (estimate).' + (early ? ' Too fast for this bracket.' : '') });
+  var early = r.sim.winTurn && r.sim.winTurn < turn && S.bracket <= 3 && !house().fast;
+  (early ? r.fails : r.passes).push({ k:'speed', t:'Estimated goldfish win around turn ' + (r.sim.winTurn || '15+') + '; Wizards expects bracket ' + S.bracket + ' games to last at least ' + turn + ' turns.' + (early ? ' Too fast for this bracket.' : '') });
   S.check = { fails:r.fails.length };
   save();
   return r;
@@ -3060,9 +3062,20 @@ function afterEdit(){
 // Undo (undoChange) puts the deck, the side deck and Considering back exactly.
 var LASTCHG = null;
 function applyChange(outName, inCard, why, o){
+  // What the swap does to the deckbuilding guidelines, read before the deck changes; the toast says it.
+  var gd = guideDeltaText(outName, inCard, false);
   var r = changeDeck(outName, inCard, why, true, o);
-  if(r === true) afterEdit();
+  if(r === true){ if(LASTCHG) LASTCHG.guide = gd; afterEdit(); }
   return r;
+}
+// "Card draw 7 → 8 (aim 12)" for each guideline number a swap moves. html: coloured for the swap menu.
+function guideDeltaText(outName, inCard, html){
+  if(!window.ENGINE || !ENGINE.guideDelta || !S.cmd) return '';
+  var list = []; try{ list = ENGINE.guideDelta(outName || null, inCard || null) || []; }catch(e){ return ''; }
+  return list.map(function(x){
+    var t = esc(x.label) + ' <b class="bs-num">' + x.from + ' &rarr; ' + x.to + '</b>' + (x.aim ? ' (aim ' + esc(x.aim) + ')' : '');
+    return html ? '<span class="' + (x.better ? 'bs-pos' : 'bs-neg') + '">' + t + '</span>' : t;
+  }).join(', ');
 }
 // The role a card coming in takes: his own pick, else a land is a land, else the job of the card it
 // replaces when it can do that job, else its own main job (so a ramp card that replaces a synergy
@@ -3091,6 +3104,7 @@ function changeToast(x){
   }
   if(x.maybe) t += ' ' + i + ' stays in Considering, marked In the deck.';
   if(x.basicDrop) t += ' Basic lands are not kept in the side deck, so the ' + esc(x.out) + ' just leaves.';
+  if(x.guide) t += ' Guidelines: ' + x.guide + '.';
   return t;
 }
 function changeDeck(outName, inCard, why, undo, o){
@@ -5559,6 +5573,8 @@ function swmChanges(r, M){
   if(A.gcs !== B.gcs) parts.push('Game Changers <b class="bs-num">' + B.gcs + ar + A.gcs + '</b>' + (B.lim === Infinity ? '' : ' of ' + B.lim));
   // Where the cards go is said once, in the header; only a basic land is different.
   if(d.basic) parts.push('the ' + esc(d.n) + ' just leaves (basic lands are not kept)');
+  // The deckbuilding guidelines this swap moves, green when it moves toward the aim.
+  var gd = guideDeltaText(d.n, r.inC, true); if(gd) parts.push(gd);
   if(!parts.length) return '';
   return parts.map(function(x){ return x.charAt(0).toUpperCase() + x.slice(1); }).join('. ') + '.';
 }

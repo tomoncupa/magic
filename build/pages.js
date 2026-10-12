@@ -232,7 +232,12 @@ function again(ctx, want){
 }
 function reduced(){ return !!(window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches); }
 function jumpTo(id){ var t = document.getElementById(id); if(t) t.scrollIntoView({ behavior:reduced() ? 'auto' : 'smooth', block:'start' }); }
-function onToggle(e){ var d = e.target, k = d && d.getAttribute && d.getAttribute('data-pg-open'); if(k) state().open[k] = d.open; }
+function onToggle(e){
+  var d = e.target, k = d && d.getAttribute && d.getAttribute('data-pg-open'); if(!k) return;
+  state().open[k] = d.open;
+  // A guideline row works out its swaps only when opened, so opening it draws the page again once.
+  if(d.open && d.hasAttribute('data-pg-fix') && !d.querySelector('.pg-gfix, .pg-gfix-none')){ var y = window.pageYOffset || 0; redraw(); keepScroll(y); }
+}
 function run(el, id, draw, top){
   if(!el) return;
   RC++;
@@ -502,6 +507,91 @@ function checkRow(label, desc, count, status, extra){
     '<div class="pg-check-v"><span class="bs-num">' + count + '</span>' + (status ? '<span class="bs-badge ' + status[0] + '">' + status[1] + '</span>' : '') + '</div></div>' + (extra || '') + '</div>';
 }
 
+// Deckbuilding guidelines, each tagged with the video or guide it came from, checked against this deck.
+// A guideline marked Fix or Watch offers swaps that move it the right way; each one is a single press.
+var GUIDE_ST = { fix:['bs-bad', 'Fix'], watch:['bs-warn', 'Watch'], good:['bs-good', 'Good'], habit:['', 'Habit'] };
+function guideDeltaHtml(list){
+  return (list || []).map(function(d){
+    return '<span class="' + (d.better ? 'bs-pos' : 'bs-neg') + '">' + h(d.label) + ' <b class="bs-num">' + d.from + ' &rarr; ' + d.to + '</b>' + (d.aim ? ' <small>(aim ' + h(d.aim) + ')</small>' : '') + '</span>';
+  }).join(' &middot; ');
+}
+function guideFixHtml(ctx, t){
+  var e = E(), res = safe(function(){ return e.guideFix(t.key); }, []);
+  if(!res.length) return '<p class="pg-fine pg-gfix-none">' + h(res.note || 'No swap found for this one.') + '</p>';
+  return '<p class="bs-label pg-alsohead">Swaps that fix it</p><div class="pg-gfix">' + res.map(function(p){
+    var inn = p.inn;
+    return '<div class="pg-gfix-row">' +
+      '<div class="pg-gfix-pair">' + link(p.out) + ' <span class="pg-gfix-arr" aria-hidden="true">&rarr;</span> ' + (inn.basic ? h(inn.n) : link(inn.n)) + '</div>' +
+      '<p class="pg-gfix-why">' + h(p.why) + (p.chg && p.chg.length ? '<br>' + guideDeltaHtml(p.chg) : '') + '</p>' +
+      '<button class="bs-btn bs-sm bs-primary" type="button"' + ctx.act(function(){
+        change(p.out, inn, 'Guideline: ' + t.title + '.', 'Swapped <b>' + h(p.out) + '</b> for <b>' + h(inn.n) + '</b>.');
+      }) + ' aria-label="Swap ' + h(p.out) + ' out for ' + h(inn.n) + '">' + ico('swap', 'bs-i16') + 'Swap</button></div>';
+  }).join('') + '</div>';
+}
+// What the deck can answer, by kind of threat, with the gaps named first.
+function answersHtml(ctx){
+  var e = E(), a = e && e.answers ? safe(function(){ return e.answers(); }, null) : null;
+  if(!a || !a.rows.length) return '';
+  var cell = function(v, warn){ return '<td class="bs-n' + (warn ? ' pg-ans-gap' : '') + '">' + v + '</td>'; };
+  var table = '<div class="bs-table-wrap"><table class="bs-table pg-ans" style="--colw:84px;--firstw:150px;--colw-sm:64px;--firstw-sm:112px"><thead><tr>' +
+    '<th scope="col">Answers to</th><th scope="col">Cards</th><th scope="col">Cheapest</th><th scope="col">Instant speed</th><th scope="col">By turn 3</th><th scope="col">By turn 5</th></tr></thead><tbody>' +
+    a.rows.map(function(r){
+      var none = !r.n;
+      return '<tr><th scope="row">' + h(r.label) + '</th>' + cell(r.n, none && r.k !== 'stack' && !(r.k === 'board' && a.goWide)) +
+        cell(r.cheapest == null ? '&ndash;' : r.cheapest) + cell(r.instant, r.n && !r.instant && r.k === 'creature') +
+        cell(r.t3, r.n && !r.t3 && r.k === 'creature') + cell(r.t5) + '</tr>';
+    }).join('') + '</tbody></table></div>';
+  var lists = a.rows.filter(function(r){ return r.n; }).map(function(r){
+    return '<p class="bs-label pg-alsohead">' + h(r.label) + ' <span class="bs-count">' + r.n + '</span></p>' +
+      nameList(ctx, r.cards.map(function(x){ return { n:x.n, t:x.n + ' · ' + x.mv, why:(x.mass ? 'Board wipe. ' : '') + (x.instant ? 'Instant speed.' : 'Your turn only.') + (x.cmd ? ' Your commander.' : '') }; }), 8, 'ans-' + r.k);
+  }).join('');
+  return '<section class="bs-panel pg-answers">' +
+    '<div class="bs-panel-head"><h3 class="bs-panel-title">What the deck can answer</h3></div>' +
+    (a.gaps.length ? '<ul class="pg-raise pg-ans-gaps">' + a.gaps.map(function(g){ return '<li>' + h(g) + '</li>'; }).join('') + '</ul>'
+      : '<p class="bs-panel-note pg-mb">No gaps: every kind of threat has at least two answers.</p>') +
+    table +
+    '<p class="bs-panel-note pg-mt">Read off each card\'s rules text. A board wipe counts for every kind it clears. By turn 3 and 5: costs 3 or less, 5 or less, so three or five land drops cast it.' +
+      (a.goWide ? ' This deck wins wide with ' + h(a.goWide) + ', so it skips board wipes on purpose.' : '') + '</p>' +
+    '<div class="pg-folds">' + details('ans-cards', 'Which cards', lists || '<p class="pg-fine">No answers found.</p>') + '</div>' +
+  '</section>';
+}
+var STAPLES_ASKED = false;
+function guidesHtml(ctx, st){
+  var e = E();
+  // Staples load once (staples.json, then Scryfall through the card cache); the page draws again when they land.
+  if(e && e.loadStaples && !STAPLES_ASKED){ STAPLES_ASKED = true; e.loadStaples().then(function(){ if(e.staplesReady() && CURP && live(CURP.el)) redraw(); }); }
+  var list = e && e.guides ? safe(function(){ return e.guides(); }, []) : [];
+  if(!list.length) return '';
+  var srcs = e.sources ? e.sources() : {};
+  var checked = list.filter(function(t){ return t.status !== 'habit'; }), habits = list.filter(function(t){ return t.status === 'habit'; });
+  var order = { fix:0, watch:1, good:2 };
+  checked.sort(function(a, z){ return order[a.status] - order[z.status] || a.n - z.n; });
+  var nf = checked.filter(function(t){ return t.status === 'fix'; }).length, nw = checked.filter(function(t){ return t.status === 'watch'; }).length;
+  function row(t){
+    var s = GUIDE_ST[t.status] || GUIDE_ST.habit, k = 'trap-' + t.key, open = !!st.open[k];
+    var srcL = [].concat(t.src || []).map(function(id){ return srcs[id]; }).filter(Boolean);
+    var mark = (t.status === 'fix' || t.status === 'watch' || t.off) ? '<button class="bs-btn bs-sm bs-quiet" type="button"' + ctx.act(function(){
+        S.trapOff = S.trapOff || {};
+        if(t.off) delete S.trapOff[t.key]; else S.trapOff[t.key] = 1;
+        quietSave(); redraw();
+      }) + '>' + (t.off ? 'Check it again' : 'Fine for this deck') + '</button>' : '';
+    // The swaps are worked out only while the row is open: they read the whole pool.
+    var body = '<p class="pg-part-note">' + h(t.line) + '</p>' + (t.fix ? '<p class="pg-trap-fix"><b>Fix:</b> ' + h(t.fix) + '</p>' : '') +
+      (t.cards.length ? nameList(ctx, t.cards, 12, k) : '') + (open && t.canFix ? guideFixHtml(ctx, t) : '') +
+      '<div class="pg-trap-acts">' + mark + srcL.map(function(x){ return '<a class="pg-gsrc" href="' + h(x.url) + '" target="_blank" rel="noopener">' + h(x.t) + '</a>'; }).join('') + '</div>';
+    return '<details class="pg-trap" data-pg-open="' + k + '"' + (t.canFix ? ' data-pg-fix' : '') + (open ? ' open' : '') + '><summary>' +
+      '<span class="pg-trap-n">' + t.n + '</span><span class="pg-trap-t">' + h(t.title) + '</span>' +
+      '<span class="bs-badge ' + s[0] + '">' + (t.off ? 'You marked it fine' : s[1]) + '</span></summary>' + body + '</details>';
+  }
+  return '<section class="bs-panel pg-traps">' +
+    '<div class="bs-panel-head"><h3 class="bs-panel-title">Deckbuilding guidelines</h3></div>' +
+    '<p class="bs-panel-note pg-mb">' + (nf || nw ? (nf ? nf + ' to fix' : '') + (nf && nw ? ', ' : '') + (nw ? nw + ' to watch' : '') + '. ' : 'Every guideline is met. ') +
+      'Open a row for the numbers, the cards and swaps that fix it. Each names its source.</p>' +
+    checked.map(row).join('') +
+    details('trap-habits', 'Habits a deck list cannot show (' + habits.length + ')', habits.map(row).join('')) +
+  '</section>';
+}
+
 function drawAnalysis(ctx, st){
   var e = E(), el = ctx.el, b = bk(), br = BR(b);
   var cb = combosNow(ctx);
@@ -622,7 +712,6 @@ function drawAnalysis(ctx, st){
   var tp = partOf(P && P.consistency, 'tutor');
   var tut = tp && tp.cards ? tp.cards.slice() : mainRows.filter(function(r){ return r.role === 'tutor' || rolesC(r.c).tutor; }).map(function(r){ return r.n; });
   var houseGc = hs.gc != null && hs.gc !== '';
-  var keep = { 1:1, 2:2, 3:4 }[b];
   var comboRow;
   if(!cb) comboRow = checkRow('Combos that win', 'Checking Commander Spellbook.', '<span class="bs-spin"></span>', null);
   else {
@@ -642,8 +731,8 @@ function drawAnalysis(ctx, st){
         (b <= 3 && extra.length > 1 && !hs.extra) ? ['bs-warn', 'Check'] : ['bs-good', 'OK'], nameList(ctx, extra, 12, 'chk-extra')) +
       checkRow('Destroys all lands', b <= 3 ? 'Not allowed at this bracket' + (hs.mld ? ', but your house rules allow it.' : '.') : 'Allowed at this bracket.', mld.length,
         (b <= 3 && mld.length && !hs.mld) ? ['bs-bad', 'Not allowed'] : ['bs-good', 'OK'], nameList(ctx, mld, 12, 'chk-mld')) +
-      checkRow('Tutors', keep ? 'Rule of thumb: about ' + keep + ' or fewer at this bracket.' : 'No limit at this bracket.', tut.length,
-        keep && tut.length > keep ? ['bs-warn', 'Many'] : ['bs-good', 'OK'], nameList(ctx, tut, 12, 'chk-tut')) +
+      checkRow('Tutors', 'No limit at any bracket since the Wizards update of October 2025.', tut.length,
+        ['bs-good', 'OK'], nameList(ctx, tut, 12, 'chk-tut')) +
     '</div>' +
     (br.desc ? '<p class="bs-panel-note pg-mt">' + h(br.desc) + '</p>' : '') +
   '</section>';
@@ -670,7 +759,7 @@ function drawAnalysis(ctx, st){
 
   // Jobs and the bracket check are long lists; the curve, colours and test games are short
   // panels, so on a PC they stack in the right-hand column beside them.
-  H += '<div class="bs-cols bs-section"><div class="bs-main">' + jobsHtml + brHtml + '</div>' +
+  H += '<div class="bs-cols bs-section"><div class="bs-main">' + answersHtml(ctx) + guidesHtml(ctx, st) + jobsHtml + brHtml + '</div>' +
     '<aside class="bs-side bs-sticky" aria-label="Mana curve, colours and test games">' + curveHtml + colHtml + games + '</aside></div>' + priceFoot;
   el.innerHTML = wrap(H);
 }
@@ -1111,7 +1200,7 @@ function drawIdeas(ctx, st){
       var opts = []; for(var v = cur - 1; v >= 1; v--) opts.push(v);
       H += '<div class="pg-controls"><div class="pg-ctl"><span class="bs-label">Power down to</span><div class="bs-seg" role="group" aria-label="Power down to">' + opts.map(function(v){
         var on = s.down === v; return '<button class="' + (on ? 'on' : '') + '" type="button" aria-pressed="' + on + '"' + ctx.act(function(){ if(s.down !== v){ s.down = v; redraw(); } }) + '><span>Bracket ' + v + '<span class="bs-nosm">: ' + h(BR(v).name) + '</span></span></button>';
-      }).join('') + '</div></div><p class="pg-legend pg-ctl-grow">For a table that plays at bracket ' + s.down + ': Game Changers over the limit, strong tutors, early combos and fast mana go first, then the strongest cards.</p></div>';
+      }).join('') + '</div></div><p class="pg-legend pg-ctl-grow">For a table that plays at bracket ' + s.down + ': Game Changers over the limit, early combos and fast mana go first, then the strongest cards.</p></div>';
       if(downs.note) H += callout('warn', h(downs.note));
       if(downs.length) H += '<div class="bs-swaps">' + downs.map(function(p){ return swapCard(ctx, p, 'down', s.down); }).join('') + '</div>';
       else H += empty('check', 'Nothing to power down', 'The deck already fits bracket ' + s.down + ', and no weaker card does the same jobs.');
