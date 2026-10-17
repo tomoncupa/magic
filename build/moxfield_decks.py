@@ -12,7 +12,8 @@ front door refuses short user agents, so a full browser one is sent.
 
 Output (SPEC.md, contract 1):
   {"user": name, "decks": [{"id","name","url","updated","format","ci","bracket",
-    "commanders","companions","main","side","maybe"}]}
+    "commanders","companions","main","side","maybe"}]}, plus "tags" ({card name: [tags]})
+  when the deck has Moxfield tags.
   card = {"n","q","set","cn","sid","type","cmc","ci"} plus "foil": true on foils.
 No prices and no fetched-at time, so the file only changes when a deck does.
 """
@@ -125,6 +126,12 @@ def slim_deck(d):
            "ci": list(d.get("colorIdentity") or []), "bracket": bracket}
     for key, board in BOARDS:
         out[key] = slim_board(d, board)
+    # His own categories on Moxfield ("tags"): {card name: [tags]}. Left out when he has none,
+    # so the nightly file does not change for decks without them.
+    tags = {n: [str(x) for x in t] for n, t in sorted((d.get("authorTags") or {}).items())
+            if isinstance(t, list) and t}
+    if tags:
+        out["tags"] = tags
     return out
 
 
