@@ -315,3 +315,21 @@
 /* What the deck can answer */
 .pg-ans td.pg-ans-gap{color:var(--danger)}
 .pg-ans-gaps{margin-bottom:var(--s4)}
+
+/* Wide screens (Tom, 2026-10-18, his 3840x1080: "take advantage of my 3840 screen", picked B).
+   From 2400px the page drops its 1440px cap and fills the window. The Deck tab's 99 then flows
+   into as many 300px columns as fit; every other tab lays its panels side by side in columns,
+   headers and controls keeping the full width. */
+@media (min-width:2400px){
+  :root{--page-max:none;--side-w:440px}
+  .pg-root{columns:940px;column-gap:var(--s7)}
+  .pg-root > *{column-span:all}
+  .pg-root > .bs-section:not(.bs-cols){column-span:none;break-inside:avoid;margin:0 0 var(--s7)}
+  .pg-root > .bs-cols{margin-top:0}
+  .pg-root .bs-main{display:block;columns:900px;column-gap:var(--s7)}
+  .pg-root .bs-main > *{break-inside:avoid;margin:0 0 var(--s6)}
+  /* The 99: a big group (No category yet, Creatures) may run on into the next column, its heading never left alone at the foot of one */
+  .bs-flow > .bs-clist{break-inside:auto}
+  .bs-flow .bs-group{break-after:avoid}
+  .bs-flow .bs-crow{break-inside:avoid}
+}
