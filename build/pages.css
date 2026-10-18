@@ -315,6 +315,10 @@
 /* What the deck can answer */
 .pg-ans td.pg-ans-gap{color:var(--danger)}
 .pg-ans-gaps{margin-bottom:var(--s4)}
+/* Deck score: one number every swap is judged by */
+.pg-dscore-parts{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--s4)}
+.pg-dscore-top{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s3);margin-bottom:var(--s1)}
+.pg-dscore-p .pg-fine{margin-top:var(--s2)}
 
 /* Wide screens (Tom, 2026-10-18, his 3840x1080: "take advantage of my 3840 screen", picked B).
    From 2400px the page drops its 1440px cap and fills the window. The Deck tab's 99 then flows

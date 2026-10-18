@@ -64,7 +64,9 @@ function pix(){
   PIX = { pool:p, len:p.length, map:m };
   return m;
 }
-function pcard(n){ if(!n) return null; var m = pix(); return m[lc(n)] || m[front(n)] || null; }
+function pcard(n){ if(!n) return null; var m = pix(); return m[lc(n)] || m[front(n)] || (PEX && (PEX[lc(n)] || PEX[front(n)])) || null; }
+var PEX = null;   // cards a what-if brings in that are not in the pool (staples), only while it runs
+var WIF = { on:false, combos:[], sim:null };   // a what-if is running (ENGINE.score): see whatIf()
 function cmdCards(){
   return [S.cmd, S.partner].filter(Boolean).map(function(c){ return pcard(c.n) || c; });
 }
@@ -482,6 +484,8 @@ function breaksAt(o, tb){
   return two && early();
 }
 function comboList(){
+  // A what-if keeps the real deck's combos that it still holds all of, and gains the ones it completes.
+  if(WIF.on){ var Xw = ctx(); return WIF.combos.filter(function(o){ return o.cards.every(function(n){ return inX(Xw, n); }); }); }
   if(CB.res && CB.key === namesSig()) return CB.res.inDeck;
   var lc2 = S.lastCheck && S.lastCheck.combos;
   if(lc2 && lc2.length){ var X = ctx(); return lc2.filter(function(o){ return !o.req && o.cards.every(function(n){ return inX(X, n); }); }).map(function(o){
@@ -652,6 +656,7 @@ function cmdThreat(X){
 /* ============ goldfish simulation (the Check step's simulate, run small and cached) ============ */
 var SIM = { key:'', v:null };
 function sim(X){
+  if(WIF.on) return WIF.sim;   // a what-if reuses the real deck's test games: 800 shuffles per swap is too slow
   var key = X.key + '|' + comboList().length;
   if(SIM.key === key) return SIM.v;
   var v = null, added = false;
@@ -1724,7 +1729,7 @@ E.guides = function(){
 
     var off = S.trapOff || {};
     out.forEach(function(t){
-      // Staple swaps wait for whole-deck scoring: one card at a time they cut engine pieces (Patriar's Seal for Storm-Kiln Artist).
+      // Staple swaps are on again now that every fix is judged on the whole deck (fixPackage): one card at a time they cut engine pieces (Patriar's Seal for Storm-Kiln Artist).
       t.canFix = (t.status === 'fix' || t.status === 'watch') && !!FIXERS[t.key] && !FIXERS[t.key].off;
       if(off[t.key] && (t.status === 'fix' || t.status === 'watch')){ t.off = true; t.was = t.status; t.status = 'good'; t.canFix = false; }
     });
@@ -1797,9 +1802,22 @@ E.guideDelta = function(outName, inCard){
 // Cuts come first (weakest for the deck first, never the commander, a must-include, a combo piece the
 // deck runs, or a card counted by a guideline that needs it); each cut is paired with the best card
 // in the pool for the job. Like for like where the guideline allows it.
-function protectedNames(X){
-  var s = {}; comboList().forEach(function(o){ o.cards.forEach(function(n){ s[lc(n)] = 1; s[front(n)] = 1; }); }); return s;
+function protectedNames(X){ return engineSet(X); }
+// The deck's engine: combo pieces, cards that repeat or untap the commander's own ability (Patriar's
+// Seal and Rings of Brighthearth in Krenko, cmdEngineBonus) and cards whose text needs the commander.
+// A Fix never offers one as a cut, and the swap menu never calls cutting one an upgrade.
+function engineSet(X){
+  var s = {}, K = gCtx(X);
+  comboList().forEach(function(o){ o.cards.forEach(function(n){ s[lc(n)] = 'combo'; s[front(n)] = 'combo'; }); });
+  X.rows.forEach(function(r){
+    if(r.cmd || r.basic || r.missing || s[lc(r.n)]) return;
+    var why = cmdEngineBonus(r.c, X) > 0 ? 'commander' : gBits(r, K).cmdDep ? 'needs' : '';
+    if(why){ s[lc(r.n)] = why; s[front(r.n)] = why; }
+  });
+  return s;
 }
+// '' or why the card is part of the open deck's engine: 'combo', 'commander' (repeats or untaps his ability) or 'needs' (its text needs him).
+E.engine = function(n){ try{ var s = engineSet(ctx()); return s[lc(n)] || s[front(n)] || ''; }catch(e){ return ''; } };
 function fixPairs(X, K, cuts, adds, why, max){
   var used = {}, out = [];
   var room = Math.max(0, gcLim() - X.gcs.length);
@@ -1829,7 +1847,7 @@ var FIXERS = {
   ramp:{ cut:function(b){ return b.rampLate || b.rampBig; }, only:true, add:function(b, c, K){ return b.ramp && (c.mv || 0) <= Math.max(2, K.C - 2); }, why:function(o, a){ return a.c.n + ' costs ' + (a.c.mv || 0) + ', so it gets the commander out a turn sooner than ' + o.n + ' (' + (o.c.mv || 0) + ').'; } },
   enablers:{ cut:function(b){ return b.pay && !b.feed; }, only:true, add:function(b){ return b.feed; }, why:function(o, a, K){ return a.c.n + ' ' + K.top.t.enW + '; ' + o.n + ' only rewards it.'; } },
   toomuch:{ cut:function(b, r, t){ return t.side === 'keep' ? b.keep && !b.sac : b.sac && !b.keep; }, only:true, add:function(b, c, K, t){ return t.side === 'keep' ? b.sac : b.keep; }, why:function(o, a, K, t){ return 'One plan: ' + (t.side === 'keep' ? 'sacrifice for value' : 'count your board') + '. ' + a.c.n + ' fits it; ' + o.n + ' pulls the other way.'; } },
-  staples:{ off:true, add:function(b, c, K, t){ return !!t.ok[lc(c.n)]; }, sameJob:true, stapleJob:true, prefer:function(){ return 0.3; },
+  staples:{ add:function(b, c, K, t){ return !!t.ok[lc(c.n)]; }, sameJob:true, stapleJob:true, prefer:function(){ return 0.3; },
     why:function(o, a){ var st = stapleOf(a.c.n).staple; return a.c.n + ' is a staple (' + JOBW[st.job] + (st.note ? ': ' + st.note.replace(/\.$/, '') : '') + '). ' + o.n + ' does the same job.'; } },
   ramp10:{ add:function(b, c){ var f = feats(c); return b.rampAny && !oneShotMana(c, f) && (bk() >= 4 || !f.fast); }, maxMv:3, why:function(o, a){ return a.c.n + ' ramps for ' + (a.c.mv || 0) + ' mana.'; } },
   inter12:{ maxMv:3, add:function(b){ return b.inter && !b.narrow; }, prefer:function(b){ return b.cheapAns ? 0.1 : 0; }, why:function(o, a){ return a.c.n + ' answers or protects one thing for ' + (a.c.mv || 0) + ' mana.'; } },
@@ -1875,7 +1893,7 @@ E.guideFix = function(key){
       pool = [{ c:{ n:bn, type:'Basic Land — ' + bn, o:'', cost:'', mv:0, ci:[], prod:[col || 'C'], legal:'legal', kw:[], basic:true, stats:{} }, b:{ land:1 }, v:0 }];
       pool[0].need = null;
     }
-    var pairs = fixPairs(X, K, cuts, pool, function(o, a){ return F.why(o, a, K, t); }, 5);
+    var pairs = fixPairs(X, K, cuts, pool, function(o, a){ return F.why(o, a, K, t); }, 10);
     // Lands: when the pool runs out of lands, basics fill the rest.
     if(F.basics && pairs.length < 5){
       var col2 = (S.ci || [])[0], bn2 = col2 ? BASICS[col2] : 'Wastes', usedO = {};
@@ -1885,10 +1903,35 @@ E.guideFix = function(key){
         pairs.push({ out:o.n, inn:{ n:bn2, type:'Basic Land — ' + bn2, o:'', cost:'', mv:0, ci:[], prod:[col2 || 'C'], legal:'legal', kw:[], basic:true, stats:{} }, why:bn2 + ' is a land.' + (o.c.mv >= 6 ? ' ' + o.n + ' costs ' + o.c.mv + '.' : '') });
       });
     }
+    var found = pairs.length;
+    pairs = fixPackage(pairs);
     pairs.forEach(function(p){ p.chg = E.guideDelta(p.out, p.inn); });
-    return withNote(pairs, pairs.length ? '' : 'Nothing in ' + short() + '\'s EDHREC pool fits this fix. Swap by hand from the cards listed above.');
+    return withNote(pairs, pairs.length ? '' : found
+      ? 'None of the ' + words(found, 'swap') + ' found for this makes the deck better as a whole: each one costs more elsewhere than it fixes here. If the deck works, mark it fine; otherwise swap by hand from the cards listed above.'
+      : 'Nothing in ' + short() + '\'s EDHREC pool fits this fix. Swap by hand from the cards listed above.');
   }catch(e){ return withNote([], 'Could not work out a fix: ' + e.message); }
 };
+// The swaps as one package, judged on the whole deck: the one that raises the deck score most goes
+// first, then every other is scored again with it made, and so on, up to 5. A swap that does not
+// raise the score by 0.1 with the earlier ones made is left out. Each keeps the score it moves
+// (p.score { from, to }) and p.all is the score with every swap so far made.
+function fixPackage(pairs){
+  var base = E.score(); if(!base || !pairs.length) return pairs.slice(0, 5);
+  var chosen = [], left = pairs.slice(), cur = base.raw;
+  while(chosen.length < 5 && left.length){
+    var best = null;
+    left.forEach(function(p){
+      var s = E.scoreWith(chosen.concat([p]).map(function(x){ return { out:x.out, inn:x.inn }; }));
+      if(s && (!best || s.raw > best.s.raw)) best = { p:p, s:s };
+    });
+    if(!best || best.s.raw < cur + 0.1) break;
+    best.p.score = { from:cur, to:best.s.raw, d:best.s.raw - cur };
+    cur = best.s.raw;
+    chosen.push(best.p); left.splice(left.indexOf(best.p), 1);
+  }
+  if(chosen.length) chosen.all = { from:base.raw, to:cur };
+  return chosen;
+}
 // The old name, for pages that still ask for traps.
 E.traps = E.guides;
 
@@ -1978,6 +2021,147 @@ E.answers = function(){
   }catch(e){ return { rows:[], gaps:[], note:'Could not read the answers: ' + e.message }; }
 };
 function partOf(p, key){ return ((p && p.parts) || []).filter(function(x){ return x.key === key; })[0] || null; }
+
+/* ============ ENGINE.score: one score for the whole deck ============
+   Tom, 2026-10-10: "swaps dont happen in isolation, each card is part of a cohesive whole". Every
+   swap, Fix row and the toast after a change judge a change by what it does to this one number.
+   Five parts out of 10, equal weight (Tom has not set weights; shown with their working):
+     Interaction  the Interaction pillar, 70%, plus the answer grid, 30%: each of creature, artifact,
+                  enchantment and planeswalker answered by two or more cards (one card counts half)
+     Synergy      links among the plan cards (no staple job), 50%: each card's links up to 8, against
+                  30 plan cards fully linked; cards that work with the commander through a plan of their
+                  own or sit in a combo count their links twice; 70%, with the strongest plan's strength 30%
+     Guidelines   the checked guidelines: Good 1, Watch 0.5, Fix 0 (habits and ones he marked fine)
+     Curve        the Efficiency pillar's mana parts: average mana value, ramp, cheap ramp, lands, fast mana
+     Colours      coloured sources against what the spells ask for; left out in a one-colour deck
+   E.score()            -> { score, parts:[{ k, label, score, line }] } for the open deck
+   E.scoreWith(changes) -> the same for the deck with [{ out:name, inn:card }] made, the deck untouched
+   A what-if reuses the real deck's test games (the goldfish turn) and its combos, less any it breaks. */
+var SCX = {};   // scores by deck picture
+function scoreNow(){
+  var X = ctx(); if(!X.ok) return null;
+  var cl = comboList();
+  var key = X.key + '|' + JSON.stringify(S.trapOff || {}) + '|' + cl.length + '|' + STAP.cards.length;
+  if(SCX[key]) return SCX[key];
+  var P = E.pillars(), parts = [];
+  // Interaction
+  var A = E.answers(), AR = {}; (A.rows || []).forEach(function(r){ AR[r.k] = r; });
+  var cov = ANS_PERM.reduce(function(s, k){ var n = AR[k] ? AR[k].n : 0; return s + (n >= 2 ? 1 : n === 1 ? 0.5 : 0); }, 0) / 4;
+  parts.push({ k:'inter', label:'Interaction', score:0.7 * P.interaction.score + 3 * cov,
+    line:'Interaction score ' + P.interaction.score + ' of 10; ' + ANS_PERM.filter(function(k){ return AR[k] && AR[k].n >= 2; }).length + ' of 4 kinds of permanent have two or more answers.' });
+  // Synergy
+  var L = buildLinks(X);
+  var plan = X.rows.filter(function(r){ return !r.cmd && !r.basic && !r.missing && !r.f.land && !r.jobs.lands && !Object.keys(r.jobs).some(function(j){ return STAPLE[j]; }); });
+  // How much works together: each plan card's links (up to 8) against 30 plan cards fully linked
+  // (The Command Zone's template has about 30 plan cards). Fewer plan cards or fewer links score lower.
+  // Engine pieces (see engineSet) count their links twice. Rising toward 1 with no ceiling, so one
+  // more linked card always counts: 160 links gives 0.63, 240 gives 0.78.
+  var ES = engineSet(X), nEng = 0;
+  var mass = plan.reduce(function(s, r){ var e = ES[lc(r.n)]; if(e) nEng++; return s + Math.min(8, (L.byCard[r.n] || []).length) * (e ? 2 : 1); }, 0);
+  var massV = 1 - Math.exp(-mass / 160);
+  var top = X.themes.filter(function(h){ return h.active; }).sort(function(a, z){ return z.v - a.v; })[0];
+  var topV = top ? top.v : 0;
+  parts.push({ k:'syn', label:'Synergy', score:10 * (0.7 * massV + 0.3 * topV),
+    line:plan.length + ' plan cards with ' + mass + ' links between them' + (nEng ? ', the ' + words(nEng, 'engine piece') + ' counted twice' : '') + (top ? '; strongest plan ' + top.t.label + ' at ' + Math.round(topV * 100) + '%' : '; no plan found') + '.' });
+  // Guidelines
+  var gl = E.guides().filter(function(t){ return t.status !== 'habit'; });
+  var gv = { good:1, watch:0.5, fix:0 }, gs = gl.reduce(function(s, t){ return s + (gv[t.status] != null ? gv[t.status] : 1); }, 0);
+  var nf = gl.filter(function(t){ return t.status === 'fix'; }).length, nw = gl.filter(function(t){ return t.status === 'watch'; }).length;
+  parts.push({ k:'guide', label:'Guidelines', score:gl.length ? 10 * gs / gl.length : 10,
+    line:(gl.length - nf - nw) + ' of ' + gl.length + ' met, ' + nw + ' to watch, ' + nf + ' to fix.' });
+  // Curve and colours, from the Efficiency pillar's parts
+  var sw = 0, sv = 0, ep = P.efficiency.parts || [];
+  ep.forEach(function(p){ if(p.key !== 'colours' && p.weight > 0){ sw += p.weight; sv += p.weight * p.value; } });
+  var av = partOf(P.efficiency, 'avgMv'), ln = partOf(P.efficiency, 'lands');
+  parts.push({ k:'curve', label:'Curve', score:sw ? 10 * sv / sw : 0,
+    line:'Average mana value ' + (av ? av.have : '?') + ' (aim ' + (av ? av.want : '?') + '), ' + (ln ? ln.have + ' lands (aim ' + ln.want + ')' : '') + ', ramp counted.' });
+  var colP = partOf(P.efficiency, 'colours');
+  if(colP && colP.weight > 0) parts.push({ k:'col', label:'Colours', score:10 * colP.value, line:'Coloured lands: ' + colP.note });
+  // Shown to one decimal, averaged unrounded: one swap moves a 100-card deck only a little.
+  parts.forEach(function(p){ p.v = clamp(p.score, 0, 10); p.score = r1(p.v); });
+  var total = parts.reduce(function(s, p){ return s + p.v; }, 0) / parts.length;
+  var res = { score:r1(total), raw:total, parts:parts };
+  var ks = Object.keys(SCX); if(ks.length > 300) SCX = {};
+  SCX[key] = res;
+  return res;
+}
+// Runs fn on the deck with the changes made, then puts everything back as it was.
+function whatIf(changes, fn){
+  var X0 = ctx(), sim0 = sim(X0), cl0 = comboList().slice();
+  // Near combos the changes complete count once every piece is in.
+  var ins = changes.filter(function(c){ return c.inn; }).map(function(c){ return c.inn.n; });
+  nearAllList().forEach(function(o){ if(o.missing && ins.some(function(n){ return sameName(n, o.missing) || sameName(o.missing, n); })) cl0.push({ cards:o.cards.concat(o.cards.some(function(n){ return sameName(n, o.missing); }) ? [] : [o.missing]), result:o.result, inf:o.inf, mvNeeded:o.mvNeeded }); });
+  var keep = { deck:S.deck, CTX:CTX, PIL:PIL, GK:GK, MID:MID, PEX:PEX };
+  try{
+    var d = S.deck.slice(), pex = {};
+    changes.forEach(function(ch){
+      var i = -1, k;
+      if(ch.out){ for(k = 0; k < d.length && i < 0; k++) if(d[k].n === ch.out) i = k; for(k = 0; k < d.length && i < 0; k++) if(sameName(d[k].n, ch.out) || sameName(ch.out, d[k].n)) i = k; }
+      var e = null;
+      if(ch.inn){
+        var c = ch.inn;
+        if(isBasicN(c.n)) e = { n:c.n, role:'lands', mv:0, basic:true, prod:[basicColour(c.n)] };
+        else {
+          if(!pcard(c.n)){ pex[lc(c.n)] = c; pex[front(c.n)] = c; }
+          var role = 'synergy';
+          try{ role = typeof roleForIn === 'function' ? roleForIn(c, i >= 0 ? d[i] : null) : role; }catch(x){}
+          e = { n:c.n, role:role, mv:c.mv || 0, gc:isGc(c) };
+        }
+      }
+      if(i >= 0 && e) d[i] = e; else if(i >= 0) d.splice(i, 1); else if(e) d.push(e);
+    });
+    PEX = pex; S.deck = d; WIF.on = true; WIF.sim = sim0; WIF.combos = cl0;
+    return fn();
+  } finally {
+    WIF.on = false; S.deck = keep.deck; CTX = keep.CTX; PIL = keep.PIL; GK = keep.GK; MID = keep.MID; PEX = keep.PEX;
+  }
+}
+E.score = function(){ try{ return scoreNow(); }catch(e){ return null; } };
+// "8.1 → 8.4", two decimals when one would show no change.
+E.scorePair = function(a, b){ var d = a.toFixed(1) === b.toFixed(1) && a !== b ? 2 : 1; return a.toFixed(d) + ' → ' + b.toFixed(d); };
+E.scoreWith = function(changes){ try{ return whatIf(changes || [], scoreNow); }catch(e){ return null; } };
+// Before and after for one swap: { from, to, d, part } where part names the part that moved most.
+E.scoreDelta = function(outName, inCard){
+  var a = E.score(), b = E.scoreWith([{ out:outName || null, inn:inCard || null }]);
+  if(!a || !b) return null;
+  var big = null;
+  b.parts.forEach(function(p){ var q = a.parts.filter(function(x){ return x.k === p.k; })[0]; if(!q) return; var dv = p.v - q.v; if(!big || Math.abs(dv) > Math.abs(big.d)) big = { k:p.k, label:p.label, from:q.v, to:p.v, d:dv }; });
+  return { from:a.raw, to:b.raw, d:b.raw - a.raw, part:big && Math.abs(big.d) >= 0.05 ? big : null };
+};
+
+/* ============ ENGINE.holds: cards the deck cannot lose (the synergy map's third group) ============
+   Engines (most linked) and loners (linked to nothing) come from E.links. A card holds the deck up when
+   cutting it takes something away that nothing else covers: a combo the deck runs loses a piece, a
+   plan's payoffs are left with 2 or fewer cards feeding them, or it is the only answer to a kind of
+   permanent. -> [{ n, why:[text] }] */
+E.holds = function(){
+  try{
+    var X = ctx(); if(!X.ok) return [];
+    var out = {}, add = function(n, why){ (out[n] = out[n] || []).push(why); };
+    var inC = {};
+    comboList().forEach(function(o){ o.cards.forEach(function(n){ var r = rowOf(n); if(r && !r.cmd) (inC[r.n] = inC[r.n] || []).push(o); }); });
+    Object.keys(inC).forEach(function(n){
+      var L = inC[n], other = L[0].cards.filter(function(x){ return !sameName(x, n) && !sameName(n, x); });
+      add(n, L.length === 1 ? 'a piece of the combo with ' + other.join(' + ') : 'a piece of ' + L.length + ' combos, such as the one with ' + other.join(' + '));
+    });
+    var ES = engineSet(X);
+    X.rows.forEach(function(r){
+      var w = ES[lc(r.n)];
+      if(w === 'commander') add(r.n, 'lets ' + short() + ' use its own ability more often (copies it, untaps it or gives it haste)');
+      else if(w === 'needs') add(r.n, 'its text needs ' + short());
+    });
+    X.themes.forEach(function(h){
+      if(!h.active || h.v < 0.2) return;
+      var feeders = h.enRows.filter(function(r){ return !r.cmd; });
+      var pays = h.payRows.filter(function(r){ return feeders.indexOf(r) < 0 || feeders.length > 1; });
+      if(feeders.length && feeders.length <= 3 && pays.length >= 2)
+        feeders.forEach(function(r){ add(r.n, 'one of ' + words(feeders.length, 'card') + ' that ' + (feeders.length === 1 ? h.t.enW : h.t.enN) + ', for ' + words(pays.length, 'payoff')); });
+    });
+    var A = E.answers(), KW = { creature:'a creature', artifact:'an artifact', enchantment:'an enchantment', planeswalker:'a planeswalker' };
+    (A.rows || []).forEach(function(r){ if(KW[r.k] && r.n === 1 && !r.cards[0].cmd) add(r.cards[0].n, 'the only card that removes ' + KW[r.k]); });
+    return Object.keys(out).map(function(n){ return { n:n, why:uniq(out[n]) }; }).sort(function(a, z){ return z.why.length - a.why.length || (a.n < z.n ? -1 : 1); });
+  }catch(e){ return []; }
+};
 
 // A short fingerprint of the 100 (commander and every card, copies counted). A shelf
 // row's sum is out of date when row.sum.key !== ENGINE.key() for that deck.

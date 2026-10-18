@@ -518,15 +518,37 @@ function guideDeltaHtml(list){
 function guideFixHtml(ctx, t){
   var e = E(), res = safe(function(){ return e.guideFix(t.key); }, []);
   if(!res.length) return '<p class="pg-fine pg-gfix-none">' + h(res.note || 'No swap found for this one.') + '</p>';
-  return '<p class="bs-label pg-alsohead">Swaps that fix it</p><div class="pg-gfix">' + res.map(function(p){
+  var all = res.all;
+  return '<p class="bs-label pg-alsohead">Swaps that fix it, judged on the whole deck</p>' +
+    (all && res.length > 1 ? '<p class="pg-fine">Each swap is scored with the ones above it already made. All ' + words(res.length, 'swap') + ' together: deck score <b class="bs-num">' + e.scorePair(all.from, all.to) + '</b>.</p>' : '') +
+    '<div class="pg-gfix">' + res.map(function(p){
     var inn = p.inn;
     return '<div class="pg-gfix-row">' +
       '<div class="pg-gfix-pair">' + link(p.out) + ' <span class="pg-gfix-arr" aria-hidden="true">&rarr;</span> ' + (inn.basic ? h(inn.n) : link(inn.n)) + '</div>' +
-      '<p class="pg-gfix-why">' + h(p.why) + (p.chg && p.chg.length ? '<br>' + guideDeltaHtml(p.chg) : '') + '</p>' +
+      '<p class="pg-gfix-why">' + h(p.why) + (p.score ? '<br><span class="bs-pos">Deck score <b class="bs-num">' + e.scorePair(p.score.from, p.score.to) + '</b></span>' : '') + (p.chg && p.chg.length ? ' &middot; ' + guideDeltaHtml(p.chg) : '') + '</p>' +
       '<button class="bs-btn bs-sm bs-primary" type="button"' + ctx.act(function(){
         change(p.out, inn, 'Guideline: ' + t.title + '.', 'Swapped <b>' + h(p.out) + '</b> for <b>' + h(inn.n) + '</b>.');
       }) + ' aria-label="Swap ' + h(p.out) + ' out for ' + h(inn.n) + '">' + ico('swap', 'bs-i16') + 'Swap</button></div>';
-  }).join('') + '</div>';
+  }).join('') + '</div>' +
+  (res.length > 1 ? '<div class="pg-trap-acts"><button class="bs-btn bs-sm" type="button"' + ctx.act(function(){ changeAll(res, 'Guideline: ' + t.title + '.'); }) + '>' + ico('swap', 'bs-i16') + 'Make all ' + res.length + ' swaps</button></div>' : '');
+}
+// Several swaps as one: one note, one Undo that puts them all back.
+function changeAll(pairs, why){
+  if(typeof applyChange !== 'function') return change(null, null);
+  var y = window.pageYOffset || 0, e = E(), s0 = e.score ? safe(function(){ return e.score(); }, null) : null, entries = [], made = 0, fail = '';
+  var s1 = e.scoreWith ? safe(function(){ return e.scoreWith(pairs.map(function(p){ return { out:p.out, inn:p.inn }; })); }, null) : null;
+  pairs.forEach(function(p){
+    if(fail) return;
+    var r; try{ r = applyChange(p.out, p.inn, why); }catch(x){ r = x && x.message; }
+    if(r === true){ made++; entries.push(SWUNDO[SWUNDO.length - 1]); } else fail = typeof r === 'string' ? r : 'A swap did not go through.';
+  });
+  redraw(); keepScroll(y);
+  var msg = 'Made ' + words(made, 'swap') + '; the cards that left are in your side deck.' + (s0 && s1 && !fail ? ' Deck score ' + e.scorePair(s0.raw, s1.raw) + '.' : '') + (fail ? ' Stopped: ' + h(fail) : '');
+  say(msg, made ? { kind:fail ? 'bad' : undefined, undo:function(){
+    if(SWUNDO[SWUNDO.length - 1] !== entries[entries.length - 1]){ say('Another change came after these, so they were not undone. Undo that one first.', { kind:'bad' }); return; }
+    for(var i = entries.length - 1; i >= 0; i--) undoChange(entries[i]);
+    keepScroll(y); say('Put back.');
+  } } : { kind:'bad' });
 }
 // What the deck can answer, by kind of threat, with the gaps named first.
 function answersHtml(ctx){
@@ -592,6 +614,20 @@ function guidesHtml(ctx, st){
   '</section>';
 }
 
+// The whole-deck score (ENGINE.score): the one number every swap, Fix and change is judged by.
+function deckScoreHtml(){
+  var e = E(), s = e && e.score ? safe(function(){ return e.score(); }, null) : null;
+  if(!s) return '';
+  return '<section class="bs-panel pg-dscore">' +
+    '<div class="bs-panel-head"><h3 class="bs-panel-title">Deck score</h3><div class="bs-score pg-right"><b>' + one(s.score) + '</b><span>/10</span></div></div>' +
+    '<p class="bs-panel-note pg-mb">How well the 100 work as one deck. Every swap, every Fix and the note after a change say what they do to this number. The four scores above say how strong the deck is for its bracket.</p>' +
+    '<div class="pg-dscore-parts">' + s.parts.map(function(p){
+      return '<div class="pg-dscore-p"><div class="pg-dscore-top"><span class="bs-label">' + h(p.label) + '</span><b class="bs-num">' + one(p.score) + '</b></div>' +
+        meter(p.score, p.label) + '<p class="pg-fine">' + h(p.line) + '</p></div>';
+    }).join('') + '</div>' +
+    '<p class="bs-panel-note pg-mt">The average of ' + words(s.parts.length, 'part') + ', weighted equally' + (s.parts.length < 5 ? ' (one colour, so colours are left out)' : '') + '. Brewing Station\'s own estimate.</p>' +
+  '</section>';
+}
 function drawAnalysis(ctx, st){
   var e = E(), el = ctx.el, b = bk(), br = BR(b);
   var cb = combosNow(ctx);
@@ -612,6 +648,7 @@ function drawAnalysis(ctx, st){
   if(!ready) H += callout('info', h((P && P.note) || 'Card data is not loaded yet, so these numbers are incomplete.'));
   else if(!cb) H += '<div class="pg-note-line">' + loadingLine('Checking Commander Spellbook for combos; the scores update when it answers') + '</div>';
   H += '<div class="pg-pillars">' + PILLARS.map(function(d){ return pillarCard(ctx, d, P && P[d[0]]); }).join('') + '</div>';
+  if(ready) H += deckScoreHtml();
 
   // ---- mana curve
   var curve = [0, 0, 0, 0, 0, 0, 0, 0], mvs = 0;
@@ -837,6 +874,18 @@ function drawSynergy(ctx, st){
         '</div></article>';
     }).join('') + '</div>';
   } else H += '<p class="pg-fine">No card links up with enough others to count as an engine yet.</p>';
+  H += '</section>';
+
+  // ---- holds the deck up (cards whose cut takes away something nothing else covers)
+  var holds = e.holds ? safe(function(){ return e.holds(); }, []) : [];
+  H += '<section class="bs-section">' + sectionHead('Holds the deck up', holds.length) +
+    '<p class="pg-legend">Cut one of these and something goes with it that no other card covers: a combo loses a piece, a plan\'s payoffs are left with almost nothing feeding them, or a kind of permanent has no answer left. Swap them like for like, or not at all.</p>';
+  if(holds.length) H += '<div class="bs-panel bs-flush"><div class="bs-clist pg-list">' + holds.map(function(x){
+      var c = cardFor(x.n); remember(c);
+      return '<div class="bs-crow">' + (art(c) ? '<img class="bs-crow-thumb" src="' + h(art(c)) + '" alt="" loading="lazy">' : '<span class="bs-crow-thumb"></span>') +
+        '<button class="pg-crow-open" type="button" data-pg-card="' + h(x.n) + '"><span class="bs-crow-n">' + h(x.n) + '</span><span class="bs-crow-s">' + h(x.why.join('; ').replace(/^./, function(ch){ return ch.toUpperCase(); })) + '.</span></button></div>';
+    }).join('') + '</div></div>';
+  else H += '<p class="pg-fine">No single card carries a plan, a combo or an answer on its own: every job has a second card behind it.</p>';
   H += '</section>';
 
   // ---- works with nothing

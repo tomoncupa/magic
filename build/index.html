@@ -3173,11 +3173,19 @@ function afterEdit(){
 var LASTCHG = null;
 function applyChange(outName, inCard, why, o){
   // What the swap does to the deckbuilding guidelines, read before the deck changes; the toast says it.
-  var gd = guideDeltaText(outName, inCard, false);
+  // The deck score before and after, read the way the swap menu reads it (the combo list refreshes
+  // only after the change, so reading the new deck straight away would disagree with the menu).
+  var gd = guideDeltaText(outName, inCard, false), sd = null;
+  try{ if(deckScoreNow()) sd = ENGINE.scoreDelta(outName || null, typeof inCard === 'string' ? (poolCard(inCard) || { n:inCard }) : inCard || null); }catch(e){ sd = null; }
   var r = changeDeck(outName, inCard, why, true, o);
-  if(r === true){ if(LASTCHG) LASTCHG.guide = gd; afterEdit(); }
+  if(r === true){
+    if(LASTCHG){ LASTCHG.guide = gd; if(sd) LASTCHG.score = { from:sd.from, to:sd.to }; }
+    afterEdit();
+  }
   return r;
 }
+// The whole-deck score (ENGINE.score), or null before the card data is in.
+function deckScoreNow(){ try{ return window.ENGINE && ENGINE.score && S.cmd ? ENGINE.score() : null; }catch(e){ return null; } }
 // "Card draw 7 → 8 (aim 12)" for each guideline number a swap moves. html: coloured for the swap menu.
 function guideDeltaText(outName, inCard, html){
   if(!window.ENGINE || !ENGINE.guideDelta || !S.cmd) return '';
@@ -3214,6 +3222,7 @@ function changeToast(x){
   }
   if(x.maybe) t += ' ' + i + ' stays in Considering, marked In the deck.';
   if(x.basicDrop) t += ' Basic lands are not kept in the side deck, so the ' + esc(x.out) + ' just leaves.';
+  if(x.score) t += ' Deck score ' + ENGINE.scorePair(x.score.from, x.score.to) + '.';
   if(x.guide) t += ' Guidelines: ' + x.guide + '.';
   return t;
 }
@@ -5817,16 +5826,34 @@ function swmCalc(r, M){
   };
   r.g = parts.base + parts.links + parts.combo + parts.mv;
   r.vk = r.no ? 'no' : r.g >= 0.1 ? 'up' : r.g <= -0.1 ? 'down' : 'even';
+  // The verdict is the whole deck's: the deck score before and after this swap (ENGINE.scoreDelta).
+  // The card-level numbers above still sort the list and fill the row's reason.
+  r.sd = null;
+  if(!r.no && window.ENGINE && ENGINE.scoreDelta){ try{ r.sd = ENGINE.scoreDelta(outD.n, inC); }catch(e){ r.sd = null; } }
+  if(r.sd) r.vk = r.sd.d >= 0.03 ? 'up' : r.sd.d <= -0.03 ? 'down' : 'even';
   // Taking out a piece of a combo the deck runs is never called an upgrade: the deck loses a way to win.
-  var capped = r.vk === 'up' && !outD.basic && r.breaks.length && !r.completes.length;
+  // Nor is taking out a piece of the commander's engine (Patriar's Seal untaps Krenko): the deck is built round it.
+  r.eng = !outD.basic && window.ENGINE && ENGINE.engine ? ENGINE.engine(outD.n) : '';
+  var capped = r.vk === 'up' && !outD.basic && ((r.breaks.length && !r.completes.length) || r.eng === 'commander' || r.eng === 'needs');
   if(capped) r.vk = 'even';
   r.vw = { up:'Upgrade', even:'Even trade', down:'Downgrade', no:'Cannot go in' }[r.vk];
-  r.vwhy = r.no ? '' : capped ? 'better on its numbers, but it breaks a combo in the deck' : swmDecider(r, parts, li, lo, dmv, M);
+  r.vwhy = r.no ? '' : capped ? (r.eng === 'commander' ? 'better for the deck score, but ' + shortName(outD.n) + ' works with ' + shortName(S.cmd.n) + '’s own ability' : r.eng === 'needs' ? 'better for the deck score, but ' + shortName(outD.n) + ' is built round ' + shortName(S.cmd.n) : 'better for the deck score, but it breaks a combo in the deck') : r.sd ? swmScoreWhy(r, parts, li, lo, dmv, M) : swmDecider(r, parts, li, lo, dmv, M);
   r.mv = r.card.mv || 0; r.inc = swmInc(r.card); r.syn = swmSyn(r.card);
   r.gc = !isBasicName(r.card.n) && rawGC(r.card);
   r.why = r.no || swmWhy(r, M);
   r.chg = r.no ? '' : swmChanges(r, M);
   return r;
+}
+// The verdict's reason in whole-deck terms: the part of the deck score that moved most. An even
+// trade for the deck still says which way the card itself leans.
+function swmScoreWhy(r, parts, li, lo, dmv, M){
+  var sd = r.sd, p = sd.part;
+  if(r.vk === 'even'){
+    var vk = r.vk; r.vk = r.g >= 0.1 ? 'up' : r.g <= -0.1 ? 'down' : 'even';
+    var lean = r.vk !== 'even' ? swmDecider(r, parts, li, lo, dmv, M) : ''; r.vk = vk;
+    return 'the deck score barely moves (' + ENGINE.scorePair(sd.from, sd.to) + ')' + (lean ? '; on its own the card ' + lean.replace(/^[^ ]+ (?=is |has |rates |works |costs |completes )/, '') : '');
+  }
+  return 'deck score ' + ENGINE.scorePair(sd.from, sd.to) + (p ? ', mostly ' + p.label.toLowerCase() + ' ' + ENGINE.scorePair(p.from, p.to) : '');
 }
 function swmDecider(r, parts, li, lo, dmv, M){
   if(r.vk === 'even') return 'the gains and losses about even out';
@@ -5885,6 +5912,7 @@ function swmChanges(r, M){
   if(d.basic) parts.push('the ' + esc(d.n) + ' just leaves (basic lands are not kept)');
   // The deckbuilding guidelines this swap moves, green when it moves toward the aim.
   var gd = guideDeltaText(d.n, r.inC, true); if(gd) parts.push(gd);
+  if(r.sd) parts.unshift('<span class="' + (r.sd.d >= 0.03 ? 'bs-pos' : r.sd.d <= -0.03 ? 'bs-neg' : '') + '">Deck score <b class="bs-num">' + ENGINE.scorePair(r.sd.from, r.sd.to) + '</b></span>');
   if(!parts.length) return '';
   return parts.map(function(x){ return x.charAt(0).toUpperCase() + x.slice(1); }).join('. ') + '.';
 }
