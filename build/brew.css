@@ -424,6 +424,11 @@ button.bs-crow,.bs-crow.bs-tap{cursor:pointer}
 .bs-catdrop{margin:var(--s2) 0 0;padding:var(--s3);border:1px dashed var(--line2);border-radius:var(--r-sm);color:var(--ink3);font-size:var(--t1)}
 [data-cat]{border-radius:var(--r-sm);transition:background-color .12s,box-shadow .12s}
 .bs-catdnd [data-cat] [data-board=main]{cursor:grab}
+/* A card shown again in a category it also counts in: shaded, lit on hover, opens its sheet, not dragged. */
+.bs-echo{opacity:.5}
+.bs-echo:focus-within,.bs-crow.bs-echo:focus-visible{opacity:1}
+@media (hover:hover){ .bs-echo:hover{opacity:.85} }
+.bs-catdnd [data-cat] .bs-echo[data-board=main],.bs-catdnd [data-cat] .bs-echo [data-board=main]{cursor:pointer}
 .bs-dragging,.bs-dragging *{cursor:grabbing!important;user-select:none;-webkit-user-select:none}
 .bs-dragging [data-cat]{box-shadow:0 0 0 1px var(--line)}
 .bs-catghost{position:fixed;left:0;top:0;z-index:200;pointer-events:none;max-width:260px;padding:6px var(--s3);border:1px solid var(--brass);border-radius:var(--r-sm);background:var(--bg3);color:var(--ink);font-size:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 6px 18px rgba(0,0,0,.45)}

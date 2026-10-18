@@ -4843,15 +4843,15 @@ function crowHtml(it){
   var mv = it.board !== 'cmd' && !it.basic && c.mv != null && !(c.type && isLand(c)) ? '<span class="bs-crow-mv" title="Mana value">' + c.mv + '</span>' : '';
   var mid = '<span class="bs-crow-main"><span class="bs-crow-n">' + (it.q > 1 ? '<span class="bs-crow-q">' + it.q + '</span>' : '') + esc(n) + '</span>' + (it.sub ? '<span class="bs-crow-s">' + esc(it.sub) + '</span>' : '') + '</span>';
   if(it.basic && it.board === 'main'){
-    return '<div class="bs-crow bs-tap" role="button" tabindex="0" data-card="' + esc(n) + '" data-board="main">' + lead + mid + '<span class="bs-crow-end"><span class="sh-bas">' +
+    return '<div class="bs-crow bs-tap' + (it.echo ? ' bs-echo" data-echo="1' : '') + '" role="button" tabindex="0" data-card="' + esc(n) + '" data-board="main">' + lead + mid + '<span class="bs-crow-end"><span class="sh-bas">' +
       '<button class="bs-ibtn bs-sm" type="button" data-bas="' + esc(n) + '" data-d="-1" aria-label="One fewer ' + esc(n) + '">' + ico('minus', 'bs-i16') + '</button>' +
       '<button class="bs-ibtn bs-sm" type="button" data-bas="' + esc(n) + '" data-d="1" aria-label="One more ' + esc(n) + '">' + ico('plus', 'bs-i16') + '</button></span></span></div>';
   }
-  return '<button class="bs-crow" type="button" data-card="' + esc(n) + '" data-board="' + it.board + '">' + lead + mid + '<span class="bs-crow-end">' + itemBadges(it) + mv + '</span></button>';
+  return '<button class="bs-crow' + (it.echo ? ' bs-echo" data-echo="1' : '') + '" type="button" data-card="' + esc(n) + '" data-board="' + it.board + '">' + lead + mid + '<span class="bs-crow-end">' + itemBadges(it) + mv + '</span></button>';
 }
 function ctileHtml(it){
   var c = it.c || {}, bad = itemBadges(it);
-  return '<div class="bs-ctile"><button class="bs-ctile-pic" type="button" tabindex="-1" data-card="' + esc(it.n) + '" data-board="' + it.board + '" aria-label="' + esc(it.n) + '">' +
+  return '<div class="bs-ctile' + (it.echo ? ' bs-echo" data-echo="1' : '') + '"><button class="bs-ctile-pic" type="button" tabindex="-1" data-card="' + esc(it.n) + '" data-board="' + it.board + '" aria-label="' + esc(it.n) + '">' +
     (c.img ? '<img src="' + esc(c.img) + '" alt="' + esc(it.n) + '" loading="lazy">' : '<span class="bs-ctile-noimg">' + esc(it.n) + '</span>') +
     (it.q > 1 ? '<span class="sh-qty">&times;' + it.q + '</span>' : '') + (bad ? '<span class="bs-ctile-bl">' + bad + '</span>' : '') + '</button>' +
     cardLink(it.n, null, { cls:'bs-ctile-n', board:it.board, title:it.n }) + (it.sub ? '<span class="bs-ctile-s"><span>' + esc(it.sub) + '</span></span>' : '') + '</div>';
@@ -4940,7 +4940,7 @@ function catDrag(on, board){
   main.onpointerdown = function(e){
     if(board && boardDown(e)) return;
     if(!on || e.pointerType !== 'mouse' || e.button !== 0) return;
-    var c = e.target.closest(sel); if(!c || e.target.closest('[data-bas]')) return;
+    var c = e.target.closest(sel); if(!c || e.target.closest('[data-bas],[data-echo]')) return;
     var st = { n:c.getAttribute('data-card'), x:e.clientX, y:e.clientY, px:e.clientX, py:e.clientY, on:false, over:null, ghost:null, vy:0, raf:0 };
     function mark(z){ if(st.over === z) return; if(st.over) st.over.classList.remove('bs-dropon'); st.over = z; if(z) z.classList.add('bs-dropon'); }
     function zoneAt(x, y){ var t = document.elementFromPoint(x, y), z = t && t.closest ? t.closest('[data-cat]') : null; return z && main.contains(z) ? z : null; }
@@ -5147,15 +5147,18 @@ function deckGroups(lv){
     });
   } else if(lv.g === 'cat'){
     // Every category shows, empty ones too (somewhere to drop a card), in his order; the rest after.
+    // A card that also counts in other categories shows there too, shaded, under that box's own cards
+    // (Tom, 2026-10-19: "show cards that appear in multiple categories, maybe shaded").
     var byC = {}, none = [];
     items.forEach(function(it){
-      var home = catOf(it.n), al = catAlso(it.n);
-      it.sub = (it.basic ? 'Basic land' : typeShort(it.c)) + (al.length ? ', also ' + al.join(', ') : '');
+      var home = catOf(it.n), al = catAlso(it.n), kind = it.basic ? 'Basic land' : typeShort(it.c);
+      it.sub = kind + (al.length ? ', also ' + al.join(', ') : '');
       if(home) (byC[home] = byC[home] || []).push(it); else none.push(it);
+      al.forEach(function(t){ (byC[t] = byC[t] || []).push(Object.assign({}, it, { echo:true, sub:kind + ', lives in ' + (home || 'No category yet') })); });
     });
-    // Spells by mana value, then lands, then basics.
+    // Spells by mana value, then lands, then basics; shaded copies last.
     var lnd = function(it){ return it.basic ? 2 : it.c && isLand(it.c) ? 1 : 0; };
-    var srt = function(a, b){ return lnd(a) - lnd(b) || (a.c ? a.c.mv : 0) - (b.c ? b.c.mv : 0) || a.n.localeCompare(b.n); };
+    var srt = function(a, b){ return !!a.echo - !!b.echo || lnd(a) - lnd(b) || (a.c ? a.c.mv : 0) - (b.c ? b.c.mv : 0) || a.n.localeCompare(b.n); };
     cats().list.forEach(function(t){ groups.push({ t:t, cat:t, items:(byC[t] || []).sort(srt) }); });
     if(none.length || cats().list.length) groups.push({ t:'No category yet', cat:'', none:true, items:none.sort(srt) });
   } else {
@@ -5213,16 +5216,17 @@ function drawDeckPage(){
   var isCat = lv.g === 'cat', touch = phone();
   if(isCat && !cats().list.length) h += '<div class="bs-callout">' + ico('info') + '<p><b>Make your own categories.</b> Press New category, then ' +
     (touch ? 'tap a card and pick its category.' : 'drag cards into it, or tap a card and pick its category.') + ' Categories you make on Moxfield come in when you bring the deck in.</p></div>';
-  var cnt2 = function(g){ return g.items.reduce(function(s, it){ return s + it.q; }, 0); };
+  var cnt2 = function(g){ return g.items.reduce(function(s, it){ return s + (it.echo ? 0 : it.q); }, 0); };
+  var echoes = function(g){ return g.items.reduce(function(s, it){ return s + (it.echo ? 1 : 0); }, 0); };
   var onBoard = isCat && !lv.p && !touch;   // By type and By job keep flowing columns, where a big group runs on into the next (Tom, 2026-10-19)
   function boxKey(g){ return isCat ? (g.cat == null ? '#cmd' : g.none ? '#none' : g.cat) : g.t; }
   function head(g, grip){
     var menu = isCat && g.cat ? '<span class="bs-acts"><button class="bs-ibtn bs-sm" type="button" data-catmenu="' + esc(g.cat) + '" aria-label="' + (grip ? 'Rename or delete ' : 'Rename, move or delete ') + esc(g.t) + '">' + ico('more', 'bs-i16') + '</button></span>' : '';
-    return '<div class="bs-group"' + (grip ? ' data-boxgrip title="Drag to move this box"' : '') + '>' + esc(g.t) + ' <span class="bs-count">' + cnt2(g) + '</span>' + menu + '</div>';
+    return '<div class="bs-group"' + (grip ? ' data-boxgrip title="Drag to move this box"' : '') + '>' + esc(g.t) + ' <span class="bs-count">' + cnt2(g) + (echoes(g) ? ' + ' + echoes(g) + ' also here' : '') + '</span>' + menu + '</div>';
   }
   function zone(g){ return isCat && g.cat != null ? ' data-cat="' + esc(g.cat) + '"' : ''; }
   function empty(g){
-    if(g.items.length || !isCat) return '';
+    if(cnt2(g) || !isCat) return '';
     return '<p class="bs-catdrop">' + (g.none ? 'Every card has a category.' + (touch ? '' : ' Drop a card here to take it out of its category.') : touch ? 'Tap a card and pick ' + esc(g.t) + '.' : 'Drag cards here, or tap a card and pick ' + esc(g.t) + '.') + '</p>';
   }
   function drawGroups(gs, board){
