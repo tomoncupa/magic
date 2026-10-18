@@ -5997,6 +5997,44 @@ function swmHover(b){
   b.addEventListener('scroll', function(){ swmPeek(null); }, { passive:true });
   b.addEventListener('click', function(e){ var z = e.target.closest && e.target.closest('[data-swm-zoom]'); if(z){ e.stopPropagation(); zoomCard(z.getAttribute('data-swm-zoom')); } }, true);
 }
+// Every card name on a PC (rows, links in text, tile names, the card sheet's lists) shows the whole
+// card beside it while the mouse rests on it (Tom, 2026-10-18: "possible to have cards show up on
+// hover?"). Sized to the window's height, so his 1080-tall screen gets a big one. The swap menu's
+// rows keep their own peek; pictures already are the card.
+var HOVER = { el:null, t:0, on:null };
+function hoverImg(n){
+  var c = csCard(n); if(c && c.img) return c.img;
+  return 'https://api.scryfall.com/cards/named?format=image&version=normal&exact=' + encodeURIComponent(n.split(' // ')[0]);
+}
+function hoverHide(){ clearTimeout(HOVER.t); HOVER.on = null; if(HOVER.el) HOVER.el.classList.remove('on'); }
+function hoverShow(el){
+  var n = el.getAttribute('data-card'); if(!n || !document.contains(el)) return;
+  if(!HOVER.el){ HOVER.el = document.createElement('div'); HOVER.el.className = 'bs-swm-peek bs-hoverpeek'; HOVER.el.setAttribute('aria-hidden', 'true'); HOVER.el.innerHTML = '<img alt="">'; document.body.appendChild(HOVER.el); }
+  var im = HOVER.el.firstChild, src = hoverImg(n); if(im.getAttribute('src') !== src) im.setAttribute('src', src);
+  var ht = Math.round(Math.min(innerHeight - 24, Math.max(340, innerHeight * 0.55))), wd = Math.round(ht / 1.396);
+  var r = el.getBoundingClientRect(), gap = 16, left;
+  if(r.right + gap + wd <= innerWidth - 8) left = r.right + gap;
+  else if(r.left - gap - wd >= 8) left = r.left - gap - wd;
+  else left = Math.max(8, innerWidth - wd - 8);
+  HOVER.el.style.width = wd + 'px'; HOVER.el.style.left = Math.round(left) + 'px';
+  HOVER.el.style.top = Math.round(Math.max(12, Math.min(innerHeight - ht - 12, r.top + r.height / 2 - ht / 2))) + 'px';
+  HOVER.el.classList.add('on');
+}
+(function(){
+  if(!(window.matchMedia && matchMedia('(hover:hover) and (pointer:fine)').matches)) return;
+  var skip = '.bs-swm-row,.bs-ctile-pic,.bs-cardsheet-pic,.bs-dragging';
+  document.addEventListener('mouseover', function(e){
+    var el = e.target.closest && e.target.closest('[data-card]');
+    if(!el || e.target.closest(skip) || document.querySelector('.zoomer')){ if(HOVER.on && (!el || el !== HOVER.on)) hoverHide(); return; }
+    if(el === HOVER.on) return;
+    clearTimeout(HOVER.t); HOVER.on = el;
+    HOVER.t = setTimeout(function(){ if(HOVER.on === el) hoverShow(el); }, 70);
+  });
+  document.addEventListener('mouseout', function(e){ if(HOVER.on && !(e.relatedTarget && HOVER.on.contains(e.relatedTarget))) hoverHide(); });
+  document.addEventListener('pointerdown', hoverHide, true);
+  document.addEventListener('scroll', hoverHide, true);
+  document.addEventListener('keydown', hoverHide, true);
+})();
 // The old swap sheet's entry points now open this menu.
 function openSwap(name){ openCardSheet(name, { board:'main', swap:true }); }
 function closeSwap(){ if(CS && !CS.closed && CS.view === 'swap') CS.h.close(); }
