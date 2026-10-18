@@ -4978,8 +4978,8 @@ function catDrag(on, board){
   };
 }
 /* ---------- the deck as a free board (Tom, 2026-10-19: "let me manually rearrange the categories layout, similar to ARC") ----------
-   In List on a computer the groups of the 99 are boxes he drags by their heading and drops anywhere; each
-   stays where he put it, snapped to a 12px grid, saved per deck and per grouping in S.cats.pos[view][box].
+   In My categories, List, on a computer, the groups of the 99 are boxes he drags by their heading and drops anywhere; each
+   stays where he put it, snapped to a 12px grid, saved per deck in S.cats.pos.cat[box].
    A box that grows never covers the one under it: that one is pushed down, and moves back up when there is
    room. Boxes he never moved fill the shortest column under the ones he did. In My categories the drop also
    sets the categories' order (top to bottom, then left to right), which Pictures and the phone stack by. */
@@ -5197,7 +5197,7 @@ function drawDeckPage(){
   if(isCat && !cats().list.length) h += '<div class="bs-callout">' + ico('info') + '<p><b>Make your own categories.</b> Press New category, then ' +
     (touch ? 'tap a card and pick its category.' : 'drag cards into it, or tap a card and pick its category.') + ' Categories you make on Moxfield come in when you bring the deck in.</p></div>';
   var cnt2 = function(g){ return g.items.reduce(function(s, it){ return s + it.q; }, 0); };
-  var onBoard = !lv.p && !touch;
+  var onBoard = isCat && !lv.p && !touch;   // By type and By job keep flowing columns, where a big group runs on into the next (Tom, 2026-10-19)
   function boxKey(g){ return isCat ? (g.cat == null ? '#cmd' : g.none ? '#none' : g.cat) : g.t; }
   function head(g, grip){
     var menu = isCat && g.cat ? '<span class="bs-acts"><button class="bs-ibtn bs-sm" type="button" data-catmenu="' + esc(g.cat) + '" aria-label="' + (grip ? 'Rename or delete ' : 'Rename, move or delete ') + esc(g.t) + '">' + ico('more', 'bs-i16') + '</button></span>' : '';
