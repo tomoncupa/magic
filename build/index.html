@@ -4717,14 +4717,18 @@ function itemBadges(it){
 }
 function crowHtml(it){
   var c = it.c || {}, n = it.n;
-  var lead = it.thumb ? '<img class="bs-crow-thumb" src="' + esc(it.thumb) + '" alt="">' : '<span class="bs-crow-mv">' + (c.mv != null ? c.mv : '') + '</span>';
+  // A small copy of the art leads every row, as on the other tabs (Tom, 2026-10-18); the mana value
+  // moves to the right end, spells only.
+  var art = it.thumb || (c.img ? c.img.replace('/normal/', '/art_crop/') : '');
+  var lead = art ? '<img class="bs-crow-thumb" src="' + esc(art) + '" alt="" loading="lazy">' : '<span class="bs-crow-thumb" aria-hidden="true"></span>';
+  var mv = it.board !== 'cmd' && !it.basic && c.mv != null && !(c.type && isLand(c)) ? '<span class="bs-crow-mv" title="Mana value">' + c.mv + '</span>' : '';
   var mid = '<span class="bs-crow-main"><span class="bs-crow-n">' + (it.q > 1 ? '<span class="bs-crow-q">' + it.q + '</span>' : '') + esc(n) + '</span>' + (it.sub ? '<span class="bs-crow-s">' + esc(it.sub) + '</span>' : '') + '</span>';
   if(it.basic && it.board === 'main'){
     return '<div class="bs-crow bs-tap" role="button" tabindex="0" data-card="' + esc(n) + '" data-board="main">' + lead + mid + '<span class="bs-crow-end"><span class="sh-bas">' +
       '<button class="bs-ibtn bs-sm" type="button" data-bas="' + esc(n) + '" data-d="-1" aria-label="One fewer ' + esc(n) + '">' + ico('minus', 'bs-i16') + '</button>' +
       '<button class="bs-ibtn bs-sm" type="button" data-bas="' + esc(n) + '" data-d="1" aria-label="One more ' + esc(n) + '">' + ico('plus', 'bs-i16') + '</button></span></span></div>';
   }
-  return '<button class="bs-crow" type="button" data-card="' + esc(n) + '" data-board="' + it.board + '">' + lead + mid + '<span class="bs-crow-end">' + itemBadges(it) + '</span></button>';
+  return '<button class="bs-crow" type="button" data-card="' + esc(n) + '" data-board="' + it.board + '">' + lead + mid + '<span class="bs-crow-end">' + itemBadges(it) + mv + '</span></button>';
 }
 function ctileHtml(it){
   var c = it.c || {}, bad = itemBadges(it);
@@ -4994,7 +4998,7 @@ function drawDeckPage(){
   catDrag(isCat && !touch);
   drawDeckSide();
   sumSoon();
-  if(lv.p) loadBasicPics();
+  loadBasicPics();   // the basics' art, for the list's thumbnails and the pictures alike
 }
 // Pictures for the basic lands (they are not in the pool): looked up once, from the cache after that.
 function loadBasicPics(){
