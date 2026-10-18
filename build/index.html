@@ -1275,12 +1275,21 @@ async function loadPool(onStep){
   // So do the side deck and the maybeboard (a deck brought in from Moxfield has both).
   var bd = s.boards || {};
   (bd.side || []).concat(bd.maybe || []).forEach(function(x){ var k = x.n.toLowerCase(); if(!isBasicName(x.n) && !m[k]) m[k] = { n:x.n, stats:{} }; });
+  // His Moxfield printing beats the one EDHREC names, for every card he has one for.
+  var pr = deckPrints(s);
+  Object.keys(m).forEach(function(k){ var id = pr[moxKey(m[k].n)]; if(id) m[k].id = id; });
   var list = Object.keys(m).map(function(k){ return m[k]; });
   // The count covers more than the 99: the side deck, Considering and EDHREC's suggestions too.
   var lookWhat = ' cards on Scryfall (the deck, side deck, Considering and EDHREC\'s suggestions)';
   onStep && onStep('Looking up ' + list.length + lookWhat);
   var res = await sfCollection(list.map(function(x){ return { id:x.id, n:x.n }; }), function(d, all){ onStep && onStep('Looking up ' + all + lookWhat + ': ' + d + ' done'); });
   alive();
+  // A printing Scryfall does not know (yet) still brings the card in, by its name.
+  var lostId = list.filter(function(x){ return x.id && !res.cards[x.id]; });
+  if(lostId.length){
+    var byN = await sfCollection(lostId.map(function(x){ return { n:x.n }; })); alive();
+    lostId.forEach(function(x){ var c = byN.cards[x.n.toLowerCase()]; if(c) res.cards[x.id] = c; });
+  }
   // EDHREC and the must-include box can name one card two ways ("Fable of the Mirror-Breaker"
   // and its full two-face name). Scryfall gives both the same card, which is kept once.
   var pool = [], byName = {};
@@ -3059,6 +3068,7 @@ function shelfRow(id){ return shelf().filter(function(x){ return x.id === id; })
 function resetDeckGlobals(){
   SWUNDO = []; CLR = { busy:{}, err:{} }; CL.busy = false; CL.err = ''; GD = { busy:false, err:'' };
   POOLP = null; HT = { order:[], seen:7, turn:1 };
+  BASIC_CARDS = {};   // each deck shows its own printing of the basics
 }
 function switchDeck(id){
   // Opening any deck stops Analyse every deck and puts the open deck back first, so the deck on
@@ -3396,6 +3406,20 @@ function feed(force){
   }, function(e){ FEED.err = e.message; FEED.busy = false; FEED.tried = true; FEED.p = null; drawMoxChip(); throw e; });
   return FEED.p;
 }
+// The printing he picked on Moxfield for each card (moxKey -> Scryfall id), so every picture in the deck
+// is his art, not EDHREC's or Scryfall's default (Tom, 2026-10-19: "Its not pulling the specific Card art
+// I set on moxfield"). Decks brought in before this read it from the feed the first time they load.
+function printsOf(X){
+  var p = {};
+  [X.cmd || X.commanders, X.main, X.side, X.maybe].forEach(function(l){
+    (l || []).forEach(function(x){ if(x && typeof x === 'object' && x.sid && !p[moxKey(x.n)]) p[moxKey(x.n)] = x.sid; });   // the 99's printing beats a side deck copy's
+  });
+  return p;
+}
+function deckPrints(s){
+  if(!s.prints && s.mox){ var fd = feedDeck(s.mox.id); if(fd) s.prints = printsOf(fd); }
+  return s.prints || {};
+}
 function feedDeck(id){ return FEED.data && FEED.data.decks.filter(function(d){ return d.id === id; })[0] || null; }
 function rowForMox(id){ return shelf().filter(function(r){ return r.mox && r.mox.id === id; })[0] || null; }
 function newerOnMox(row){ var fd = row && row.mox && feedDeck(row.mox.id); return !!(fd && isNewer(fd.updated, row.mox.upd)); }
@@ -3469,6 +3493,7 @@ async function importList(X, onStep, opts){
     if(X.moxId) S.mox = { id:X.moxId, name:X.name || '', url:X.url || ('https://moxfield.com/decks/' + X.moxId), updated:X.updated || '',
       snap:{ cmd:cmds.map(function(c){ return { n:c.n, q:1 }; }), main:list(X.main), side:list(X.side), maybe:list(X.maybe) } };
     S.boards = { side:list(X.side), maybe:list(X.maybe) };
+    S.prints = printsOf(X);
     if(X.tags) catFromMox(X.tags);
     // Cards he chose to keep when bringing in the Moxfield version (importFromMox): the 99's and the
     // side deck's go to the side deck, Considering's stay in Considering.
@@ -3605,6 +3630,12 @@ function ensurePool(onStep){
   var s = S;
   rec.p = (async function(){
     if(!s.base){ step('Reading EDHREC for ' + shortName(s.cmd.n)); await loadBase(); if(CUR !== mine || S !== s) throw staleErr(); }
+    // A Moxfield deck brought in before printings were kept waits for the deck list once (8 s at most),
+    // so its pictures are his printings from the first open.
+    if(s.mox && !s.prints && !FEED.data){
+      try{ await Promise.race([feed(), new Promise(function(r){ setTimeout(r, 8000); })]); }catch(e){}
+      if(CUR !== mine || S !== s) throw staleErr();
+    }
     var had = s.bracket; if(!had) s.bracket = 3;   // a deck still being planned: read the bracket 3 page for now
     try{ await loadPool(step); } finally { if(!had) s.bracket = had; }
     if(CUR !== mine || S !== s) throw staleErr();
@@ -5256,8 +5287,9 @@ function loadBasicPics(){
   var need = {}; S.deck.forEach(function(d){ if(d.basic && !BASIC_CARDS[d.n]) need[d.n] = 1; });
   var names = Object.keys(need); if(!names.length) return;
   var tok = RENDER_N;
-  sfCollection(names.map(function(n){ return { n:n }; })).then(function(r){
-    names.forEach(function(n){ var c = r.cards[n.toLowerCase()]; if(c) BASIC_CARDS[n] = c; });
+  var pr = deckPrints(S);   // his Moxfield printing of each basic, when he picked one
+  sfCollection(names.map(function(n){ return { n:n, id:pr[moxKey(n)] }; })).then(function(r){
+    names.forEach(function(n){ var c = r.cards[pr[moxKey(n)] || n.toLowerCase()]; if(c) BASIC_CARDS[n] = c; });
     if(tok === RENDER_N && APP.view === 'deck' && S.page === 'deck') drawDeckPage();
   }, function(){});
 }
