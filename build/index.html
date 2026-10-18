@@ -317,8 +317,78 @@ var EDH = 'https://json.edhrec.com/pages';
 var lastSf = 0;
 function wait(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
 function lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
-function lsSet(k,v){ try{ localStorage.setItem(k,v); return true; }catch(e){ return false; } }
-function lsDel(k){ try{ localStorage.removeItem(k); }catch(e){} }
+function lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){ return false; } pcMark(k); return true; }
+function lsDel(k){ try{ localStorage.removeItem(k); }catch(e){ return; } pcMark(k); }
+
+/* Decks on the PC (Tom, 2026-10-18). In the Windows app its server keeps every forge.* setting in a
+   file on the PC, so the decks outlive Edge's storage and every window on the PC shows one shelf.
+   Each change goes there 0.4 s later. A change the server did not take (it stops after 3 idle hours)
+   waits in brew.pending and goes first on the next open. On opening, the file is read before anything
+   else: for a deck the higher revision wins, the shelf is both shelves together, other settings come
+   from the file. The web copy has no server and keeps everything in the browser, as before. */
+var PC = { on:false, pend:{}, t:0 };
+function pcKey(k){ return k.indexOf('forge.') === 0 && k.indexOf('forge.c.') !== 0; }
+function pcPendSave(){ try{ localStorage.setItem('brew.pending', JSON.stringify(PC.pend)); }catch(e){} }
+function pcMark(k){
+  if(!PC.on || !pcKey(k)) return;
+  PC.pend[k] = 1; pcPendSave();
+  clearTimeout(PC.t); PC.t = setTimeout(pcFlush, 400);
+}
+function pcBody(keys){
+  var set = {}, del = [];
+  keys.forEach(function(k){ var v = lsGet(k); if(v == null) del.push(k); else set[k] = v; });
+  return JSON.stringify({ set:set, del:del });
+}
+function pcFlush(){
+  var keys = Object.keys(PC.pend); if(!keys.length) return Promise.resolve(false);
+  var sent = {}; keys.forEach(function(k){ sent[k] = lsGet(k); });
+  return fetch('/api/store', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:pcBody(keys) }).then(function(r){
+    if(!r.ok) return false;
+    keys.forEach(function(k){ if(lsGet(k) === sent[k]) delete PC.pend[k]; });   // changed again meanwhile: it goes next time
+    pcPendSave(); return true;
+  }, function(){ return false; });
+}
+window.addEventListener('pagehide', function(){
+  var keys = Object.keys(PC.pend);
+  if(PC.on && keys.length && navigator.sendBeacon) navigator.sendBeacon('/api/store', new Blob([pcBody(keys)], { type:'application/json' }));
+});
+(function pcBoot(){
+  if(location.protocol !== 'http:' || !/^(127\.0\.0\.1|localhost)$/.test(location.hostname)) return;
+  function ask(method, body){
+    var x = new XMLHttpRequest(); x.open(method, '/api/store', false);   // before the shelf is read, so it waits
+    if(body) x.setRequestHeader('Content-Type', 'application/json');
+    x.send(body || null);
+    if(x.status !== 200) throw new Error('store ' + x.status);
+    return JSON.parse(x.responseText);
+  }
+  function rev(t){ try{ return +JSON.parse(t).rev || 0; }catch(e){ return 0; } }
+  function rows(t){ try{ var j = JSON.parse(t || '[]'); return Array.isArray(j) ? j : []; }catch(e){ return []; } }
+  try{
+    try{ PC.pend = JSON.parse(localStorage.getItem('brew.pending') || '{}') || {}; }catch(e){ PC.pend = {}; }
+    if(Object.keys(PC.pend).length){ ask('POST', pcBody(Object.keys(PC.pend))); PC.pend = {}; pcPendSave(); }
+    var f = ask('GET'), fk = f.keys || {}, local = {}, push = [];
+    for(var i = 0; i < localStorage.length; i++){ var k = localStorage.key(i); if(k && pcKey(k)) local[k] = localStorage.getItem(k); }
+    if(!f.exists) push = Object.keys(local);   // first open with the file: this browser's decks go in
+    else {
+      Object.keys(fk).forEach(function(k){
+        if(k === 'forge.decks') return;
+        var l = local[k];
+        if(k.indexOf('forge.deck.') === 0 && l != null && rev(l) > rev(fk[k])){ push.push(k); return; }
+        if(l !== fk[k]) localStorage.setItem(k, fk[k]);
+      });
+      Object.keys(local).forEach(function(k){ if(!(k in fk) && k !== 'forge.decks') push.push(k); });
+      var by = {};
+      rows(fk['forge.decks']).forEach(function(r){ by[r.id] = r; });
+      rows(local['forge.decks']).forEach(function(r){ if(!by[r.id] || (+r.rev || 0) > (+by[r.id].rev || 0)) by[r.id] = r; });
+      var list = Object.keys(by).map(function(id){ return by[id]; }).filter(function(r){ return localStorage.getItem('forge.deck.' + r.id) != null; });
+      list.sort(function(a, b){ return (b.at || 0) - (a.at || 0); });
+      var txt = JSON.stringify(list), had = fk['forge.decks'] != null;
+      if(list.length || had){ localStorage.setItem('forge.decks', txt); if(txt !== fk['forge.decks']) push.push('forge.decks'); }
+    }
+    if(push.length) ask('POST', pcBody(push));
+    PC.on = true;
+  }catch(e){ PC.on = false; }   // no server answer: the browser's own copy, as on the web
+})();
 
 /* Fetched data (Scryfall cards, EDHREC pages) is kept a day so a rebuild does not refetch it.
    It lives in IndexedDB, not localStorage: this origin's localStorage is shared with Motherbase
@@ -1588,7 +1658,7 @@ function listView(){
 }
 function setListView(k, val){
   var v = listView(); v[k] = k === 'p' ? +val : val;
-  try { localStorage.setItem('forge.listView', JSON.stringify(v)); } catch(e){}
+  lsSet('forge.listView', JSON.stringify(v));
 }
 function typeGroup(d){
   if(d.basic) return 'Land';
@@ -2503,7 +2573,7 @@ var LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
 var MOXUSER = (function(){
   var ok = /^[A-Za-z0-9_.-]{1,40}$/, u = '';
   try{ u = new URLSearchParams(location.search).get('user') || ''; }catch(e){}
-  if(ok.test(u)){ try{ localStorage.setItem('forge.moxUser', u); }catch(e){} return u; }
+  if(ok.test(u)){ lsSet('forge.moxUser', u); return u; }
   try{ u = localStorage.getItem('forge.moxUser') || ''; }catch(e){ u = ''; }
   return ok.test(u) ? u : 'amoncupa';
 })();
@@ -4000,7 +4070,7 @@ function drawDecks(){
   var f = FEED.data, remote = f ? f.decks.filter(function(d){ return !rows.some(function(r){ return r.mox && r.mox.id === d.id; }); }) : [];
   var items = rows.map(function(r){ return { k:deckTitle(r), h:deckTile(r) }; }).concat(remote.map(function(d){ return { k:d.name, h:remoteTile(d) }; }));
   items.sort(function(a, b){ return a.k.localeCompare(b.k, undefined, { numeric:true, sensitivity:'base' }); });
-  var sub = rows.length ? rows.length + ' deck' + (rows.length > 1 ? 's' : '') + ' on this device' + (remote.length ? ', ' + remote.length + ' more on Moxfield' : '') + '. Open a deck to see it.'
+  var sub = rows.length ? rows.length + ' deck' + (rows.length > 1 ? 's' : '') + (PC.on ? ' on this PC' : ' on this device') + (remote.length ? ', ' + remote.length + ' more on Moxfield' : '') + '. Open a deck to see it.'
     : remote.length ? remote.length + ' deck' + (remote.length > 1 ? 's' : '') + ' on Moxfield. Open one to bring it in.' : 'Bring your decks in from Moxfield, or start a new one from a commander.';
   var h = '<div class="bs-pagehead"><div><h1 class="bs-title">Your decks</h1><p class="bs-sub">' + sub + '</p></div><div class="bs-acts">' +
     '<button class="bs-btn" type="button" id="dkRefresh"' + (FEED.busy || IMPORT.busy ? ' disabled' : '') + '>' + (FEED.busy ? '<span class="bs-spin"></span>Checking Moxfield' : ico('refresh', 'bs-i16') + 'Refresh from Moxfield') + '</button>' +

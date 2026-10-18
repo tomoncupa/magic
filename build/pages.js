@@ -1249,7 +1249,7 @@ function shelfDecks(){
 // Which decks the Compare table shows: every deck, unless he turned one off (remembered on this device only).
 var CMP_OFF = 'forge.cmpOff';
 function cmpOff(){ try{ var o = JSON.parse(localStorage.getItem(CMP_OFF) || '{}'); return o && typeof o === 'object' ? o : {}; }catch(e){ return {}; } }
-function setCmpOff(o){ try{ if(Object.keys(o).length) localStorage.setItem(CMP_OFF, JSON.stringify(o)); else localStorage.removeItem(CMP_OFF); }catch(e){} }
+function setCmpOff(o){ if(Object.keys(o).length) lsSet(CMP_OFF, JSON.stringify(o)); else lsDel(CMP_OFF); }
 // Two decks with the same name (a Moxfield deck and a draft of it) get where they came from after the name.
 function cmpNames(decks){
   var cnt = {}, seen = {};

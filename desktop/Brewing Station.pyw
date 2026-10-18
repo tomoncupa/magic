@@ -13,6 +13,11 @@ and any one public Moxfield deck by id for Import a deck
 (GET /api/moxfield/deck?id=<publicId>), read live through
 build/moxfield_decks.py and kept for a minute.
 
+It keeps Tom's decks in a file on this PC (GET/POST /api/store), outside the
+public repo, in %LOCALAPPDATA%/Brewing Station/store.json. The page mirrors
+every forge.* setting there, so his decks survive Edge's storage being cleared
+and every window on this PC shows one shelf (Tom, 2026-10-18).
+
 The server stops itself after three hours with no requests. Opening the
 shortcut again starts it again.
 """
@@ -32,9 +37,18 @@ import time
 import urllib.parse
 import webbrowser
 
-PORT = 8766
+def _arg(name, default):
+    """--port 8767 / --store <file>, for testing beside the running copy."""
+    return sys.argv[sys.argv.index(name) + 1] if name in sys.argv[:-1] else default
+
+
+PORT = int(_arg("--port", 8766))
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 URL = f"http://127.0.0.1:{PORT}/build/"
+STORE = _arg("--store", os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"),
+                                     "Brewing Station", "store.json"))
+STORE_KEY = re.compile(r"forge\.[A-Za-z0-9_.:-]{1,120}")
+store_lock = threading.Lock()
 IDLE_LIMIT = 3 * 3600
 NO_WINDOW = 0x08000000          # CREATE_NO_WINDOW: no black window flashing up
 last_hit = time.time()
@@ -170,6 +184,41 @@ def moxfield_deck(pid, fresh=False):
         return text
 
 
+def store_read():
+    """{"exists": bool, "keys": {key: text}}. A broken file falls back to the newest daily copy."""
+    for path in [STORE] + sorted(glob.glob(STORE[:-5] + "-*.json"), reverse=True):
+        try:
+            with open(path, encoding="utf-8") as f:
+                keys = json.load(f).get("keys")
+            if isinstance(keys, dict):
+                return {"exists": True, "keys": keys}
+        except (OSError, ValueError, AttributeError):
+            continue
+    return {"exists": False, "keys": {}}
+
+
+def store_write(set_keys, del_keys):
+    """Applies one batch of changes and writes the file through a temp file. One copy a day is kept, 14 days."""
+    with store_lock:
+        keys = store_read()["keys"]
+        for k, v in set_keys.items():
+            if STORE_KEY.fullmatch(k) and isinstance(v, str):
+                keys[k] = v
+        for k in del_keys:
+            keys.pop(k, None)
+        os.makedirs(os.path.dirname(STORE), exist_ok=True)
+        tmp = STORE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"saved": time.strftime("%Y-%m-%d %H:%M:%S"), "keys": keys}, f, ensure_ascii=False)
+        os.replace(tmp, STORE)
+        day = STORE[:-5] + "-" + time.strftime("%Y-%m-%d") + ".json"
+        if not os.path.exists(day):
+            shutil.copyfile(STORE, day)
+            for old in sorted(glob.glob(STORE[:-5] + "-*.json"))[:-14]:
+                os.remove(old)
+        return len(keys)
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *a, **k):
         super().__init__(*a, directory=ROOT, **k)
@@ -222,6 +271,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         path = self.route()
         if path == "/api/claude/status":
             return self.send_json(claude_status())
+        if path == "/api/store":
+            return self.send_json(store_read())
         if path == "/api/moxfield/decks":
             try:
                 q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
@@ -263,6 +314,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             size = int(self.headers.get("Content-Length") or 0)
             data = json.loads(self.rfile.read(size) or b"{}")
             path = self.route()
+            if path == "/api/store":
+                sets, dels = data.get("set") or {}, data.get("del") or []
+                if not isinstance(sets, dict) or not isinstance(dels, list):
+                    raise RuntimeError("Not a store change.")
+                return self.send_json({"ok": True, "n": store_write(sets, [str(k) for k in dels])})
             if path == "/api/claude/login":
                 claude_login()
                 return self.send_json({"ok": True})
