@@ -291,6 +291,7 @@ pre.out{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r
   <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></symbol>
   <symbol id="i-cut" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-flip" viewBox="0 0 24 24"><path d="M4 9a8 8 0 0 1 14.5-3"/><path d="M19 2v4h-4"/><path d="M20 15a8 8 0 0 1-14.5 3"/><path d="M5 22v-4h4"/></symbol>
   <symbol id="i-side" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M15 5v14"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
   <symbol id="i-import" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M4 17v3h16v-3"/></symbol>
@@ -578,6 +579,8 @@ function slim(c){
     type:c.type_line || (f[0] && f[0].type_line) || '', o:o, ci:c.color_identity || [],
     legal:(c.legalities || {}).commander, prod:c.produced_mana || [], gc:!!c.game_changer,
     img:img.normal || '', sm:img.small || '', kw:c.keywords || [],
+    // The back face's picture of a two-faced card ('' for one face). Cards kept from before have no bk: backsNeeded() asks.
+    bk:!c.image_uris && f[1] && f[1].image_uris ? f[1].image_uris.normal || '' : '',
     // A reprint (Chaos Warp in an upcoming set) is out already: only a first printing has a release date to wait for.
     rel:c.reprint ? '' : c.released_at || '', usd:usdOfRaw(c) };
 }
@@ -3874,7 +3877,8 @@ var MENU = null;
 function closeMenu(){ if(MENU){ MENU.remove(); MENU = null; document.removeEventListener('pointerdown', menuAway, true); document.removeEventListener('keydown', menuKey, true); } }
 function menuAway(e){ if(MENU && !MENU.contains(e.target)) closeMenu(); }
 function menuKey(e){ if(e.key === 'Escape'){ e.stopPropagation(); var b = MENU && MENU._opener; closeMenu(); if(b) b.focus(); } }
-function bsMenu(btn, title, items){
+// at: { x, y } opens it where he right-clicked, else under btn.
+function bsMenu(btn, title, items, at){
   closeMenu();
   if(phone()){
     return bsSheet({ title:title, body:function(b, h){
@@ -3890,9 +3894,9 @@ function bsMenu(btn, title, items){
   }).join('');
   MENU.onclick = function(e){ var x = e.target.closest('[data-i]'); if(x){ var it = items[+x.getAttribute('data-i')]; closeMenu(); it.fn(); } };
   MENU.style.left = '-9999px'; document.body.appendChild(MENU);
-  var r = btn.getBoundingClientRect(), m = MENU.getBoundingClientRect();
-  MENU.style.left = Math.max(8, Math.min(r.right - m.width, innerWidth - m.width - 8)) + 'px';
-  MENU.style.top = (r.bottom + 4 + m.height > innerHeight - 8 ? r.top - m.height - 4 : r.bottom + 4) + 'px';
+  var r = at ? { left:at.x, right:at.x, top:at.y, bottom:at.y } : btn.getBoundingClientRect(), m = MENU.getBoundingClientRect();
+  MENU.style.left = Math.max(8, Math.min(at ? at.x : r.right - m.width, innerWidth - m.width - 8)) + 'px';
+  MENU.style.top = Math.max(8, r.bottom + 4 + m.height > innerHeight - 8 ? r.top - m.height - 4 : r.bottom + 4) + 'px';
   MENU.firstElementChild && MENU.querySelector('button').focus();
   setTimeout(function(){ document.addEventListener('pointerdown', menuAway, true); document.addEventListener('keydown', menuKey, true); }, 0);
   return MENU;
@@ -4869,7 +4873,7 @@ function crowHtml(it){
   var c = it.c || {}, n = it.n;
   // A small copy of the art leads every row, as on the other tabs (Tom, 2026-10-18); the mana value
   // moves to the right end, spells only.
-  var art = it.thumb || (c.img ? c.img.replace('/normal/', '/art_crop/') : '');
+  var src = (FLIP[moxKey(n)] && twoFaced(c)) || !it.thumb ? faceImg(c, n) : '', art = src ? src.replace('/normal/', '/art_crop/') : it.thumb || '';
   var lead = art ? '<img class="bs-crow-thumb" src="' + esc(art) + '" alt="" loading="lazy">' : '<span class="bs-crow-thumb" aria-hidden="true"></span>';
   var mv = it.board !== 'cmd' && !it.basic && c.mv != null && !(c.type && isLand(c)) ? '<span class="bs-crow-mv" title="Mana value">' + c.mv + '</span>' : '';
   var mid = '<span class="bs-crow-main"><span class="bs-crow-n">' + (it.q > 1 ? '<span class="bs-crow-q">' + it.q + '</span>' : '') + esc(n) + '</span>' + (it.sub ? '<span class="bs-crow-s">' + esc(it.sub) + '</span>' : '') + '</span>';
@@ -4881,10 +4885,11 @@ function crowHtml(it){
   return '<button class="bs-crow' + (it.echo ? ' bs-echo" data-echo="1' : '') + '" type="button" data-card="' + esc(n) + '" data-board="' + it.board + '">' + lead + mid + '<span class="bs-crow-end">' + itemBadges(it) + mv + '</span></button>';
 }
 function ctileHtml(it){
-  var c = it.c || {}, bad = itemBadges(it);
+  var c = it.c || {}, bad = itemBadges(it), img = faceImg(c, it.n), back = !!FLIP[moxKey(it.n)] && twoFaced(c);
   return '<div class="bs-ctile' + (it.echo ? ' bs-echo" data-echo="1' : '') + '"><button class="bs-ctile-pic" type="button" tabindex="-1" data-card="' + esc(it.n) + '" data-board="' + it.board + '" aria-label="' + esc(it.n) + '">' +
-    (c.img ? '<img src="' + esc(c.img) + '" alt="' + esc(it.n) + '" loading="lazy">' : '<span class="bs-ctile-noimg">' + esc(it.n) + '</span>') +
+    (img ? '<img src="' + esc(img) + '" alt="' + esc(it.n) + '" loading="lazy">' : '<span class="bs-ctile-noimg">' + esc(it.n) + '</span>') +
     (it.q > 1 ? '<span class="sh-qty">&times;' + it.q + '</span>' : '') + (bad ? '<span class="bs-ctile-bl">' + bad + '</span>' : '') + '</button>' +
+    (twoFaced(c) ? '<button class="bs-ctile-flip" type="button" data-flip="' + esc(it.n) + '" aria-pressed="' + back + '" aria-label="' + (back ? 'Show the front of ' : 'Flip ') + esc(it.n) + '" title="' + (back ? 'Show the front' : 'Flip') + '">' + ico('flip', 'bs-i16') + '</button>' : '') +
     cardLink(it.n, null, { cls:'bs-ctile-n', board:it.board, title:it.n }) + (it.sub ? '<span class="bs-ctile-s"><span>' + esc(it.sub) + '</span></span>' : '') + '</div>';
 }
 /* ---------- his own categories (Tom, 2026-10-17: "create categories and sort my cards into those") ----------
@@ -4958,7 +4963,10 @@ function catNew(forCard){
   h.body.addEventListener('click', function(e){ var p = e.target.closest('[data-catpick]'); if(p) go(p.getAttribute('data-catpick')); });
   if(!phone()) try{ inp.focus({ preventScroll:true }); }catch(e){}
 }
-// Drag a card into a category with the mouse. On a phone he taps the card and picks one in its sheet.
+// Drag a card with the mouse: into a category (My categories), out of the 99 into the side deck or
+// Considering, and back (Tom, 2026-10-19: "Let me drag and pull from and to side deck"). A card coming
+// in while the deck is full is dropped on the card it replaces, which goes to the side deck. On a phone
+// he taps the card, or holds it for the menu.
 // Pointer events, not the browser's own drag and drop: a name follows the pointer, the window scrolls
 // near its top and bottom edge (the 99 is long), Escape cancels, and the click that ends a drag does
 // not open the card.
@@ -4966,16 +4974,46 @@ function catDrag(on, board){
   main.onpointerdown = null; main.ondragstart = null;
   main.classList.remove('bs-dragging'); main.classList.toggle('bs-catdnd', !!on);
   if(!on && !board) return;
-  var sel = '[data-cat] [data-card][data-board="main"]';
-  main.ondragstart = function(e){ if(e.target.closest && e.target.closest('[data-cat],[data-box]')) e.preventDefault(); };   // card pictures
+  var sel = '[data-zone] [data-card][data-board="main"],[data-zone] [data-card][data-board="side"],[data-zone] [data-card][data-board="maybe"]';
+  main.ondragstart = function(e){ if(e.target.closest && e.target.closest('[data-zone]')) e.preventDefault(); };   // card pictures
   main.onpointerdown = function(e){
     if(board && boardDown(e)) return;
     if(!on || e.pointerType !== 'mouse' || e.button !== 0) return;
-    var c = e.target.closest(sel); if(!c || e.target.closest('[data-bas],[data-echo]')) return;
-    var st = { n:c.getAttribute('data-card'), x:e.clientX, y:e.clientY, px:e.clientX, py:e.clientY, on:false, over:null, ghost:null, vy:0, raf:0 };
-    function mark(z){ if(st.over === z) return; if(st.over) st.over.classList.remove('bs-dropon'); st.over = z; if(z) z.classList.add('bs-dropon'); }
-    function zoneAt(x, y){ var t = document.elementFromPoint(x, y), z = t && t.closest ? t.closest('[data-cat]') : null; return z && main.contains(z) ? z : null; }
-    function tick(){ if(st.vy){ scrollBy(0, st.vy); mark(zoneAt(st.px, st.py)); } st.raf = requestAnimationFrame(tick); }
+    var c = e.target.closest(sel); if(!c || e.target.closest('[data-bas],[data-echo],[data-flip]')) return;
+    var st = { n:c.getAttribute('data-card'), from:c.getAttribute('data-board'), x:e.clientX, y:e.clientY, px:e.clientX, py:e.clientY, on:false, over:null, drop:null, ghost:null, vy:0, raf:0 };
+    var full = S.deck.length >= deckSlots();
+    function mark(d){
+      var z = d && d.el;
+      if(st.over !== z){ if(st.over) st.over.classList.remove('bs-dropon', 'bs-swapon'); st.over = z; }
+      if(z) z.classList.add(d.swap ? 'bs-swapon' : 'bs-dropon');
+      st.drop = d;
+      if(st.ghost) st.ghost.textContent = d ? d.say : st.n;
+    }
+    // What a drop at (x, y) would do: { el to light up, say (the label under the pointer), go() }.
+    function dropAt(x, y){
+      var t = document.elementFromPoint(x, y); if(!t || !t.closest || !main.contains(t)) return null;
+      var zEl = t.closest('[data-zone]'); if(!zEl) return null;
+      var z = zEl.getAttribute('data-zone'), cat = z === 'main' ? t.closest('[data-cat]') : null;
+      if(z !== 'main'){
+        if(z === st.from) return null;
+        if(st.from === 'main' && isBasicName(st.n)) return { el:zEl, say:'Basic lands are not kept here', go:function(){ toast('Basic lands are not kept in ' + BOARD_TO[z] + '.'); } };
+        return { el:zEl, say:'Move to ' + BOARD_TO[z], go:function(){ dragMove(st.n, st.from, z); } };
+      }
+      if(st.from === 'main'){
+        if(!cat || listView().g !== 'cat') return null;
+        return { el:cat, say:cat.getAttribute('data-cat') ? 'Into ' + cat.getAttribute('data-cat') : 'No category', go:function(){ catMove(st.n, cat.getAttribute('data-cat')); } };
+      }
+      // Coming in from the side deck or Considering.
+      var into = cat ? cat.getAttribute('data-cat') : null;
+      if(full){
+        var on = t.closest('[data-card][data-board="main"]');
+        if(!on || on.closest('[data-echo]')) return { el:zEl, say:'The deck is full: drop it on the card it replaces', go:function(){ toast('The deck has ' + (S.deck.length + (S.partner ? 2 : 1)) + ' cards. Drop <b>' + esc(st.n) + '</b> on the card it should replace.'); } };
+        var out = on.getAttribute('data-card');
+        return { el:on, swap:true, say:'Swap for ' + out, go:function(){ dragIn(st.n, st.from, out, into); } };
+      }
+      return { el:cat || zEl, say:into ? 'Into the deck, in ' + into : 'Into the deck', go:function(){ dragIn(st.n, st.from, null, into); } };
+    }
+    function tick(){ if(st.vy){ scrollBy(0, st.vy); mark(dropAt(st.px, st.py)); } st.raf = requestAnimationFrame(tick); }
     function move(ev){
       st.px = ev.clientX; st.py = ev.clientY;
       if(!st.on){
@@ -4989,17 +5027,17 @@ function catDrag(on, board){
       st.ghost.style.transform = 'translate(' + (ev.clientX + 14) + 'px,' + (ev.clientY + 10) + 'px)';
       var edge = 80;
       st.vy = ev.clientY < edge ? -Math.ceil((edge - ev.clientY) / 3) : ev.clientY > innerHeight - edge ? Math.ceil((ev.clientY - innerHeight + edge) / 3) : 0;
-      mark(zoneAt(ev.clientX, ev.clientY));
+      mark(dropAt(ev.clientX, ev.clientY));
     }
     function end(cancel){
       document.removeEventListener('pointermove', move, true); document.removeEventListener('pointerup', up, true);
       document.removeEventListener('pointercancel', cx, true); document.removeEventListener('keydown', key, true);
       cancelAnimationFrame(st.raf); if(st.ghost) st.ghost.remove(); main.classList.remove('bs-dragging');
-      var z = st.over; mark(null);
+      var d = st.drop; mark(null);
       if(!st.on) return;
       var eat = function(ce){ ce.stopPropagation(); ce.preventDefault(); };
       document.addEventListener('click', eat, true); setTimeout(function(){ document.removeEventListener('click', eat, true); }, 0);
-      if(!cancel && z) catMove(st.n, z.getAttribute('data-cat'));
+      if(!cancel && d) d.go();
     }
     function up(){ end(false); }
     function cx(){ end(true); }
@@ -5007,6 +5045,25 @@ function catDrag(on, board){
     document.addEventListener('pointermove', move, true); document.addEventListener('pointerup', up, true);
     document.addEventListener('pointercancel', cx, true); document.addEventListener('keydown', key, true);
   };
+}
+// A dragged card between the side deck and Considering, or out of the 99 into one of them.
+function dragMove(n, from, to){
+  var r, c = csCard(n) || { n:n };
+  if(from === 'main'){ var w = cardWhere(n); r = applyChange(w.d ? w.d.n : n, null, '', { to:to }); if(r === true) toast(changeToast(), { undo:undoTop() }); else toast(esc(r), { kind:'bad' }); return; }
+  r = boardEdit(function(){ var nm = boardTake(from, c.n); if(!nm) return c.n + ' is not in ' + BOARD_TO[from] + '.'; boardAdd(to, nm, 1); return true; });
+  if(r === true) toast('Moved <b>' + esc(c.n) + '</b> to ' + BOARD_TO[to] + '.', { undo:undoTop() }); else toast(esc(r), { kind:'bad' });
+}
+// A dragged card into the 99, from the side deck or Considering. out: the card it replaces (a full deck);
+// that card goes to the side deck. cat: the category it was dropped in (My categories).
+function dragIn(n, from, out, cat){
+  var c = csCard(n);
+  if(!c){ toast('There is no card data for <b>' + esc(n) + '</b> yet.', { kind:'bad' }); return; }
+  var snap = cat != null ? catSnap() : null;
+  var r = applyChange(out, c, from === 'side' ? 'From your side deck.' : 'From Considering.', { from:from });
+  if(r !== true){ toast(esc(r), { kind:'bad' }); return; }
+  var undo = undoTop();
+  if(cat != null && catOf(c.n) !== cat){ catSet(c.n, cat); save(); catRedraw(); var u0 = undo; undo = function(){ var ok = u0(); S.cats = JSON.parse(snap); save(); catRedraw(); return ok; }; }
+  toast(changeToast() + (cat ? ' It is in ' + esc(cat) + '.' : ''), { undo:undo });
 }
 /* ---------- the deck as a free board (Tom, 2026-10-19: "let me manually rearrange the categories layout, similar to ARC") ----------
    In My categories, List, on a computer, the groups of the 99 are boxes he drags by their heading and drops anywhere; each
@@ -5126,14 +5183,14 @@ function boardDown(e){
   document.addEventListener('pointercancel', cx, true); document.addEventListener('keydown', key, true);
   return true;
 }
-function catMenu(btn, name){
+function catMenu(btn, name, at){
   var C = cats(), i = C.list.indexOf(name); if(i < 0) return;
   var items = [{ label:'Rename', icon:'pencil', fn:function(){ catRename(name); } }];
   var onBoard = !!main.querySelector('.bs-board');
   if(i > 0 && !onBoard) items.push({ label:'Move up', icon:'back', fn:function(){ catShift(name, -1); } });
   if(i < C.list.length - 1 && !onBoard) items.push({ label:'Move down', icon:'arrow', fn:function(){ catShift(name, 1); } });
   items.push({ label:'Delete category', icon:'trash', kind:'bad', fn:function(){ catDelete(name); } });
-  bsMenu(btn, name, items);
+  bsMenu(btn, name, items, at);
 }
 function catShift(name, d){
   var l = cats().list, i = l.indexOf(name), j = i + d; if(i < 0 || j < 0 || j >= l.length) return;
@@ -5205,7 +5262,8 @@ function deckGroups(lv){
       var c = isBasicName(x.n) ? basicCardOf(x.n) : poolCard(x.n);
       return { n:x.n, q:x.q, c:c, board:b[0], sub:c ? (isBasicName(x.n) ? 'Basic land' : (ROLE_NAMES[csRoleOf(c)] || 'Synergy') + ', ' + typeShort(c)) : 'No card data yet' };
     });
-    if(l.length) groups.push({ t:b[1], items:l, board:b[0] });
+    // On a computer the side deck shows even empty: somewhere to drag a card out of the 99.
+    if(l.length || (b[0] === 'side' && !phone())) groups.push({ t:b[1], items:l, board:b[0] });
   });
   return groups;
 }
@@ -5238,7 +5296,7 @@ function drawDeckPage(){
   var snapN = S.mox && S.mox.snap ? (S.mox.snap.main || []).reduce(function(s, x){ return s + (x.q || 1); }, 0) : -1;
   if(total !== 100 && snapN >= 0 && snapN + (S.partner ? 2 : 1) === total && !moxDiff().count) h += '<div class="bs-callout bs-warn">' + ico('warn') + '<p><b>Moxfield\'s Main Deck had ' + snapN + ' cards when this copy came in,</b> so the deck has ' + total + '. ' +
     (total > 100 ? 'Cut ' + (total - 100) + ' here or on Moxfield.' : 'Add ' + (100 - total) + ' here or on Moxfield.') + ' If you were still changing it on Moxfield, bring in the newer version once it shows.</p></div>';
-  h += '<section><div class="bs-section-head"><h2 class="bs-h2">The deck</h2>' + cnt + '<div class="bs-acts">' +
+  h += '<section data-zone="main"><div class="bs-section-head"><h2 class="bs-h2">The deck</h2>' + cnt + '<div class="bs-acts">' +
     '<div class="bs-seg" role="group" aria-label="Show as"><button type="button" data-lv="p:0"' + (!lv.p ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>List</button><button type="button" data-lv="p:1"' + (lv.p ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Pictures</button></div>' +
     '<div class="bs-seg" role="group" aria-label="Group by"><button type="button" data-lv="g:type"' + (lv.g === 'type' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>By type</button><button type="button" data-lv="g:job"' + (lv.g === 'job' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>By job</button>' +
     '<button type="button" data-lv="g:cat"' + (lv.g === 'cat' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>My categories</button></div>' +
@@ -5255,8 +5313,9 @@ function drawDeckPage(){
     var menu = isCat && g.cat ? '<span class="bs-acts"><button class="bs-ibtn bs-sm" type="button" data-catmenu="' + esc(g.cat) + '" aria-label="' + (grip ? 'Rename or delete ' : 'Rename, move or delete ') + esc(g.t) + '">' + ico('more', 'bs-i16') + '</button></span>' : '';
     return '<div class="bs-group"' + (grip ? ' data-boxgrip title="Drag to move this box"' : '') + '>' + esc(g.t) + ' <span class="bs-count">' + cnt2(g) + (echoes(g) ? ' + ' + echoes(g) + ' also here' : '') + '</span>' + menu + '</div>';
   }
-  function zone(g){ return isCat && g.cat != null ? ' data-cat="' + esc(g.cat) + '"' : ''; }
+  function zone(g){ return g.board ? ' data-zone="' + g.board + '"' : isCat && g.cat != null ? ' data-cat="' + esc(g.cat) + '"' : ''; }
   function empty(g){
+    if(g.board) return cnt2(g) ? '' : '<p class="bs-catdrop">Drag a card here to take it out of the deck and keep it with it.</p>';
     if(cnt2(g) || !isCat) return '';
     return '<p class="bs-catdrop">' + (g.none ? 'Every card has a category.' + (touch ? '' : ' Drop a card here to take it out of its category.') : touch ? 'Tap a card and pick ' + esc(g.t) + '.' : 'Drag cards here, or tap a card and pick ' + esc(g.t) + '.') + '</p>';
   }
@@ -5276,12 +5335,120 @@ function drawDeckPage(){
   main.innerHTML = h;
   main.onclick = onDeckClick;
   main.onkeydown = function(e){ if((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role=button][data-card]')){ e.preventDefault(); e.target.click(); } };
-  catDrag(isCat && !touch, onBoard);
+  catDrag(!touch, onBoard);
   boardWatch();
   drawDeckSide();
   sumSoon();
   loadBasicPics();   // the basics' art, for the list's thumbnails and the pictures alike
+  backsNeeded();
 }
+/* ---------- two-faced cards flip (Tom, 2026-10-19: "Let me flip cards as well") ----------
+   FLIP holds the cards turned to their back, for this visit only. Every picture of the card follows it:
+   the Pictures tile, the list's thumbnail, the hover card, the card sheet and its zoom. */
+var FLIP = {}, BACKS = { asked:{}, busy:false };
+function twoFaced(c){ return !!(c && c.bk); }
+function faceImg(c, n){ c = c || {}; return FLIP[moxKey(n || c.n)] && c.bk ? c.bk : c.img || ''; }
+function flipCard(n){
+  var k = moxKey(n); if(FLIP[k]) delete FLIP[k]; else FLIP[k] = 1;
+  if(APP.view === 'deck' && S.page === 'deck') drawDeckPage();
+  if(CS && !CS.closed && sameName(CS.name, n)) drawCardSheet();
+  if(HOVER.on && document.contains(HOVER.on)) hoverShow(HOVER.on);
+}
+// Cards kept from before bk existed: ask Scryfall once for the "A // B" ones (only those can have a back).
+function backsNeeded(){
+  if(BACKS.busy || !S.cmd) return;
+  var all = [S.cmd, S.partner].filter(Boolean).map(function(c){ return poolCard(c.n) || c; })
+    .concat(S.deck.map(function(d){ return d.basic ? null : poolCard(d.n); }), ['side', 'maybe'].reduce(function(a, b){ return a.concat(boardList(b).map(function(x){ return poolCard(x.n); })); }, []));
+  var need = all.filter(function(c){ return c && c.bk === undefined && c.n.indexOf(' // ') > 0 && !BACKS.asked[c.n]; });
+  if(!need.length) return;
+  need.forEach(function(c){ BACKS.asked[c.n] = 1; });
+  BACKS.busy = true; var tok = CUR;
+  sfCollectionFetch(need.map(function(c){ return { id:c.id, n:c.n }; })).then(function(r){
+    BACKS.busy = false; if(CUR !== tok) return;
+    var any = false;
+    need.forEach(function(c){ var s = r.cards[c.id || c.n.toLowerCase()]; c.bk = s ? s.bk || '' : ''; if(c.bk) any = true;
+      [S.cmd, S.partner].forEach(function(x){ if(x && sameName(x.n, c.n)) x.bk = c.bk; }); });
+    if(any && APP.view === 'deck' && S.page === 'deck' && !main.classList.contains('bs-dragging')) drawDeckPage();
+  }, function(){ BACKS.busy = false; });
+}
+/* ---------- right click (and a held finger) on any card: what can be done with it, where it is ---------- */
+function cardMenuItems(n, board){
+  var c = csCard(n) || { n:n }, w = cardWhere(c.n), dn = w.d ? w.d.n : c.n, basic = isBasicName(c.n), items = [];
+  var ro = APP.view !== 'deck' || !S.cmd || parkedByAnalyse();
+  var open = function(o){ return function(){ openCardSheet(n, Object.assign({ board:board || '' }, o || {})); }; };
+  var act = function(a){ return function(){ cardAction(a, csCard(n) || c); }; };
+  var move = function(from, to){ return function(){
+    var r = boardEdit(function(){ var nm = boardTake(from, c.n); if(!nm) return c.n + ' is not in ' + BOARD_TO[from] + '.'; boardAdd(to, nm, 1); return true; });
+    if(r === true) toast('Moved <b>' + esc(c.n) + '</b> to ' + BOARD_TO[to] + '.', { undo:undoTop() }); else toast(esc(r), { kind:'bad' });
+  }; };
+  items.push({ label:'Open the card', icon:'deck', fn:open() });
+  if(twoFaced(c)) items.push({ label:FLIP[moxKey(c.n)] ? 'Show the front' : 'Flip', icon:'flip', fn:function(){ flipCard(c.n); } });
+  if(!ro && !w.cmd){
+    var full = S.deck.length >= deckSlots(), here = board === 'side' && w.side ? 'side' : board === 'maybe' && w.maybe ? 'maybe' : w.main ? 'main' : w.side ? 'side' : w.maybe ? 'maybe' : '';
+    if(here === 'main' && basic){
+      if(!full) items.push({ label:'One more ' + c.n, icon:'plus', fn:function(){ basicStep(c.n, 1); } });
+      items.push({ label:'One fewer ' + c.n, icon:'minus', fn:function(){ basicStep(c.n, -1); } });
+    } else if(here === 'main'){
+      items.push({ label:'Swap', icon:'swap', fn:open({ board:'main', swap:true }) });
+      items.push({ label:'Move to the side deck', icon:'side', fn:act('toside') });
+      if(!w.maybe) items.push({ label:'Move to Considering', icon:'side', fn:act('tomaybe') });
+      if(cats().list.length) items.push({ label:'Pick its category', icon:'pencil', fn:open() });
+    } else if(here === 'side' || here === 'maybe'){
+      var cb = function(){ return function(){ var cc = csCard(n) || c; if(!poolCard(cc.n) && S.pool && cc.type) inPool(Object.assign({}, cc));
+        var r = applyChange(null, cc, here === 'side' ? 'From your side deck.' : 'From Considering.', { from:here }); if(r === true) toast(changeToast(), { undo:undoTop() }); else toast(esc(r), { kind:'bad' }); }; };
+      if(!full) items.push({ label:here === 'side' ? 'Move into the deck' : 'Add to the deck', icon:'plus', fn:cb() });
+      items.push({ label:'Swap it in for a card in the deck', icon:'swap', fn:open({ board:here, swap:true }) });
+      if(here === 'side' && !w.maybe) items.push({ label:'Move to Considering', icon:'side', fn:move('side', 'maybe') });
+      if(here === 'maybe' && !w.side) items.push({ label:'Move to the side deck', icon:'side', fn:move('maybe', 'side') });
+    } else {
+      if(!full) items.push({ label:'Add to the deck', icon:'plus', fn:act('indeck') });
+      items.push({ label:'Swap it in for a card in the deck', icon:'swap', fn:open({ swap:true }) });
+      items.push({ label:'Add to the side deck', icon:'side', fn:act('addside') });
+    }
+  }
+  items.push({ label:'Copy the name', icon:'copy', fn:function(){
+    (navigator.clipboard ? navigator.clipboard.writeText(c.n) : Promise.reject()).then(function(){ toast('Copied <b>' + esc(c.n) + '</b>.'); }, function(){ toast('Copy failed.', { kind:'bad' }); }); } });
+  if(!ro && !w.cmd && !basic){
+    var here2 = board === 'side' && w.side ? 'side' : board === 'maybe' && w.maybe ? 'maybe' : w.main ? 'main' : '';
+    if(here2 === 'main') items.push({ label:'Cut from the deck', icon:'cut', kind:'bad', fn:function(){ var r = applyChange(dn, null, '', { to:null }); if(r === true) toast(changeToast(), { undo:undoTop() }); else toast(esc(r), { kind:'bad' }); } });
+    else if(here2) items.push({ label:'Remove from ' + BOARD_TO[here2], icon:'cut', kind:'bad', fn:act(here2 === 'side' ? 'rmside' : 'rmmaybe') });
+  }
+  return items;
+}
+function cardMenu(el, x, y){
+  var n = el.getAttribute('data-card') || el.getAttribute('data-pg-card'); if(!n) return;
+  hoverHide();
+  bsMenu(el, n, cardMenuItems(n, el.getAttribute('data-board') || ''), { x:x, y:y });
+}
+(function(){
+  var cardSel = '[data-card],[data-pg-card]';
+  document.addEventListener('contextmenu', function(e){
+    clear(); if(Date.now() - held < 1000){ e.preventDefault(); return; }   // Android sends both for one held finger
+    if(!e.target.closest || e.target.closest('input,textarea,[contenteditable=true]')) return;
+    var el = e.target.closest(cardSel);
+    if(el && !el.closest('.bs-menu')){ e.preventDefault(); cardMenu(el, e.clientX, e.clientY); return; }
+    var g = APP.view === 'deck' && e.target.closest('.bs-group');
+    var cm = g && g.querySelector('[data-catmenu]');
+    if(cm){ e.preventDefault(); catMenu(cm, cm.getAttribute('data-catmenu'), { x:e.clientX, y:e.clientY }); }
+  });
+  // A held finger (iPhone and iPad Safari send no contextmenu): the same menu after half a second
+  // without moving, and the tap that follows is swallowed.
+  var hold = null, held = 0;
+  function clear(){ if(hold){ clearTimeout(hold.t); hold = null; } }
+  document.addEventListener('pointerdown', function(e){
+    clear(); if(e.pointerType === 'mouse' || !e.target.closest) return;
+    var el = e.target.closest(cardSel); if(!el || el.closest('.bs-menu,[data-flip]')) return;
+    hold = { x:e.clientX, y:e.clientY, t:setTimeout(function(){
+      if(!hold) return; hold = null; held = Date.now();
+      var eat = function(ce){ ce.stopPropagation(); ce.preventDefault(); document.removeEventListener('click', eat, true); };
+      document.addEventListener('click', eat, true); setTimeout(function(){ document.removeEventListener('click', eat, true); }, 800);
+      cardMenu(el, e.clientX, e.clientY);
+    }, 500) };
+  }, true);
+  document.addEventListener('pointermove', function(e){ if(hold && Math.abs(e.clientX - hold.x) + Math.abs(e.clientY - hold.y) > 10) clear(); }, true);
+  document.addEventListener('pointerup', clear, true); document.addEventListener('pointercancel', clear, true);
+  document.addEventListener('scroll', clear, true);
+})();
 // Pictures for the basic lands (they are not in the pool): looked up once, from the cache after that.
 function loadBasicPics(){
   var need = {}; S.deck.forEach(function(d){ if(d.basic && !BASIC_CARDS[d.n]) need[d.n] = 1; });
@@ -5295,6 +5462,7 @@ function loadBasicPics(){
 }
 function onDeckClick(e){
   var t = e.target;
+  var fl = t.closest('[data-flip]'); if(fl){ flipCard(fl.getAttribute('data-flip')); return; }
   var bas = t.closest('[data-bas]'); if(bas){ basicStep(bas.getAttribute('data-bas'), +bas.getAttribute('data-d')); return; }
   var lvb = t.closest('[data-lv]'); if(lvb){ var kv = lvb.getAttribute('data-lv').split(':'); setListView(kv[0], kv[1]); drawDeckPage(); return; }
   if(t.closest('[data-catnew]')){ catNew(); return; }
@@ -5611,7 +5779,9 @@ function csAct(act, icon, label, note, kind){
 // The picture and name, shown at once; `type` and `rest` fill in once the card is known.
 function csShell(n, c, type, rest){
   var nm = c ? c.n : n;
-  return csBackHtml() + '<div class="bs-cardsheet"><div class="bs-cardsheet-pic">' + (c && c.img ? '<button class="sh-zoom" type="button" data-cs-zoom aria-label="Read ' + esc(nm) + ' bigger"><img src="' + esc(c.img) + '" alt="' + esc(nm) + '"></button><p class="sh-sub" style="text-align:center">Open the picture to read it bigger.</p>' : '<div class="bs-skel bs-skel-card"></div>') + '</div>' +
+  return csBackHtml() + '<div class="bs-cardsheet"><div class="bs-cardsheet-pic">' + (c && c.img ? '<button class="sh-zoom" type="button" data-cs-zoom aria-label="Read ' + esc(nm) + ' bigger"><img src="' + esc(faceImg(c, nm)) + '" alt="' + esc(nm) + '"></button>' +
+    (twoFaced(c) ? '<button class="bs-btn bs-sm bs-block bs-cs-flip" type="button" data-cs-flip aria-pressed="' + !!FLIP[moxKey(nm)] + '">' + ico('flip', 'bs-i16') + (FLIP[moxKey(nm)] ? 'Show the front' : 'Flip') + '</button>' : '') +
+    '<p class="sh-sub" style="text-align:center">Open the picture to read it bigger.</p>' : '<div class="bs-skel bs-skel-card"></div>') + '</div>' +
     '<div class="bs-stack"><div><h3 class="bs-cardsheet-name" data-nolink>' + esc(nm) + '</h3><p class="bs-cardsheet-type">' + type + '</p></div>' + (rest || '') + '</div></div>';
 }
 function csPriceLine(c){
@@ -5754,7 +5924,8 @@ function onCardSheetClick(e){
   var t = e.target, me = CS; if(!me) return;
   if(t.closest('[data-cs-pop]')){ var p = me.back.pop(); if(p) csGo(p.name, p.opts, p.view, p.fetched, p.sw, p.y); return; }
   var c = csCard(me.name, me.opts); if(!c) return;
-  if(t.closest('[data-cs-zoom]')){ zoomCard(c.img); return; }
+  if(t.closest('[data-cs-zoom]')){ zoomCard(faceImg(c, c.n)); return; }
+  if(t.closest('[data-cs-flip]')){ flipCard(c.n); return; }
   var cc = t.closest('[data-cs-card]'); if(cc){ openCardSheet(cc.getAttribute('data-cs-card'), {}); return; }
   if(t.closest('[data-cs-works]')){ var yW = me.body.scrollTop; me.worksAll = true; drawCardSheet(); me.body.scrollTop = yW; return; }
   if(me.opts.readonly) return;
@@ -6309,7 +6480,7 @@ function swmHover(b){
 // rows keep their own peek; pictures already are the card.
 var HOVER = { el:null, t:0, on:null };
 function hoverImg(n){
-  var c = csCard(n); if(c && c.img) return c.img;
+  var c = csCard(n); if(c && c.img) return faceImg(c, n);
   return 'https://api.scryfall.com/cards/named?format=image&version=normal&exact=' + encodeURIComponent(n.split(' // ')[0]);
 }
 function hoverHide(){ clearTimeout(HOVER.t); HOVER.on = null; if(HOVER.el) HOVER.el.classList.remove('on'); }

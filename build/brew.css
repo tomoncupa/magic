@@ -877,3 +877,15 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{border-color:var
 /* Card sheet: what it works with, one line per reason */
 .sh-works{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:var(--s2);font-size:var(--t2);line-height:1.5;color:var(--ink2)}
 .sh-works-why{color:var(--ink3)}
+/* Right-click menu, drag to and from the side deck, flip (2026-10-19) */
+.bs-ctile-flip{position:absolute;top:6px;left:6px;z-index:2;display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid var(--line2);border-radius:50%;background:var(--glass);color:var(--ink);cursor:pointer}
+.bs-ctile-flip::before{content:"";position:absolute;inset:-4px}
+.bs-ctile-flip[aria-pressed="true"]{border-color:var(--brass);color:var(--brass)}
+@media (hover:hover) and (pointer:fine){ .bs-ctile-flip:hover{border-color:var(--brass);color:var(--brass)} }
+.bs-cs-flip{margin-top:var(--s2)}
+[data-zone].bs-dropon{background:var(--brass-soft);box-shadow:0 0 0 2px var(--brass);border-radius:var(--r-sm)}
+.bs-swapon{box-shadow:0 0 0 2px var(--brass) !important;background:var(--brass-soft) !important}
+.bs-catghost{white-space:normal;max-width:320px}
+.bs-catdnd [data-zone] [data-card][data-board]:not([data-board="cmd"]){cursor:grab}
+.bs-dragging,.bs-dragging *{cursor:grabbing !important}
+[data-card] img,[data-card]{-webkit-touch-callout:none}
