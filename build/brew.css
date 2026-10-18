@@ -889,3 +889,9 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{border-color:var
 .bs-catdnd [data-zone] [data-card][data-board]:not([data-board="cmd"]){cursor:grab}
 .bs-dragging,.bs-dragging *{cursor:grabbing !important}
 [data-card] img,[data-card]{-webkit-touch-callout:none}
+
+/* Your decks: sort and hide Moxfield notes */
+.bs-dkbar{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s3);margin:calc(-1 * var(--s3)) 0 var(--s5)}
+.bs-dkbar .bs-seg button{min-height:38px}
+.bs-dkbar .bs-dkquiet{margin-left:auto;min-height:44px}
+@media (max-width:720px){ .bs-dkbar > .bs-label{display:none} .bs-dkbar .bs-seg{display:flex;flex:1 1 100%} .bs-dkbar .bs-seg button{flex:1 1 0;min-width:0;padding:0 var(--s2);white-space:normal;line-height:1.15;text-align:center} .bs-dkbar .bs-dkquiet{margin-left:0;flex:1 1 100%} }
