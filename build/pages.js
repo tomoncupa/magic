@@ -107,7 +107,6 @@ function deckSet(){
 }
 function isIn(set, n){ return !!(set[lc(n)] || set[front(n)]); }
 function deckCount(){ return (S.deck || []).length + (S.cmd ? 1 : 0) + (S.partner ? 1 : 0); }
-function full(){ return deckCount() >= 100; }
 
 /* ---------- SHELL's toast, card sheet and change, each with a fallback ---------- */
 var TEL = null, TT = 0;
@@ -384,11 +383,10 @@ function edhStats(inc, syn, recent){
   if(syn != null && !isNaN(syn) && (inc || syn)) s += '<span class="' + (syn > 0.004 ? 'bs-pos' : syn < -0.004 ? 'bs-neg' : '') + '">' + signed(syn) + ' synergy</span>';
   return s;
 }
-// Add (deck not full) and Swap in (opens the card sheet, which picks what goes out).
+// Add (even past 100: he over-adds, then culls) and Swap in (opens the card sheet, which picks what goes out).
 function addButtons(ctx, c, why){
   if(!c) return '';
-  var sw = '<button class="bs-btn bs-sm' + (full() ? ' bs-primary' : '') + '" type="button"' + ctx.act(function(){ openCard(c.n); }) + '>Swap in</button>';
-  if(full()) return sw;
+  var sw = '<button class="bs-btn bs-sm" type="button"' + ctx.act(function(){ openCard(c.n); }) + '>Swap in</button>';
   return '<button class="bs-btn bs-sm bs-primary" type="button"' + ctx.act(function(){
     change(null, c, why || '', 'Added <b>' + h(c.n) + '</b> to the deck.');
   }) + '>' + ico('plus', 'bs-i16') + 'Add</button>' + sw;
@@ -1095,8 +1093,7 @@ function drawEdhrec(ctx, st){
           var c = x.c || cardFor(x.n); remember(c);
           return '<div class="bs-crow' + (!isAll(mk) && i >= 12 ? ' pg-x' : '') + '">' + (art(c) ? '<img class="bs-crow-thumb" src="' + h(art(c)) + '" alt="" loading="lazy">' : '<span class="bs-crow-thumb"></span>') +
             '<button class="pg-crow-open" type="button" data-pg-card="' + h(x.n) + '"><span class="bs-crow-n">' + h(x.n) + '</span><span class="bs-crow-s">' + (x.inc ? 'in ' + pct(x.inc) + ' of decks' : 'in the average deck') + (ownedIn(x.n) ? ', ' + (ownedIn(x.n) === 'side' ? 'in your side deck' : 'in Considering') : '') + '</span></button>' +
-            '<span class="bs-crow-end">' + (c ? (full() ? '<button class="bs-btn bs-sm" type="button"' + ctx.act(function(){ openCard(x.n); }) + '>Swap in</button>'
-              : '<button class="bs-btn bs-sm bs-primary" type="button"' + ctx.act(function(){ change(null, c, 'In EDHREC\'s average deck for ' + short() + (x.inc ? ' (' + pct(x.inc) + ' of decks)' : '') + '.', 'Added <b>' + h(x.n) + '</b> to the deck.'); }) + '>Add</button>') : '') + '</span></div>';
+            '<span class="bs-crow-end">' + (c ? ('<button class="bs-btn bs-sm bs-primary" type="button"' + ctx.act(function(){ change(null, c, 'In EDHREC\'s average deck for ' + short() + (x.inc ? ' (' + pct(x.inc) + ' of decks)' : '') + '.', 'Added <b>' + h(x.n) + '</b> to the deck.'); }) + '>Add</button>') : '') + '</span></div>';
         }).join('') + '</div>' + '<div class="pg-pad">' + showAll(ctx, mk, missing.length, 12) + '</div>' : '<p class="pg-fine pg-pad">You run every card in the average deck.</p>') +
       '</section>' +
       '<section class="bs-panel bs-flush"><div class="bs-panel-head"><h3 class="bs-panel-title">You run, it does not</h3><span class="bs-count pg-right">' + extra.length + '</span></div>' +

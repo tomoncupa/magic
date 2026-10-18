@@ -3269,7 +3269,7 @@ function changeDeck(outName, inCard, why, undo, o){
     }
   }
   if(!outD && !e) return 'Nothing to change.';
-  if(!outD && !o.over && S.deck.length >= deckSlots()) return 'The deck already has ' + (S.deck.length + (S.partner ? 2 : 1)) + ' cards. Swap it in for a card instead.';
+  // No 100-card cap on his own adds: he over-adds, then culls (Tom, 2026-10-19).
   if(undo) pushUndo(outName || e.n);
   if(outD && e) S.deck[i] = e; else if(outD) S.deck.splice(i, 1); else S.deck.push(e);
   // The side deck and Considering (parts B and E): nothing leaves the 99 unless it goes somewhere,
@@ -4985,7 +4985,7 @@ function catNew(forCard){
 }
 // Drag a card with the mouse: into a category (My categories), out of the 99 into the side deck or
 // Considering, and back (Tom, 2026-10-19: "Let me drag and pull from and to side deck"). A card coming
-// in while the deck is full is dropped on the card it replaces, which goes to the side deck. On a phone
+// in is added, even past 100 (he over-adds, then culls); Swap stays on the menu. On a phone
 // he taps the card, or holds it for the menu.
 // Pointer events, not the browser's own drag and drop: a name follows the pointer, the window scrolls
 // near its top and bottom edge (the 99 is long), Escape cancels, and the click that ends a drag does
@@ -5001,7 +5001,6 @@ function catDrag(on, board){
     if(!on || e.pointerType !== 'mouse' || e.button !== 0) return;
     var c = e.target.closest(sel); if(!c || e.target.closest('[data-bas],[data-echo],[data-flip]')) return;
     var st = { n:c.getAttribute('data-card'), from:c.getAttribute('data-board'), x:e.clientX, y:e.clientY, px:e.clientX, py:e.clientY, on:false, over:null, drop:null, ghost:null, vy:0, raf:0 };
-    var full = S.deck.length >= deckSlots();
     function mark(d){
       var z = d && d.el;
       if(st.over !== z){ if(st.over) st.over.classList.remove('bs-dropon', 'bs-swapon'); st.over = z; }
@@ -5025,12 +5024,6 @@ function catDrag(on, board){
       }
       // Coming in from the side deck or Considering.
       var into = cat ? cat.getAttribute('data-cat') : null;
-      if(full){
-        var on = t.closest('[data-card][data-board="main"]');
-        if(!on || on.closest('[data-echo]')) return { el:zEl, say:'The deck is full: drop it on the card it replaces', go:function(){ toast('The deck has ' + (S.deck.length + (S.partner ? 2 : 1)) + ' cards. Drop <b>' + esc(st.n) + '</b> on the card it should replace.'); } };
-        var out = on.getAttribute('data-card');
-        return { el:on, swap:true, say:'Swap for ' + out, go:function(){ dragIn(st.n, st.from, out, into); } };
-      }
       return { el:cat || zEl, say:into ? 'Into the deck, in ' + into : 'Into the deck', go:function(){ dragIn(st.n, st.from, null, into); } };
     }
     function tick(){ if(st.vy){ scrollBy(0, st.vy); mark(dropAt(st.px, st.py)); } st.raf = requestAnimationFrame(tick); }
@@ -5404,9 +5397,9 @@ function cardMenuItems(n, board){
   items.push({ label:'Open the card', icon:'deck', fn:open() });
   if(twoFaced(c)) items.push({ label:FLIP[moxKey(c.n)] ? 'Show the front' : 'Flip', icon:'flip', fn:function(){ flipCard(c.n); } });
   if(!ro && !w.cmd){
-    var full = S.deck.length >= deckSlots(), here = board === 'side' && w.side ? 'side' : board === 'maybe' && w.maybe ? 'maybe' : w.main ? 'main' : w.side ? 'side' : w.maybe ? 'maybe' : '';
+    var here = board === 'side' && w.side ? 'side' : board === 'maybe' && w.maybe ? 'maybe' : w.main ? 'main' : w.side ? 'side' : w.maybe ? 'maybe' : '';
     if(here === 'main' && basic){
-      if(!full) items.push({ label:'One more ' + c.n, icon:'plus', fn:function(){ basicStep(c.n, 1); } });
+      items.push({ label:'One more ' + c.n, icon:'plus', fn:function(){ basicStep(c.n, 1); } });
       items.push({ label:'One fewer ' + c.n, icon:'minus', fn:function(){ basicStep(c.n, -1); } });
     } else if(here === 'main'){
       items.push({ label:'Swap', icon:'swap', fn:open({ board:'main', swap:true }) });
@@ -5416,12 +5409,12 @@ function cardMenuItems(n, board){
     } else if(here === 'side' || here === 'maybe'){
       var cb = function(){ return function(){ var cc = csCard(n) || c; if(!poolCard(cc.n) && S.pool && cc.type) inPool(Object.assign({}, cc));
         var r = applyChange(null, cc, here === 'side' ? 'From your side deck.' : 'From Considering.', { from:here }); if(r === true) toast(changeToast(), { undo:undoTop() }); else toast(esc(r), { kind:'bad' }); }; };
-      if(!full) items.push({ label:here === 'side' ? 'Move into the deck' : 'Add to the deck', icon:'plus', fn:cb() });
+      items.push({ label:here === 'side' ? 'Move into the deck' : 'Add to the deck', icon:'plus', fn:cb() });
       items.push({ label:'Swap it in for a card in the deck', icon:'swap', fn:open({ board:here, swap:true }) });
       if(here === 'side' && !w.maybe) items.push({ label:'Move to Considering', icon:'side', fn:move('side', 'maybe') });
       if(here === 'maybe' && !w.side) items.push({ label:'Move to the side deck', icon:'side', fn:move('maybe', 'side') });
     } else {
-      if(!full) items.push({ label:'Add to the deck', icon:'plus', fn:act('indeck') });
+      items.push({ label:'Add to the deck', icon:'plus', fn:act('indeck') });
       items.push({ label:'Swap it in for a card in the deck', icon:'swap', fn:open({ swap:true }) });
       items.push({ label:'Add to the side deck', icon:'side', fn:act('addside') });
     }
@@ -5849,7 +5842,7 @@ function drawCardSheet(){
   }
   if(typeof c.usd === 'number' && !phpOf(c.usd) && window.ENGINE) ENGINE.rate().then(function(r){ if(r && CS === me && me.view === 'card') drawCardSheet(); });
   if(ro){ me.h.setTitle('Card'); b.innerHTML = csShell(n, c, esc(typeLine(c)), csReadonlyHtml(c)); return; }
-  var w = cardWhere(c.n), basic = isBasicName(c.n), full = S.deck.length >= deckSlots();
+  var w = cardWhere(c.n), basic = isBasicName(c.n);
   if(me.view === 'swap' && !w.cmd && !(basic && w.main)){ swmDraw(me, c); return; }
   me.view = 'card'; me.h.el.classList.remove('bs-swapview');
   me.h.setTitle(w.cmd ? 'Commander' : w.main ? 'In the deck' : w.side ? 'Side deck' : w.maybe ? 'Considering' : 'Not in the deck');
@@ -5910,7 +5903,7 @@ function drawCardSheet(){
   }
   var acts = '';
   if(w.cmd) acts = '<p class="bs-soft" style="margin:0">To change the commander, use step 1 on the Build tab.</p>';
-  else if(basic && w.main) acts = csAct('more', 'plus', 'One more ' + esc(c.n), full ? 'The deck is full: take a card out first' : '') + csAct('fewer', 'minus', 'One fewer ' + esc(c.n), w.main + ' in the deck now');
+  else if(basic && w.main) acts = csAct('more', 'plus', 'One more ' + esc(c.n), '') + csAct('fewer', 'minus', 'One fewer ' + esc(c.n), w.main + ' in the deck now');
   else if(w.main){
     // Cut is his active choice to drop a card; "Move to the side deck" sits right beside it and
     // looks like the default, because he wants to keep his cards.
@@ -5922,7 +5915,7 @@ function drawCardSheet(){
       (w.maybe ? csAct('rmmaybe', 'cut', 'Remove from Considering', 'The deck keeps its copy', 'quiet') : '');
   } else {
     var from = csFrom(w);
-    acts = (!full ? csAct('indeck', 'plus', from === 'side' ? 'Move into the deck' : 'Add to the deck', from === 'side' ? 'Out of the side deck, into the 99' : from === 'maybe' ? 'The deck has room. It stays in Considering too' : 'The deck has room for it') : '') +
+    acts = csAct('indeck', 'plus', from === 'side' ? 'Move into the deck' : 'Add to the deck', from === 'side' ? 'Out of the side deck, into the deck' : from === 'maybe' ? 'It stays in Considering too' : '') +
       (lead ? '' : csAct('swapin', 'swap', 'Swap it in for a card in the deck', from === 'side' ? 'The card you take out takes its place in the side deck' : 'The card you take out goes to your side deck')) +
       (w.side ? '' : csAct('addside', 'side', 'Add to the side deck')) +
       (w.maybe ? '' : csAct('addmaybe', 'side', 'Add to Considering', 'An idea for this deck (the maybeboard)')) +
