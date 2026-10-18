@@ -4986,9 +4986,10 @@ function catDrag(on, board){
 var BOARD = { cw:300, grid:12, ro:null, drag:null, raf:0 };
 function boardPos(view){ var P = cats().pos; return P[view] || (P[view] = {}); }
 function boardGap(){ return parseInt(getComputedStyle(main).getPropertyValue('--s7'), 10) || 32; }
-function boardLayout(first){   // first: the box just dropped, which keeps its spot while the others make room
-  var bd = main.querySelector('.bs-board'); if(!bd || BOARD.drag) return;
-  var W = bd.clientWidth, cw = BOARD.cw, gap = boardGap(), pos = boardPos(bd.getAttribute('data-bview'));
+// Where every box goes from the places in pos. first: the box just dropped (or being dragged), which keeps
+// its spot while the others make room.
+function boardPlan(bd, pos, first){
+  var W = bd.clientWidth, cw = BOARD.cw, gap = boardGap();
   var maxX = Math.max(0, W - cw);
   var boxes = [].slice.call(bd.querySelectorAll(':scope > [data-box]')).map(function(el){
     var p = pos[el.getAttribute('data-box')];
@@ -5010,8 +5011,12 @@ function boardLayout(first){   // first: the box just dropped, which keeps its s
   boxes.filter(function(b){ return !b.set; }).forEach(function(b){
     var c = colY.indexOf(Math.min.apply(null, colY)); b.x = colX[c]; b.y = colY[c]; fit(b); colY[c] = b.y + b.h + gap;
   });
+  return boxes;
+}
+function boardLayout(first){
+  var bd = main.querySelector('.bs-board'); if(!bd || BOARD.drag) return;
   var bottom = 0;
-  boxes.forEach(function(b){ b.el.style.left = b.x + 'px'; b.el.style.top = b.y + 'px'; bottom = Math.max(bottom, b.y + b.h); });
+  boardPlan(bd, boardPos(bd.getAttribute('data-bview')), first).forEach(function(b){ b.el.style.left = b.x + 'px'; b.el.style.top = b.y + 'px'; bottom = Math.max(bottom, b.y + b.h); });
   bd.style.height = (bottom + 120) + 'px';   // room under the last box to drop one there
 }
 function boardWatch(){
@@ -5036,7 +5041,19 @@ function boardDown(e){
     st.nx = Math.round(x / g) * g; st.ny = Math.round(y / g) * g;
     box.style.left = st.nx + 'px'; box.style.top = st.ny + 'px';
     var need = st.ny + box.offsetHeight + 120; if(need > bd.offsetHeight) bd.style.height = need + 'px';
+    preview();
   }
+  // The boxes this drop would push down turn amber and say so, before he lets go.
+  function preview(){
+    var cur = {}, all = bd.querySelectorAll(':scope > [data-box]');
+    [].forEach.call(all, function(el){ cur[el.getAttribute('data-box')] = el === box ? { x:st.nx, y:st.ny } : { x:parseInt(el.style.left, 10) || 0, y:parseInt(el.style.top, 10) || 0 }; });
+    boardPlan(bd, cur, box).forEach(function(b){
+      if(b.el === box) return;
+      var c = cur[b.el.getAttribute('data-box')];
+      b.el.classList.toggle('bs-bpush', b.y !== c.y || b.x !== c.x);
+    });
+  }
+  function unmark(){ [].forEach.call(bd.querySelectorAll('.bs-bpush'), function(el){ el.classList.remove('bs-bpush'); }); }
   function tick(){ if(st.vy){ scrollBy(0, st.vy); place(); } st.raf = requestAnimationFrame(tick); }
   function move(ev){
     st.px = ev.clientX; st.py = ev.clientY;
@@ -5054,7 +5071,7 @@ function boardDown(e){
   function end(cancel){
     document.removeEventListener('pointermove', move, true); document.removeEventListener('pointerup', up, true);
     document.removeEventListener('pointercancel', cx, true); document.removeEventListener('keydown', key, true);
-    cancelAnimationFrame(st.raf); box.classList.remove('bs-bmoving'); main.classList.remove('bs-dragging'); BOARD.drag = null;
+    cancelAnimationFrame(st.raf); box.classList.remove('bs-bmoving'); main.classList.remove('bs-dragging'); BOARD.drag = null; unmark();
     if(!st.on){ boardLayout(); return; }
     var eat = function(ce){ ce.stopPropagation(); ce.preventDefault(); };
     document.addEventListener('click', eat, true); setTimeout(function(){ document.removeEventListener('click', eat, true); }, 0);

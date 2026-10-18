@@ -432,6 +432,10 @@ button.bs-crow,.bs-crow.bs-tap{cursor:pointer}
 .bs-board{position:relative;min-height:240px}
 .bs-board > [data-box]{position:absolute;left:0;top:0;width:var(--cw,300px);background:var(--bg);border-radius:var(--r-sm)}
 .bs-board [data-boxgrip]{cursor:grab;touch-action:none;margin-top:0}
+.bs-board > .bs-bpush{box-shadow:0 0 0 2px var(--warn);background:var(--warn-soft)}
+.bs-board > .bs-bpush [data-boxgrip]{flex-wrap:wrap}
+.bs-board > .bs-bpush [data-boxgrip] .bs-acts{order:2}
+.bs-board > .bs-bpush [data-boxgrip]::after{order:1;content:'Moves down';margin-left:var(--s2);padding:1px var(--s2);border:1px solid var(--warn-line);border-radius:var(--r-sm);color:var(--warn);font-family:var(--disp);font-size:var(--t1);font-weight:600;white-space:nowrap}
 .bs-board > .bs-bmoving{z-index:5;background:var(--bg2);box-shadow:0 0 0 1px var(--brass),0 10px 28px rgba(0,0,0,.5)}
 
 /* ============ swap pair (out -> in) ============ */
