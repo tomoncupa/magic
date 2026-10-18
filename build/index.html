@@ -344,14 +344,33 @@ function idb(){
   return IDB.p;
 }
 function fresh1(e){ return !!e && Date.now() - e.t < DAY; }
+// Kept 90 days (Tom, 2026-10-18: "save data, so it doesnt have to pull from scryfall everytime").
+// Cards, EDHREC pages and searches older than a day are still used at once (cacheEntry), and
+// fetched again quietly once the deck is open (refreshLater), so prices and bans stay current.
+var KEEP = 90 * DAY;
+function keep1(e){ return !!e && Date.now() - e.t < KEEP; }
 // Every read asked for in the same moment goes to IndexedDB as one transaction.
-function cacheGet(k){
+function getEntry(k){
   var m = MEM.get(k);
-  if(m) return Promise.resolve(fresh1(m) ? m.v : null);
+  if(m) return Promise.resolve(m);
   return new Promise(function(res){
     if(!GETQ){ GETQ = new Map(); setTimeout(flushGets, 0); }
     var l = GETQ.get(k); if(!l){ l = []; GETQ.set(k, l); } l.push(res);
   });
+}
+function cacheGet(k){ return getEntry(k).then(function(e){ return fresh1(e) ? e.v : null; }); }
+function cacheEntry(k){ return getEntry(k).then(function(e){ return keep1(e) ? e : null; }); }
+// Background refreshes, one at a time, a few seconds after the page asked, so they never hold up
+// opening a deck. Each job fetches and cachePuts by itself; a failure waits for the next visit.
+var REFRESH = { q:[], keys:{}, busy:false };
+function refreshLater(key, job){
+  if(REFRESH.keys[key]) return; REFRESH.keys[key] = 1;
+  REFRESH.q.push(job);
+  if(!REFRESH.busy){ REFRESH.busy = true; setTimeout(runRefresh, 4000); }
+}
+async function runRefresh(){
+  while(REFRESH.q.length){ var job = REFRESH.q.shift(); try{ await job(); }catch(e){} await wait(150); }
+  REFRESH.busy = false;
 }
 async function flushGets(){
   var batch = GETQ; GETQ = null;
@@ -369,7 +388,7 @@ async function flushGets(){
   batch.forEach(function(l, k){
     var e = MEM.get(k) || found[k];
     if(e && !MEM.has(k)) MEM.set(k, e);
-    l.forEach(function(res){ res(fresh1(e) ? e.v : null); });
+    l.forEach(function(res){ res(e || null); });
   });
 }
 // Writes are batched the same way. The promise settles once the write is done (or failed).
@@ -410,7 +429,7 @@ setTimeout(function(){
     if(!db) return;
     try{
       var tx = db.transaction('c', 'readwrite'), cur = tx.objectStore('c').openCursor();
-      cur.onsuccess = function(){ var c = cur.result; if(!c) return; if(!fresh1(c.value)) c.delete(); c.continue(); };
+      cur.onsuccess = function(){ var c = cur.result; if(!c) return; if(!keep1(c.value)) c.delete(); c.continue(); };
     }catch(e){}
   });
 }, 15000);
@@ -432,8 +451,12 @@ async function sf(path, body, tries){
   return r.json();
 }
 async function sfSearchAll(q){
-  var key = 'q:' + q, hit = await cacheGet(key); if(hit) return hit;
-  var out = [], page = await sf('/cards/search?q=' + encodeURIComponent(q));
+  var key = 'q:' + q, hit = await cacheEntry(key);
+  if(hit){ if(!fresh1(hit)) refreshLater(key, function(){ return sfSearchFetch(q); }); return hit.v; }
+  return sfSearchFetch(q);
+}
+async function sfSearchFetch(q){
+  var key = 'q:' + q, out = [], page = await sf('/cards/search?q=' + encodeURIComponent(q));
   while(page){
     out = out.concat(page.data.map(slim));
     if(!page.has_more) break;
@@ -447,7 +470,12 @@ async function sfSearchAll(q){
 // no page and is not cached. v:2 pages also carry the bracket and budget counts, combos and similar
 // commanders; an older cached copy is read again.
 async function edh(path){
-  var key = 'e:' + path, hit = await cacheGet(key); if(hit && hit.v === 2 && hit.cards && hit.cards.length) return hit;
+  var key = 'e:' + path, e = await cacheEntry(key), hit = e && e.v;
+  if(hit && hit.v === 2 && hit.cards && hit.cards.length){ if(!fresh1(e)) refreshLater(key, function(){ return edhFetch(path); }); return hit; }
+  return edhFetch(path);
+}
+async function edhFetch(path){
+  var key = 'e:' + path;
   var r = await fetch(EDH + path + '.json', { headers:{ 'Accept':'application/json' } });
   if(!r.ok) return null;
   var j = await r.json();
@@ -504,11 +532,23 @@ function considering(){
 }
 // Look up many cards at once, by Scryfall id where known, else by name.
 async function sfCollection(list, onProgress){
-  var out = {}, todo = [];
-  var hits = await Promise.all(list.map(function(x){ return cacheGet('card4:' + (x.id || x.n.toLowerCase())); }));
+  var out = {}, todo = [], old = [];
+  var hits = await Promise.all(list.map(function(x){ return cacheEntry('card4:' + (x.id || x.n.toLowerCase())); }));
   list.forEach(function(x, i){
-    if(hits[i]){ out[(x.id || x.n.toLowerCase())] = hits[i]; } else todo.push(x);
+    if(hits[i]){ out[(x.id || x.n.toLowerCase())] = hits[i].v; if(!fresh1(hits[i])) old.push(x); } else todo.push(x);
   });
+  // Cards kept from an earlier day: used now, fetched again in the background for next time.
+  for(var o = 0; o < old.length; o += 75){
+    (function(chunk){
+      refreshLater('cards:' + chunk.map(function(x){ return x.id || x.n.toLowerCase(); }).join('|'), function(){ return sfCollectionFetch(chunk); });
+    })(old.slice(o, o + 75));
+  }
+  var got = await sfCollectionFetch(todo, onProgress);
+  Object.keys(got.cards).forEach(function(k){ out[k] = got.cards[k]; });
+  return { cards:out, missing:got.missing };
+}
+async function sfCollectionFetch(todo, onProgress){
+  var out = {};
   var missing = [];
   for(var i = 0; i < todo.length; i += 75){
     if(onProgress) onProgress(i, todo.length);

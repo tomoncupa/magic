@@ -1273,9 +1273,14 @@ E.interesting = async function(){
 // EDHREC answers some filters (a theme at a bracket with no decks) with an empty page: that is no page.
 async function edhPage(path){ try{ var p = await edh(path); return p && p.cards && p.cards.length ? p : null; }catch(e){ return null; } }
 async function avgDeck(path){
-  var key = 'avg:' + path, hit = null;
-  try{ hit = await cacheGet(key); }catch(e){ hit = null; }
-  if(hit) return hit;
+  // Kept 90 days; one older than a day is used now and fetched again in the background.
+  var key = 'avg:' + path, e = null;
+  try{ e = typeof cacheEntry === 'function' ? await cacheEntry(key) : null; }catch(x){ e = null; }
+  if(e && e.v){ if(!fresh1(e)) refreshLater(key, function(){ return avgFetch(path); }); return e.v; }
+  return avgFetch(path);
+}
+async function avgFetch(path){
+  var key = 'avg:' + path;
   try{
     var r = await fetch((typeof EDH === 'string' ? EDH : 'https://json.edhrec.com/pages') + path + '.json', { headers:{ 'Accept':'application/json' } });
     if(!r.ok) return null;
