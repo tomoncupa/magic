@@ -344,14 +344,33 @@ function idb(){
   return IDB.p;
 }
 function fresh1(e){ return !!e && Date.now() - e.t < DAY; }
+// Kept 90 days (Tom, 2026-10-18: "save data, so it doesnt have to pull from scryfall everytime").
+// Cards, EDHREC pages and searches older than a day are still used at once (cacheEntry), and
+// fetched again quietly once the deck is open (refreshLater), so prices and bans stay current.
+var KEEP = 90 * DAY;
+function keep1(e){ return !!e && Date.now() - e.t < KEEP; }
 // Every read asked for in the same moment goes to IndexedDB as one transaction.
-function cacheGet(k){
+function getEntry(k){
   var m = MEM.get(k);
-  if(m) return Promise.resolve(fresh1(m) ? m.v : null);
+  if(m) return Promise.resolve(m);
   return new Promise(function(res){
     if(!GETQ){ GETQ = new Map(); setTimeout(flushGets, 0); }
     var l = GETQ.get(k); if(!l){ l = []; GETQ.set(k, l); } l.push(res);
   });
+}
+function cacheGet(k){ return getEntry(k).then(function(e){ return fresh1(e) ? e.v : null; }); }
+function cacheEntry(k){ return getEntry(k).then(function(e){ return keep1(e) ? e : null; }); }
+// Background refreshes, one at a time, a few seconds after the page asked, so they never hold up
+// opening a deck. Each job fetches and cachePuts by itself; a failure waits for the next visit.
+var REFRESH = { q:[], keys:{}, busy:false };
+function refreshLater(key, job){
+  if(REFRESH.keys[key]) return; REFRESH.keys[key] = 1;
+  REFRESH.q.push(job);
+  if(!REFRESH.busy){ REFRESH.busy = true; setTimeout(runRefresh, 4000); }
+}
+async function runRefresh(){
+  while(REFRESH.q.length){ var job = REFRESH.q.shift(); try{ await job(); }catch(e){} await wait(150); }
+  REFRESH.busy = false;
 }
 async function flushGets(){
   var batch = GETQ; GETQ = null;
@@ -369,7 +388,7 @@ async function flushGets(){
   batch.forEach(function(l, k){
     var e = MEM.get(k) || found[k];
     if(e && !MEM.has(k)) MEM.set(k, e);
-    l.forEach(function(res){ res(fresh1(e) ? e.v : null); });
+    l.forEach(function(res){ res(e || null); });
   });
 }
 // Writes are batched the same way. The promise settles once the write is done (or failed).
@@ -410,7 +429,7 @@ setTimeout(function(){
     if(!db) return;
     try{
       var tx = db.transaction('c', 'readwrite'), cur = tx.objectStore('c').openCursor();
-      cur.onsuccess = function(){ var c = cur.result; if(!c) return; if(!fresh1(c.value)) c.delete(); c.continue(); };
+      cur.onsuccess = function(){ var c = cur.result; if(!c) return; if(!keep1(c.value)) c.delete(); c.continue(); };
     }catch(e){}
   });
 }, 15000);
@@ -432,8 +451,12 @@ async function sf(path, body, tries){
   return r.json();
 }
 async function sfSearchAll(q){
-  var key = 'q:' + q, hit = await cacheGet(key); if(hit) return hit;
-  var out = [], page = await sf('/cards/search?q=' + encodeURIComponent(q));
+  var key = 'q:' + q, hit = await cacheEntry(key);
+  if(hit){ if(!fresh1(hit)) refreshLater(key, function(){ return sfSearchFetch(q); }); return hit.v; }
+  return sfSearchFetch(q);
+}
+async function sfSearchFetch(q){
+  var key = 'q:' + q, out = [], page = await sf('/cards/search?q=' + encodeURIComponent(q));
   while(page){
     out = out.concat(page.data.map(slim));
     if(!page.has_more) break;
@@ -447,7 +470,12 @@ async function sfSearchAll(q){
 // no page and is not cached. v:2 pages also carry the bracket and budget counts, combos and similar
 // commanders; an older cached copy is read again.
 async function edh(path){
-  var key = 'e:' + path, hit = await cacheGet(key); if(hit && hit.v === 2 && hit.cards && hit.cards.length) return hit;
+  var key = 'e:' + path, e = await cacheEntry(key), hit = e && e.v;
+  if(hit && hit.v === 2 && hit.cards && hit.cards.length){ if(!fresh1(e)) refreshLater(key, function(){ return edhFetch(path); }); return hit; }
+  return edhFetch(path);
+}
+async function edhFetch(path){
+  var key = 'e:' + path;
   var r = await fetch(EDH + path + '.json', { headers:{ 'Accept':'application/json' } });
   if(!r.ok) return null;
   var j = await r.json();
@@ -504,11 +532,23 @@ function considering(){
 }
 // Look up many cards at once, by Scryfall id where known, else by name.
 async function sfCollection(list, onProgress){
-  var out = {}, todo = [];
-  var hits = await Promise.all(list.map(function(x){ return cacheGet('card4:' + (x.id || x.n.toLowerCase())); }));
+  var out = {}, todo = [], old = [];
+  var hits = await Promise.all(list.map(function(x){ return cacheEntry('card4:' + (x.id || x.n.toLowerCase())); }));
   list.forEach(function(x, i){
-    if(hits[i]){ out[(x.id || x.n.toLowerCase())] = hits[i]; } else todo.push(x);
+    if(hits[i]){ out[(x.id || x.n.toLowerCase())] = hits[i].v; if(!fresh1(hits[i])) old.push(x); } else todo.push(x);
   });
+  // Cards kept from an earlier day: used now, fetched again in the background for next time.
+  for(var o = 0; o < old.length; o += 75){
+    (function(chunk){
+      refreshLater('cards:' + chunk.map(function(x){ return x.id || x.n.toLowerCase(); }).join('|'), function(){ return sfCollectionFetch(chunk); });
+    })(old.slice(o, o + 75));
+  }
+  var got = await sfCollectionFetch(todo, onProgress);
+  Object.keys(got.cards).forEach(function(k){ out[k] = got.cards[k]; });
+  return { cards:out, missing:got.missing };
+}
+async function sfCollectionFetch(todo, onProgress){
+  var out = {};
   var missing = [];
   for(var i = 0; i < todo.length; i += 75){
     if(onProgress) onProgress(i, todo.length);
@@ -1496,7 +1536,7 @@ function drawList(){
   if(dropped.length) h += '<p class="bad" style="margin-top:8px">' + droppedLabel() + esc(dropped.join(', ')) + '.</p>';
   if(S.importMissing && S.importMissing.length) h += '<p class="bad" style="margin-top:8px">Scryfall did not know these cards from the list you brought in, so they are not in it: ' + esc(S.importMissing.join(', ')) + '.</p>';
   h += '<div class="suggest" style="margin-top:12px"><input type="text" id="addIn" aria-label="Add a card by name" placeholder="Add a card by name" autocomplete="off"><ul id="addList" hidden></ul></div>';
-  var lv = listView();
+  var lv = listView(); if(lv.g === 'cat') lv.g = 'job';   // his own categories live on the Deck tab only
   h += '<div class="row" style="gap:var(--s3)"><div class="seg"><button data-lv="g:job"' + (lv.g === 'job' ? ' class="on"' : '') + '>By job</button>' +
     '<button data-lv="g:type"' + (lv.g === 'type' ? ' class="on"' : '') + '>Moxfield types</button></div>' +
     '<div class="seg"><button data-lv="p:0"' + (!lv.p ? ' class="on"' : '') + '>List</button><button data-lv="p:1"' + (lv.p ? ' class="on"' : '') + '>Pictures</button></div></div>';
@@ -1543,7 +1583,7 @@ var GROUP_PLURAL = { Creature:'Creatures', Planeswalker:'Planeswalkers', Instant
   Artifact:'Artifacts', Enchantment:'Enchantments', Battle:'Battles', Land:'Lands', Other:'Other' };
 function listView(){
   var v = { g:'type', p:0 };
-  try { var s = JSON.parse(localStorage.getItem('forge.listView') || '{}'); if(s.g === 'job') v.g = 'job'; if(s.p) v.p = 1; } catch(e){}
+  try { var s = JSON.parse(localStorage.getItem('forge.listView') || '{}'); if(s.g === 'job' || s.g === 'cat') v.g = s.g; if(s.p) v.p = 1; } catch(e){}
   return v;
 }
 function setListView(k, val){
@@ -3335,7 +3375,7 @@ async function importList(X, onStep, opts){
     S.theme = ''; S.themes = []; S.wins = []; S.meta = [];
     if(old){
       // The cards come from Moxfield; his plan, his bracket and Claude's text are his and stay.
-      ['claude', 'guide', 'theme', 'themes', 'themeText', 'wins', 'meta', 'metaText', 'mustText', 'refuseText', 'gcMode', 'gcPick', 'considerAdd'].forEach(function(k){
+      ['claude', 'guide', 'theme', 'themes', 'themeText', 'wins', 'meta', 'metaText', 'mustText', 'refuseText', 'gcMode', 'gcPick', 'considerAdd', 'cats'].forEach(function(k){
         if(old[k] != null) S[k] = JSON.parse(JSON.stringify(old[k]));
       });
       if(!Array.isArray(S.wins)) S.wins = []; if(!Array.isArray(S.meta)) S.meta = []; if(!Array.isArray(S.themes)) S.themes = [];
@@ -3350,6 +3390,7 @@ async function importList(X, onStep, opts){
     if(X.moxId) S.mox = { id:X.moxId, name:X.name || '', url:X.url || ('https://moxfield.com/decks/' + X.moxId), updated:X.updated || '',
       snap:{ cmd:cmds.map(function(c){ return { n:c.n, q:1 }; }), main:list(X.main), side:list(X.side), maybe:list(X.maybe) } };
     S.boards = { side:list(X.side), maybe:list(X.maybe) };
+    if(X.tags) catFromMox(X.tags);
     // Cards he chose to keep when bringing in the Moxfield version (importFromMox): the 99's and the
     // side deck's go to the side deck, Considering's stay in Considering.
     if(opts.keep){
@@ -3471,7 +3512,7 @@ function feedX(fd){
   var cards = function(a){ return (a || []).map(function(c){ return { n:c.n, q:c.q || 1, sid:c.sid }; }); };
   return { name:fd.name, url:fd.url, bracket:fd.bracket || null,
     cmd:(fd.commanders || []).map(function(c){ return { n:c.n, sid:c.sid }; }), companion:(fd.companions && fd.companions[0]) ? fd.companions[0].n : null,
-    main:cards(fd.main), side:cards(fd.side), maybe:cards(fd.maybe) };
+    main:cards(fd.main), side:cards(fd.side), maybe:cards(fd.maybe), tags:fd.tags || null };
 }
 
 /* ---------- card data for the open deck ---------- */
@@ -3716,6 +3757,7 @@ function askText(o){
       onClose:function(){ fin(null); } });
     var inp = h.el.querySelector('#askIn');
     inp.onkeydown = function(e){ if(e.key === 'Enter'){ fin(inp.value.trim()); h.close(); } };
+    if(!phone()) try{ inp.focus({ preventScroll:true }); inp.select(); }catch(e){}
   });
 }
 var MENU = null;
@@ -4715,14 +4757,18 @@ function itemBadges(it){
 }
 function crowHtml(it){
   var c = it.c || {}, n = it.n;
-  var lead = it.thumb ? '<img class="bs-crow-thumb" src="' + esc(it.thumb) + '" alt="">' : '<span class="bs-crow-mv">' + (c.mv != null ? c.mv : '') + '</span>';
+  // A small copy of the art leads every row, as on the other tabs (Tom, 2026-10-18); the mana value
+  // moves to the right end, spells only.
+  var art = it.thumb || (c.img ? c.img.replace('/normal/', '/art_crop/') : '');
+  var lead = art ? '<img class="bs-crow-thumb" src="' + esc(art) + '" alt="" loading="lazy">' : '<span class="bs-crow-thumb" aria-hidden="true"></span>';
+  var mv = it.board !== 'cmd' && !it.basic && c.mv != null && !(c.type && isLand(c)) ? '<span class="bs-crow-mv" title="Mana value">' + c.mv + '</span>' : '';
   var mid = '<span class="bs-crow-main"><span class="bs-crow-n">' + (it.q > 1 ? '<span class="bs-crow-q">' + it.q + '</span>' : '') + esc(n) + '</span>' + (it.sub ? '<span class="bs-crow-s">' + esc(it.sub) + '</span>' : '') + '</span>';
   if(it.basic && it.board === 'main'){
     return '<div class="bs-crow bs-tap" role="button" tabindex="0" data-card="' + esc(n) + '" data-board="main">' + lead + mid + '<span class="bs-crow-end"><span class="sh-bas">' +
       '<button class="bs-ibtn bs-sm" type="button" data-bas="' + esc(n) + '" data-d="-1" aria-label="One fewer ' + esc(n) + '">' + ico('minus', 'bs-i16') + '</button>' +
       '<button class="bs-ibtn bs-sm" type="button" data-bas="' + esc(n) + '" data-d="1" aria-label="One more ' + esc(n) + '">' + ico('plus', 'bs-i16') + '</button></span></span></div>';
   }
-  return '<button class="bs-crow" type="button" data-card="' + esc(n) + '" data-board="' + it.board + '">' + lead + mid + '<span class="bs-crow-end">' + itemBadges(it) + '</span></button>';
+  return '<button class="bs-crow" type="button" data-card="' + esc(n) + '" data-board="' + it.board + '">' + lead + mid + '<span class="bs-crow-end">' + itemBadges(it) + mv + '</span></button>';
 }
 function ctileHtml(it){
   var c = it.c || {}, bad = itemBadges(it);
@@ -4730,6 +4776,158 @@ function ctileHtml(it){
     (c.img ? '<img src="' + esc(c.img) + '" alt="' + esc(it.n) + '" loading="lazy">' : '<span class="bs-ctile-noimg">' + esc(it.n) + '</span>') +
     (it.q > 1 ? '<span class="sh-qty">&times;' + it.q + '</span>' : '') + (bad ? '<span class="bs-ctile-bl">' + bad + '</span>' : '') + '</button>' +
     cardLink(it.n, null, { cls:'bs-ctile-n', board:it.board, title:it.n }) + (it.sub ? '<span class="bs-ctile-s"><span>' + esc(it.sub) + '</span></span>' : '') + '</div>';
+}
+/* ---------- his own categories (Tom, 2026-10-17: "create categories and sort my cards into those") ----------
+   Per deck in S.cats: list (his order), of (card key -> its one home), also (card key -> extra tags,
+   Moxfield lets a card carry several). Keyed by moxKey, so a new printing or a fresh Moxfield copy keeps
+   the card's place. Every name he has made, in any deck, sits in forge.catNames and is offered as a
+   one-tap pick for a new category. Moxfield's own tags come in on import (catFromMox); nothing goes back. */
+function cats(){
+  var c = S.cats;
+  if(!c || typeof c !== 'object') c = S.cats = { list:[], of:{}, also:{} };
+  if(!Array.isArray(c.list)) c.list = []; if(!c.of) c.of = {}; if(!c.also) c.also = {};
+  return c;
+}
+function catOf(n){ var c = cats(), v = c.of[moxKey(n)]; return v && c.list.indexOf(v) >= 0 ? v : ''; }
+function catAlso(n){ var c = cats(), home = catOf(n); return (c.also[moxKey(n)] || []).filter(function(x){ return x !== home && c.list.indexOf(x) >= 0; }); }
+function catFind(t){ var l = cats().list; t = t.toLowerCase(); for(var i = 0; i < l.length; i++) if(l[i].toLowerCase() === t) return l[i]; return ''; }
+function catClean(t){ return String(t || '').replace(/\s+/g, ' ').trim().slice(0, 40); }
+function catNamesUsed(){ try{ var l = JSON.parse(lsGet('forge.catNames') || '[]'); return Array.isArray(l) ? l : []; }catch(e){ return []; } }
+function noteCatName(t){ var l = catNamesUsed().filter(function(x){ return x.toLowerCase() !== t.toLowerCase(); }); l.unshift(t); lsSet('forge.catNames', JSON.stringify(l.slice(0, 60))); }
+function catAdd(t){ t = catClean(t); if(!t) return ''; var have = catFind(t); if(have) return have; cats().list.push(t); noteCatName(t); return t; }
+function catSet(n, cat){
+  var c = cats(), k = moxKey(n);
+  if(cat) c.of[k] = cat; else delete c.of[k];
+  if(c.also[k]){ c.also[k] = c.also[k].filter(function(x){ return x !== cat; }); if(!c.also[k].length) delete c.also[k]; }
+}
+function catSnap(){ return JSON.stringify(cats()); }
+function catUndo(snap){ return function(){ S.cats = JSON.parse(snap); save(); catRedraw(); }; }
+function catRedraw(){ if(APP.view === 'deck' && S.page === 'deck') drawDeckPage(); if(CS && !CS.closed) drawCardSheet(); }
+function catMove(n, cat){
+  if(catOf(n) === cat) return;
+  var snap = catSnap(); catSet(n, cat); save(); catRedraw();
+  toast('<b>' + esc(n) + '</b> ' + (cat ? 'is in ' + esc(cat) : 'has no category now') + '.', { undo:catUndo(snap) });
+}
+function catToggleAlso(n, cat){
+  var c = cats(), k = moxKey(n), l = (c.also[k] || []).slice(), i = l.indexOf(cat);
+  if(i >= 0) l.splice(i, 1); else l.push(cat);
+  if(l.length) c.also[k] = l; else delete c.also[k];
+  save(); catRedraw();
+}
+// Moxfield's tags, as its deck data has them ({card name: [tags]}): the first is the card's home, the rest
+// are extra tags. A card he already placed here keeps its place.
+function catFromMox(tags){
+  var c = cats();
+  Object.keys(tags || {}).forEach(function(n){
+    var l = (tags[n] || []).map(catClean).filter(Boolean); if(!l.length) return;
+    var k = moxKey(n);
+    if(!catOf(n)) c.of[k] = catAdd(l[0]);
+    l.forEach(function(t){ var nm = catAdd(t); if(nm !== c.of[k]){ var a = c.also[k] || (c.also[k] = []); if(a.indexOf(nm) < 0) a.push(nm); } });
+  });
+}
+// A new category: type a name, or tap one he made in another deck. forCard goes straight into it.
+function catNew(forCard){
+  var have = cats().list.map(function(x){ return x.toLowerCase(); });
+  var picks = catNamesUsed().filter(function(x){ return have.indexOf(x.toLowerCase()) < 0; }).slice(0, 18), h;
+  function go(v){
+    var t = catClean(v); if(!t){ toast('Type a name first.'); return false; }
+    var snap = catSnap(), had = catFind(t), nm = catAdd(t);
+    if(forCard) catSet(forCard, nm);
+    save(); h.close(); catRedraw();
+    toast((had ? 'You already had <b>' + esc(nm) + '</b>' : 'Made <b>' + esc(nm) + '</b>') + (forCard ? ', and <b>' + esc(forCard) + '</b> is in it.' : '.' + (phone() ? ' Tap a card to put it in.' : ' Drag cards into it.')), { undo:catUndo(snap) });
+    return true;
+  }
+  h = bsSheet({ title:'New category', size:'center',
+    body:'<label class="bs-label" for="catIn">Name</label><input type="text" id="catIn" autocomplete="off" maxlength="40" style="margin-top:6px" placeholder="Sac outlets, Card draw engines, Win cons">' +
+      (picks.length ? '<p class="bs-label" style="margin:var(--s4) 0 var(--s2)">From your other decks</p><div class="bs-chips">' + picks.map(function(x){ return '<button class="bs-chip" type="button" data-catpick="' + esc(x) + '">' + esc(x) + '</button>'; }).join('') + '</div>' : '') +
+      (forCard ? '<p class="bs-soft" style="margin:var(--s4) 0 0"><span data-nolink>' + esc(forCard) + '</span> goes into it.</p>' : ''),
+    actions:[{ label:'Cancel', kind:'quiet' }, { label:'Make it', kind:'primary', fn:function(x){ go(x.el.querySelector('#catIn').value); return false; } }] });
+  var inp = h.el.querySelector('#catIn');
+  inp.onkeydown = function(e){ if(e.key === 'Enter'){ e.preventDefault(); go(inp.value); } };
+  h.body.addEventListener('click', function(e){ var p = e.target.closest('[data-catpick]'); if(p) go(p.getAttribute('data-catpick')); });
+  if(!phone()) try{ inp.focus({ preventScroll:true }); }catch(e){}
+}
+// Drag a card into a category with the mouse. On a phone he taps the card and picks one in its sheet.
+// Pointer events, not the browser's own drag and drop: a name follows the pointer, the window scrolls
+// near its top and bottom edge (the 99 is long), Escape cancels, and the click that ends a drag does
+// not open the card.
+function catDrag(on){
+  main.onpointerdown = null; main.ondragstart = null;
+  main.classList.remove('bs-dragging'); main.classList.toggle('bs-catdnd', !!on);
+  if(!on) return;
+  var sel = '[data-cat] [data-card][data-board="main"]';
+  main.ondragstart = function(e){ if(e.target.closest && e.target.closest('[data-cat]')) e.preventDefault(); };   // card pictures
+  main.onpointerdown = function(e){
+    if(e.pointerType !== 'mouse' || e.button !== 0) return;
+    var c = e.target.closest(sel); if(!c || e.target.closest('[data-bas]')) return;
+    var st = { n:c.getAttribute('data-card'), x:e.clientX, y:e.clientY, px:e.clientX, py:e.clientY, on:false, over:null, ghost:null, vy:0, raf:0 };
+    function mark(z){ if(st.over === z) return; if(st.over) st.over.classList.remove('bs-dropon'); st.over = z; if(z) z.classList.add('bs-dropon'); }
+    function zoneAt(x, y){ var t = document.elementFromPoint(x, y), z = t && t.closest ? t.closest('[data-cat]') : null; return z && main.contains(z) ? z : null; }
+    function tick(){ if(st.vy){ scrollBy(0, st.vy); mark(zoneAt(st.px, st.py)); } st.raf = requestAnimationFrame(tick); }
+    function move(ev){
+      st.px = ev.clientX; st.py = ev.clientY;
+      if(!st.on){
+        if(Math.abs(ev.clientX - st.x) + Math.abs(ev.clientY - st.y) < 8) return;
+        st.on = true; main.classList.add('bs-dragging');
+        try{ getSelection().removeAllRanges(); }catch(x){}
+        st.ghost = document.createElement('div'); st.ghost.className = 'bs-catghost'; st.ghost.textContent = st.n; document.body.appendChild(st.ghost);
+        st.raf = requestAnimationFrame(tick);
+      }
+      ev.preventDefault();
+      st.ghost.style.transform = 'translate(' + (ev.clientX + 14) + 'px,' + (ev.clientY + 10) + 'px)';
+      var edge = 80;
+      st.vy = ev.clientY < edge ? -Math.ceil((edge - ev.clientY) / 3) : ev.clientY > innerHeight - edge ? Math.ceil((ev.clientY - innerHeight + edge) / 3) : 0;
+      mark(zoneAt(ev.clientX, ev.clientY));
+    }
+    function end(cancel){
+      document.removeEventListener('pointermove', move, true); document.removeEventListener('pointerup', up, true);
+      document.removeEventListener('pointercancel', cx, true); document.removeEventListener('keydown', key, true);
+      cancelAnimationFrame(st.raf); if(st.ghost) st.ghost.remove(); main.classList.remove('bs-dragging');
+      var z = st.over; mark(null);
+      if(!st.on) return;
+      var eat = function(ce){ ce.stopPropagation(); ce.preventDefault(); };
+      document.addEventListener('click', eat, true); setTimeout(function(){ document.removeEventListener('click', eat, true); }, 0);
+      if(!cancel && z) catMove(st.n, z.getAttribute('data-cat'));
+    }
+    function up(){ end(false); }
+    function cx(){ end(true); }
+    function key(ev){ if(ev.key === 'Escape'){ ev.preventDefault(); ev.stopPropagation(); end(true); } }
+    document.addEventListener('pointermove', move, true); document.addEventListener('pointerup', up, true);
+    document.addEventListener('pointercancel', cx, true); document.addEventListener('keydown', key, true);
+  };
+}
+function catMenu(btn, name){
+  var C = cats(), i = C.list.indexOf(name); if(i < 0) return;
+  var items = [{ label:'Rename', icon:'pencil', fn:function(){ catRename(name); } }];
+  if(i > 0) items.push({ label:'Move up', icon:'back', fn:function(){ catShift(name, -1); } });
+  if(i < C.list.length - 1) items.push({ label:'Move down', icon:'arrow', fn:function(){ catShift(name, 1); } });
+  items.push({ label:'Delete category', icon:'trash', kind:'bad', fn:function(){ catDelete(name); } });
+  bsMenu(btn, name, items);
+}
+function catShift(name, d){
+  var l = cats().list, i = l.indexOf(name), j = i + d; if(i < 0 || j < 0 || j >= l.length) return;
+  l.splice(i, 1); l.splice(j, 0, name); save(); catRedraw();
+}
+async function catRename(name){
+  var t = catClean(await askText({ title:'Rename category', label:'Name', value:name, yes:'Rename' }));
+  if(!t || t === name) return;
+  var other = catFind(t); if(other && other !== name){ toast('You already have a category called <b>' + esc(other) + '</b>.', { kind:'bad' }); return; }
+  var C = cats(), snap = catSnap();
+  C.list[C.list.indexOf(name)] = t;
+  Object.keys(C.of).forEach(function(k){ if(C.of[k] === name) C.of[k] = t; });
+  Object.keys(C.also).forEach(function(k){ C.also[k] = C.also[k].map(function(x){ return x === name ? t : x; }); });
+  // A renamed category is no longer offered under its old name.
+  lsSet('forge.catNames', JSON.stringify(catNamesUsed().filter(function(x){ return x !== name; })));
+  noteCatName(t); save(); catRedraw();
+  toast('Renamed to <b>' + esc(t) + '</b>.', { undo:catUndo(snap) });
+}
+function catDelete(name){
+  var C = cats(), snap = catSnap(), n = 0;
+  C.list.splice(C.list.indexOf(name), 1);
+  Object.keys(C.of).forEach(function(k){ if(C.of[k] === name){ delete C.of[k]; n++; } });
+  Object.keys(C.also).forEach(function(k){ C.also[k] = C.also[k].filter(function(x){ return x !== name; }); if(!C.also[k].length) delete C.also[k]; });
+  save(); catRedraw();
+  toast('Deleted <b>' + esc(name) + '</b>.' + (n ? ' Its ' + n + ' card' + (n > 1 ? 's are' : ' is') + ' under No category yet.' : ''), { undo:catUndo(snap) });
 }
 function jobSub(it){ var fx = roleFixOf(it.n); return (ROLE_NAMES[it.d.role] || it.d.role) + (fx ? ' (your pick)' : ''); }
 function deckGroups(lv){
@@ -4745,6 +4943,19 @@ function deckGroups(lv){
       l.forEach(function(it){ it.sub = it.basic ? 'Basic land' : typeShort(it.c) + (roleFixOf(it.n) ? ', your pick' : ''); });
       if(l.length) groups.push({ t:ROLE_NAMES[g], items:l });
     });
+  } else if(lv.g === 'cat'){
+    // Every category shows, empty ones too (somewhere to drop a card), in his order; the rest after.
+    var byC = {}, none = [];
+    items.forEach(function(it){
+      var home = catOf(it.n), al = catAlso(it.n);
+      it.sub = (it.basic ? 'Basic land' : typeShort(it.c)) + (al.length ? ', also ' + al.join(', ') : '');
+      if(home) (byC[home] = byC[home] || []).push(it); else none.push(it);
+    });
+    // Spells by mana value, then lands, then basics.
+    var lnd = function(it){ return it.basic ? 2 : it.c && isLand(it.c) ? 1 : 0; };
+    var srt = function(a, b){ return lnd(a) - lnd(b) || (a.c ? a.c.mv : 0) - (b.c ? b.c.mv : 0) || a.n.localeCompare(b.n); };
+    cats().list.forEach(function(t){ groups.push({ t:t, cat:t, items:(byC[t] || []).sort(srt) }); });
+    if(none.length || cats().list.length) groups.push({ t:'No category yet', cat:'', none:true, items:none.sort(srt) });
   } else {
     var byT = {};
     items.forEach(function(it){ var t = typeGroup(it.d); (byT[t] = byT[t] || []).push(it); it.sub = it.basic ? 'Basic land' : jobSub(it); });
@@ -4793,13 +5004,27 @@ function drawDeckPage(){
     (total > 100 ? 'Cut ' + (total - 100) + ' here or on Moxfield.' : 'Add ' + (100 - total) + ' here or on Moxfield.') + ' If you were still changing it on Moxfield, bring in the newer version once it shows.</p></div>';
   h += '<section><div class="bs-section-head"><h2 class="bs-h2">The deck</h2>' + cnt + '<div class="bs-acts">' +
     '<div class="bs-seg" role="group" aria-label="Show as"><button type="button" data-lv="p:0"' + (!lv.p ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>List</button><button type="button" data-lv="p:1"' + (lv.p ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Pictures</button></div>' +
-    '<div class="bs-seg" role="group" aria-label="Group by"><button type="button" data-lv="g:type"' + (lv.g === 'type' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>By type</button><button type="button" data-lv="g:job"' + (lv.g === 'job' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>By job</button></div>' +
+    '<div class="bs-seg" role="group" aria-label="Group by"><button type="button" data-lv="g:type"' + (lv.g === 'type' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>By type</button><button type="button" data-lv="g:job"' + (lv.g === 'job' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>By job</button>' +
+    '<button type="button" data-lv="g:cat"' + (lv.g === 'cat' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>My categories</button></div>' +
+    (lv.g === 'cat' ? '<button class="bs-btn bs-sm bs-primary" type="button" data-catnew>' + ico('plus', 'bs-i16') + 'New category</button>' : '') +
     '</div></div>';
+  var isCat = lv.g === 'cat', touch = phone();
+  if(isCat && !cats().list.length) h += '<div class="bs-callout">' + ico('info') + '<p><b>Make your own categories.</b> Press New category, then ' +
+    (touch ? 'tap a card and pick its category.' : 'drag cards into it, or tap a card and pick its category.') + ' Categories you make on Moxfield come in when you bring the deck in.</p></div>';
   var cnt2 = function(g){ return g.items.reduce(function(s, it){ return s + it.q; }, 0); };
+  function head(g){
+    var menu = isCat && g.cat ? '<span class="bs-acts"><button class="bs-ibtn bs-sm" type="button" data-catmenu="' + esc(g.cat) + '" aria-label="Rename, move or delete ' + esc(g.t) + '">' + ico('more', 'bs-i16') + '</button></span>' : '';
+    return '<div class="bs-group">' + esc(g.t) + ' <span class="bs-count">' + cnt2(g) + '</span>' + menu + '</div>';
+  }
+  function zone(g){ return isCat && g.cat != null ? ' data-cat="' + esc(g.cat) + '"' : ''; }
+  function empty(g){
+    if(g.items.length || !isCat) return '';
+    return '<p class="bs-catdrop">' + (g.none ? 'Every card has a category.' + (touch ? '' : ' Drop a card here to take it out of its category.') : touch ? 'Tap a card and pick ' + esc(g.t) + '.' : 'Drag cards here, or tap a card and pick ' + esc(g.t) + '.') + '</p>';
+  }
   function drawGroups(gs){
     if(!gs.length) return '';
-    if(lv.p) return '<div class="sh-pics">' + gs.map(function(g){ return '<section><div class="bs-group">' + esc(g.t) + ' <span class="bs-count">' + cnt2(g) + '</span></div><div class="bs-cgrid" style="--card-min:140px">' + g.items.map(ctileHtml).join('') + '</div></section>'; }).join('') + '</div>';
-    return '<div class="bs-flow" style="--cw:300px">' + gs.map(function(g){ return '<div class="bs-clist"><div class="bs-group">' + esc(g.t) + ' <span class="bs-count">' + cnt2(g) + '</span></div>' + g.items.map(crowHtml).join('') + '</div>'; }).join('') + '</div>';
+    if(lv.p) return '<div class="sh-pics">' + gs.map(function(g){ return '<section' + zone(g) + '>' + head(g) + '<div class="bs-cgrid" style="--card-min:140px">' + g.items.map(ctileHtml).join('') + '</div>' + empty(g) + '</section>'; }).join('') + '</div>';
+    return '<div class="bs-flow" style="--cw:300px">' + gs.map(function(g){ return '<div class="bs-clist"' + zone(g) + '>' + head(g) + g.items.map(crowHtml).join('') + empty(g) + '</div>'; }).join('') + '</div>';
   }
   var inGs = groups.filter(function(g){ return !g.board; }), outGs = groups.filter(function(g){ return g.board; });
   h += drawGroups(inGs) + '</section>';
@@ -4810,9 +5035,10 @@ function drawDeckPage(){
   main.innerHTML = h;
   main.onclick = onDeckClick;
   main.onkeydown = function(e){ if((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role=button][data-card]')){ e.preventDefault(); e.target.click(); } };
+  catDrag(isCat && !touch);
   drawDeckSide();
   sumSoon();
-  if(lv.p) loadBasicPics();
+  loadBasicPics();   // the basics' art, for the list's thumbnails and the pictures alike
 }
 // Pictures for the basic lands (they are not in the pool): looked up once, from the cache after that.
 function loadBasicPics(){
@@ -4828,6 +5054,8 @@ function onDeckClick(e){
   var t = e.target;
   var bas = t.closest('[data-bas]'); if(bas){ basicStep(bas.getAttribute('data-bas'), +bas.getAttribute('data-d')); return; }
   var lvb = t.closest('[data-lv]'); if(lvb){ var kv = lvb.getAttribute('data-lv').split(':'); setListView(kv[0], kv[1]); drawDeckPage(); return; }
+  if(t.closest('[data-catnew]')){ catNew(); return; }
+  var cm = t.closest('[data-catmenu]'); if(cm){ catMenu(cm, cm.getAttribute('data-catmenu')); return; }
   var cd = t.closest('[data-card]'); if(cd){ openCardSheet(cd.getAttribute('data-card'), { board:cd.getAttribute('data-board') || '' }); return; }
   var cp = t.closest('[data-copy-board]'); if(cp){ var b = cp.getAttribute('data-copy-board'), Bh = S.boards || {};
     var heads = ['Commander', 'Deck'].concat(S.companion ? ['Companion'] : [], (Bh.side || []).length ? ['Sideboard'] : [], (Bh.maybe || []).length ? ['Maybeboard (Considering)'] : []);
@@ -5222,6 +5450,15 @@ function drawCardSheet(){
       ROLE_LIST.map(function(r){ var on = r === role; return '<button class="bs-chip' + (on ? ' on' : '') + '" type="button" aria-pressed="' + on + '" data-cs-job="' + r + '">' + ROLE_NAMES[r] + '</button>'; }).join('') +
       (fix ? '<button class="bs-chip" type="button" data-cs-job="">Let Brewing Station decide</button>' : '') + '</div></div>';
   }
+  if(w.main){
+    var CL = cats().list, home = catOf(c.n), al = catAlso(c.n);
+    h += '<div><p class="bs-label" style="margin:0 0 var(--s2)">Your category</p><div class="bs-chips" role="group" aria-label="Your category">' +
+      CL.map(function(t){ var on = t === home; return '<button class="bs-chip' + (on ? ' on' : '') + '" type="button" aria-pressed="' + on + '" data-cs-cat="' + esc(t) + '">' + esc(t) + '</button>'; }).join('') +
+      (home ? '<button class="bs-chip" type="button" data-cs-cat="">No category</button>' : '') +
+      '<button class="bs-chip pg-chipmore" type="button" data-cs-catnew>' + ico('plus', 'bs-i16') + 'New category</button></div></div>';
+    if(home && CL.length > 1) h += '<div><p class="bs-label" style="margin:0 0 var(--s2)">Also counts as <span class="bs-muted">(it stays under ' + esc(home) + ')</span></p><div class="bs-chips" role="group" aria-label="Also counts as">' +
+      CL.filter(function(t){ return t !== home; }).map(function(t){ var on = al.indexOf(t) >= 0; return '<button class="bs-chip' + (on ? ' on' : '') + '" type="button" aria-pressed="' + on + '" data-cs-also="' + esc(t) + '">' + esc(t) + '</button>'; }).join('') + '</div></div>';
+  }
   var links = [];
   if(window.ENGINE && !basic){ try{ links = ENGINE.cardLinks(c.n, c) || []; }catch(e){ links = []; } }
   if(links.length){
@@ -5279,6 +5516,9 @@ function onCardSheetClick(e){
   if(t.closest('[data-cs-works]')){ var yW = me.body.scrollTop; me.worksAll = true; drawCardSheet(); me.body.scrollTop = yW; return; }
   if(me.opts.readonly) return;
   var jb = t.closest('[data-cs-job]'); if(jb){ jobFix(c.n, jb.getAttribute('data-cs-job')); return; }
+  var ct = t.closest('[data-cs-cat]'); if(ct){ var yC = me.body.scrollTop; catMove(cardWhere(c.n).d ? cardWhere(c.n).d.n : c.n, ct.getAttribute('data-cs-cat')); me.body.scrollTop = yC; return; }
+  var ca = t.closest('[data-cs-also]'); if(ca){ var yA = me.body.scrollTop; catToggleAlso(c.n, ca.getAttribute('data-cs-also')); me.body.scrollTop = yA; return; }
+  if(t.closest('[data-cs-catnew]')){ catNew(cardWhere(c.n).d ? cardWhere(c.n).d.n : c.n); return; }
   if(t.closest('[data-cs-back]')){ me.view = 'card'; swmPeek(null); drawCardSheet(); me.body.scrollTop = 0; return; }
   if(t.closest('[data-swm-all]')){ me.view = 'swap'; drawCardSheet(); me.body.scrollTop = 0; return; }
   var so = t.closest('[data-swm-sort]'); if(so && me.sw){ me.sw.sort = so.getAttribute('data-swm-sort'); me.sw.shown = 8; me.sw.open = ''; swmCtlSync(); swmListDraw(); return; }
@@ -5801,6 +6041,44 @@ function swmHover(b){
   b.addEventListener('scroll', function(){ swmPeek(null); }, { passive:true });
   b.addEventListener('click', function(e){ var z = e.target.closest && e.target.closest('[data-swm-zoom]'); if(z){ e.stopPropagation(); zoomCard(z.getAttribute('data-swm-zoom')); } }, true);
 }
+// Every card name on a PC (rows, links in text, tile names, the card sheet's lists) shows the whole
+// card beside it while the mouse rests on it (Tom, 2026-10-18: "possible to have cards show up on
+// hover?"). Sized to the window's height, so his 1080-tall screen gets a big one. The swap menu's
+// rows keep their own peek; pictures already are the card.
+var HOVER = { el:null, t:0, on:null };
+function hoverImg(n){
+  var c = csCard(n); if(c && c.img) return c.img;
+  return 'https://api.scryfall.com/cards/named?format=image&version=normal&exact=' + encodeURIComponent(n.split(' // ')[0]);
+}
+function hoverHide(){ clearTimeout(HOVER.t); HOVER.on = null; if(HOVER.el) HOVER.el.classList.remove('on'); }
+function hoverShow(el){
+  var n = el.getAttribute('data-card'); if(!n || !document.contains(el)) return;
+  if(!HOVER.el){ HOVER.el = document.createElement('div'); HOVER.el.className = 'bs-swm-peek bs-hoverpeek'; HOVER.el.setAttribute('aria-hidden', 'true'); HOVER.el.innerHTML = '<img alt="">'; document.body.appendChild(HOVER.el); }
+  var im = HOVER.el.firstChild, src = hoverImg(n); if(im.getAttribute('src') !== src) im.setAttribute('src', src);
+  var ht = Math.round(Math.min(innerHeight - 24, Math.max(340, innerHeight * 0.55))), wd = Math.round(ht / 1.396);
+  var r = el.getBoundingClientRect(), gap = 16, left;
+  if(r.right + gap + wd <= innerWidth - 8) left = r.right + gap;
+  else if(r.left - gap - wd >= 8) left = r.left - gap - wd;
+  else left = Math.max(8, innerWidth - wd - 8);
+  HOVER.el.style.width = wd + 'px'; HOVER.el.style.left = Math.round(left) + 'px';
+  HOVER.el.style.top = Math.round(Math.max(12, Math.min(innerHeight - ht - 12, r.top + r.height / 2 - ht / 2))) + 'px';
+  HOVER.el.classList.add('on');
+}
+(function(){
+  if(!(window.matchMedia && matchMedia('(hover:hover) and (pointer:fine)').matches)) return;
+  var skip = '.bs-swm-row,.bs-ctile-pic,.bs-cardsheet-pic,.bs-dragging';
+  document.addEventListener('mouseover', function(e){
+    var el = e.target.closest && e.target.closest('[data-card]');
+    if(!el || e.target.closest(skip) || document.querySelector('.zoomer')){ if(HOVER.on && (!el || el !== HOVER.on)) hoverHide(); return; }
+    if(el === HOVER.on) return;
+    clearTimeout(HOVER.t); HOVER.on = el;
+    HOVER.t = setTimeout(function(){ if(HOVER.on === el) hoverShow(el); }, 70);
+  });
+  document.addEventListener('mouseout', function(e){ if(HOVER.on && !(e.relatedTarget && HOVER.on.contains(e.relatedTarget))) hoverHide(); });
+  document.addEventListener('pointerdown', hoverHide, true);
+  document.addEventListener('scroll', hoverHide, true);
+  document.addEventListener('keydown', hoverHide, true);
+})();
 // The old swap sheet's entry points now open this menu.
 function openSwap(name){ openCardSheet(name, { board:'main', swap:true }); }
 function closeSwap(){ if(CS && !CS.closed && CS.view === 'swap') CS.h.close(); }

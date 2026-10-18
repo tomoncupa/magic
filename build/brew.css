@@ -420,6 +420,14 @@ button.bs-crow,.bs-crow.bs-tap{cursor:pointer}
 .bs-flow{columns:var(--cw,300px);column-gap:var(--s7)}
 .bs-flow > *{break-inside:avoid;margin-bottom:var(--s5)}
 .bs-flow .bs-group{margin-top:0}
+/* My categories: an empty category's hint, and the category under a dragged card */
+.bs-catdrop{margin:var(--s2) 0 0;padding:var(--s3);border:1px dashed var(--line2);border-radius:var(--r-sm);color:var(--ink3);font-size:var(--t1)}
+[data-cat]{border-radius:var(--r-sm);transition:background-color .12s,box-shadow .12s}
+.bs-catdnd [data-cat] [data-board=main]{cursor:grab}
+.bs-dragging,.bs-dragging *{cursor:grabbing!important;user-select:none;-webkit-user-select:none}
+.bs-dragging [data-cat]{box-shadow:0 0 0 1px var(--line)}
+.bs-catghost{position:fixed;left:0;top:0;z-index:200;pointer-events:none;max-width:260px;padding:6px var(--s3);border:1px solid var(--brass);border-radius:var(--r-sm);background:var(--bg3);color:var(--ink);font-size:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 6px 18px rgba(0,0,0,.45)}
+[data-cat].bs-dropon{background:var(--brass-soft);box-shadow:0 0 0 2px var(--brass)}
 
 /* ============ swap pair (out -> in) ============ */
 .bs-swaps{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,600px),1fr));gap:var(--s4)}
