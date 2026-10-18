@@ -1,5 +1,6 @@
 # Working on this repo
 
-- After pushing a change, open the PR and merge it straight away (squash). Don't ask first.
-- Don't subscribe to PR activity or schedule check-ins on a merged PR.
-- Verify before pushing (syntax check, tests on real inputs where possible): a merge goes live.
+- Work on `main` in this folder and push straight to `main`. No side branches, no pull requests (Tom, 2026-10-18: "Why do we have to merge so much?"). Claude Code's auto mode refuses `gh pr merge`, so every PR waited on Tom.
+- If the session was started in a worktree on a side branch, finish there, then bring it onto `main` here (`git merge`, fast-forward when it can) and push `main`.
+- `git pull --ff-only origin main` before starting: the nightly jobs commit combos.json and decks/ on their own.
+- Verify before pushing (syntax check, click-test on real inputs where possible): a push to main goes live.
