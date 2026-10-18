@@ -284,8 +284,11 @@
 .mn-a li{margin:0 0 var(--s1,4px)}
 .mn-a b{color:var(--ink);font-weight:600}
 .mn-a .mn-h{font-family:var(--num);color:var(--ink);font-weight:600}
-.mn-moves{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s4);padding-top:var(--s4);border-top:1px solid var(--line)}
-.mn-moves .bs-btn{height:auto;min-height:44px;white-space:normal;text-align:left}
+.mn-moves{display:flex;flex-direction:column;gap:var(--s2);margin-top:var(--s4);padding-top:var(--s4);border-top:1px solid var(--line)}
+.mn-move{display:flex;align-items:center;gap:var(--s3)}
+.mn-move-t{flex:1 1 auto;min-width:0}
+.mn-move .bs-btn{flex:none;min-height:44px}
+.mn-move .bs-badge{flex:none}
 .mn-paste{display:flex;flex-direction:column;gap:var(--s3);align-items:flex-start}
 .mn-ta{width:100%;min-height:88px;font-size:16px;line-height:1.45;resize:vertical}
 .mn-form{display:flex;flex-direction:column;gap:var(--s3);align-items:flex-end;position:sticky;bottom:0;padding:var(--s3) 0;background:var(--bg)}

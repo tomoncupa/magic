@@ -247,6 +247,7 @@ function askPrompt(q){
   var L = [];
   L.push('You are a Magic: The Gathering Commander deckbuilding expert. Tom is asking about one of his decks in his deck app, Brewing Station.');
   L.push('Answer his question about the deck below. Plain English, direct, under 250 words unless he asks for more. No em dashes. No tables. Use exact English card names.');
+  L.push('Write every card name in double square brackets, like [[Sol Ring]], so his app can show the card.');
   L.push('If you recommend changing cards, end the answer with one line per change in exactly this form, and nothing after them:');
   L.push('SWAP: <card in the deck> -> <card to put in>', 'CUT: <card in the deck>', 'ADD: <card>');
   L.push('A card going in must be legal in Commander and inside the colour identity. Prefer cards from his side deck when they do the job, since he owns them.');
@@ -265,7 +266,7 @@ function readAnswer(a){
   String(a || '').split(/\r?\n/).forEach(function(line){
     var m = /^\s*[-*]?\s*(SWAP|CUT|ADD)\s*:\s*(.+?)\s*$/i.exec(line);
     if(!m){ keep.push(line); return; }
-    var k = m[1].toLowerCase(), v = m[2].replace(/\*\*/g, '');
+    var k = m[1].toLowerCase(), v = m[2].replace(/\*\*|\[\[|\]\]/g, '');
     if(k === 'swap'){ var p = v.split(/\s*(?:->|→|=>)\s*/); if(p.length === 2) moves.push({ kind:k, out:p[0].trim(), inn:p[1].trim() }); }
     else if(k === 'cut') moves.push({ kind:k, out:v.trim() });
     else moves.push({ kind:k, inn:v.trim() });
@@ -274,7 +275,8 @@ function readAnswer(a){
 }
 function md(t){
   var out = [], list = null;
-  function inline(s){ return esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, '$1<i>$2</i>'); }
+  // [[Card Name]] (asked for in the prompt) becomes a card name with its hover and card sheet.
+  function inline(s){ return esc(s).replace(/\[\[([^\[\]]{2,90}?)\]\]/g, function(x, n){ return cardSpan(n); }).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*([^*\s][^*]*?)\*(?!\*)/g, '$1<i>$2</i>'); }
   function endList(){ if(list){ out.push('</' + list + '>'); list = null; } }
   String(t || '').split(/\r?\n/).forEach(function(line){
     var s = line.trim();
@@ -298,10 +300,15 @@ function askRedraw(){ if(APP.view === 'deck' && S.page === 'ask') render(); }
 // Done is read off the deck, so an Undo from anywhere puts the button back.
 function inDeck(n){ return S.deck.some(function(d){ return sameName(d.n, n) || sameName(n, d.n); }); }
 function moveDone(m){ return (!m.inn || inDeck(m.inn)) && (!m.out || !inDeck(m.out)); }
+// A name in the text, already escaped: a span, so it wraps with the words around it.
+function cardSpan(n){ return '<span class="bs-cardlink" role="button" tabindex="0" data-card="' + n + '">' + n + '</span>'; }
+// Each change Claude suggests: its cards as names with their hover, and its own button beside them.
 function moveHtml(m, i, done){
-  var label = m.kind === 'swap' ? 'Swap ' + esc(m.out) + ' for ' + esc(m.inn) : m.kind === 'cut' ? 'Move ' + esc(m.out) + ' to the side deck' : 'Add ' + esc(m.inn);
-  return done ? '<span class="bs-badge bs-good">' + ico('check', 'bs-i16 pg-i12') + '<span>Done: ' + label + '</span></span>'
-    : '<button class="bs-btn bs-sm" type="button" data-mv="' + i + '">' + ico(m.kind === 'swap' ? 'swap' : m.kind === 'cut' ? 'side' : 'plus', 'bs-i16') + label + '</button>';
+  var o = cardSpan(esc(m.out || '')), n = cardSpan(esc(m.inn || ''));
+  var label = m.kind === 'swap' ? 'Swap ' + o + ' for ' + n : m.kind === 'cut' ? 'Move ' + o + ' to the side deck' : 'Add ' + n;
+  var verb = m.kind === 'swap' ? 'Swap' : m.kind === 'cut' ? 'Move' : 'Add';
+  return '<div class="mn-move"><span class="mn-move-t">' + label + '</span>' + (done ? '<span class="bs-badge bs-good">' + ico('check', 'bs-i16 pg-i12') + '<span>Done</span></span>'
+    : '<button class="bs-btn bs-sm" type="button" data-mv="' + i + '">' + ico(m.kind === 'swap' ? 'swap' : m.kind === 'cut' ? 'side' : 'plus', 'bs-i16') + verb + '</button>') + '</div>';
 }
 function drawAsk(el){
   claudeOk();
@@ -319,6 +326,8 @@ function drawAsk(el){
     h += '<div class="mn-q">' + esc(m.q) + '</div>';
     if(m.a){
       var A = readAnswer(m.a);
+      // Answers from before the [[ ]] marks: the cards it suggests still turn into names in its text.
+      noteCardNames(A.moves.reduce(function(L, mv){ return L.concat(mv.out || [], mv.inn || []); }, []));
       h += '<div class="mn-a">' + md(A.text) +
         (A.moves.length ? '<div class="mn-moves">' + A.moves.map(function(mv, i){ return moveHtml(mv, k + ':' + i, moveDone(mv)); }).join('') + '</div>' : '') + '</div>';
     } else if(busy && k === T.length - 1){
