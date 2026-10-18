@@ -4865,6 +4865,7 @@ function cats(){
   var c = S.cats;
   if(!c || typeof c !== 'object') c = S.cats = { list:[], of:{}, also:{} };
   if(!Array.isArray(c.list)) c.list = []; if(!c.of) c.of = {}; if(!c.also) c.also = {};
+  if(!c.pos || typeof c.pos !== 'object') c.pos = {};   // where he put each box on the board, per grouping
   return c;
 }
 function catOf(n){ var c = cats(), v = c.of[moxKey(n)]; return v && c.list.indexOf(v) >= 0 ? v : ''; }
@@ -4930,14 +4931,15 @@ function catNew(forCard){
 // Pointer events, not the browser's own drag and drop: a name follows the pointer, the window scrolls
 // near its top and bottom edge (the 99 is long), Escape cancels, and the click that ends a drag does
 // not open the card.
-function catDrag(on){
+function catDrag(on, board){
   main.onpointerdown = null; main.ondragstart = null;
   main.classList.remove('bs-dragging'); main.classList.toggle('bs-catdnd', !!on);
-  if(!on) return;
+  if(!on && !board) return;
   var sel = '[data-cat] [data-card][data-board="main"]';
-  main.ondragstart = function(e){ if(e.target.closest && e.target.closest('[data-cat]')) e.preventDefault(); };   // card pictures
+  main.ondragstart = function(e){ if(e.target.closest && e.target.closest('[data-cat],[data-box]')) e.preventDefault(); };   // card pictures
   main.onpointerdown = function(e){
-    if(e.pointerType !== 'mouse' || e.button !== 0) return;
+    if(board && boardDown(e)) return;
+    if(!on || e.pointerType !== 'mouse' || e.button !== 0) return;
     var c = e.target.closest(sel); if(!c || e.target.closest('[data-bas]')) return;
     var st = { n:c.getAttribute('data-card'), x:e.clientX, y:e.clientY, px:e.clientX, py:e.clientY, on:false, over:null, ghost:null, vy:0, raf:0 };
     function mark(z){ if(st.over === z) return; if(st.over) st.over.classList.remove('bs-dropon'); st.over = z; if(z) z.classList.add('bs-dropon'); }
@@ -4975,11 +4977,113 @@ function catDrag(on){
     document.addEventListener('pointercancel', cx, true); document.addEventListener('keydown', key, true);
   };
 }
+/* ---------- the deck as a free board (Tom, 2026-10-19: "let me manually rearrange the categories layout, similar to ARC") ----------
+   In List on a computer the groups of the 99 are boxes he drags by their heading and drops anywhere; each
+   stays where he put it, snapped to a 12px grid, saved per deck and per grouping in S.cats.pos[view][box].
+   A box that grows never covers the one under it: that one is pushed down, and moves back up when there is
+   room. Boxes he never moved fill the shortest column under the ones he did. In My categories the drop also
+   sets the categories' order (top to bottom, then left to right), which Pictures and the phone stack by. */
+var BOARD = { cw:300, grid:12, ro:null, drag:null, raf:0 };
+function boardPos(view){ var P = cats().pos; return P[view] || (P[view] = {}); }
+function boardGap(){ return parseInt(getComputedStyle(main).getPropertyValue('--s7'), 10) || 32; }
+function boardLayout(first){   // first: the box just dropped, which keeps its spot while the others make room
+  var bd = main.querySelector('.bs-board'); if(!bd || BOARD.drag) return;
+  var W = bd.clientWidth, cw = BOARD.cw, gap = boardGap(), pos = boardPos(bd.getAttribute('data-bview'));
+  var maxX = Math.max(0, W - cw);
+  var boxes = [].slice.call(bd.querySelectorAll(':scope > [data-box]')).map(function(el){
+    var p = pos[el.getAttribute('data-box')];
+    return { el:el, h:el.offsetHeight, x:p ? Math.min(Math.max(0, p.x), maxX) : 0, y:p ? Math.max(0, p.y) : 0, set:!!p };
+  });
+  var done = [];
+  function hit(a, b){ return a.x < b.x + cw + gap && b.x < a.x + cw + gap && a.y < b.y + b.h + gap && b.y < a.y + a.h + gap; }
+  function fit(b){
+    for(var k = 0; k < 200; k++){
+      var o = done.filter(function(d){ return hit(b, d); }); if(!o.length) break;
+      b.y = Math.max.apply(null, o.map(function(d){ return d.y + d.h + gap; }));
+    }
+    done.push(b);
+  }
+  boxes.filter(function(b){ return b.set; }).sort(function(a, b){ return (b.el === first) - (a.el === first) || a.y - b.y || a.x - b.x; }).forEach(fit);
+  var n = Math.max(1, Math.floor((W + gap) / (cw + gap))), colX = [], colY = [], top = 0;
+  done.forEach(function(d){ top = Math.max(top, d.y + d.h + gap); });
+  for(var c = 0; c < n; c++){ colX.push(c * (cw + gap)); colY.push(top); }
+  boxes.filter(function(b){ return !b.set; }).forEach(function(b){
+    var c = colY.indexOf(Math.min.apply(null, colY)); b.x = colX[c]; b.y = colY[c]; fit(b); colY[c] = b.y + b.h + gap;
+  });
+  var bottom = 0;
+  boxes.forEach(function(b){ b.el.style.left = b.x + 'px'; b.el.style.top = b.y + 'px'; bottom = Math.max(bottom, b.y + b.h); });
+  bd.style.height = (bottom + 120) + 'px';   // room under the last box to drop one there
+}
+function boardWatch(){
+  if(BOARD.ro){ BOARD.ro.disconnect(); BOARD.ro = null; }
+  var bd = main.querySelector('.bs-board'); if(!bd) return;
+  boardLayout();
+  if(!window.ResizeObserver) return;
+  BOARD.ro = new ResizeObserver(function(){ cancelAnimationFrame(BOARD.raf); BOARD.raf = requestAnimationFrame(boardLayout); });
+  BOARD.ro.observe(bd); [].forEach.call(bd.querySelectorAll(':scope > [data-box]'), function(el){ BOARD.ro.observe(el); });
+}
+// A press on a box's heading starts moving that box (mouse, pen or finger). True when it took the press.
+function boardDown(e){
+  if(e.button !== 0 || !e.target.closest) return false;
+  var grip = e.target.closest('[data-boxgrip]'); if(!grip || e.target.closest('button,a,[data-card]')) return false;
+  var box = grip.closest('[data-box]'), bd = box && box.parentNode; if(!bd || !bd.classList.contains('bs-board')) return false;
+  var r0 = box.getBoundingClientRect();
+  var st = { x:e.clientX, y:e.clientY, px:e.clientX, py:e.clientY, on:false, vy:0, raf:0, ox:e.clientX - r0.left, oy:e.clientY - r0.top, nx:0, ny:0 };
+  function place(){
+    var r = bd.getBoundingClientRect(), g = BOARD.grid;
+    var x = Math.min(Math.max(0, st.px - r.left - st.ox), Math.max(0, bd.clientWidth - BOARD.cw));
+    var y = Math.max(0, st.py - r.top - st.oy);
+    st.nx = Math.round(x / g) * g; st.ny = Math.round(y / g) * g;
+    box.style.left = st.nx + 'px'; box.style.top = st.ny + 'px';
+    var need = st.ny + box.offsetHeight + 120; if(need > bd.offsetHeight) bd.style.height = need + 'px';
+  }
+  function tick(){ if(st.vy){ scrollBy(0, st.vy); place(); } st.raf = requestAnimationFrame(tick); }
+  function move(ev){
+    st.px = ev.clientX; st.py = ev.clientY;
+    if(!st.on){
+      if(Math.abs(ev.clientX - st.x) + Math.abs(ev.clientY - st.y) < 6) return;
+      st.on = true; BOARD.drag = box; box.classList.add('bs-bmoving'); main.classList.add('bs-dragging');
+      try{ getSelection().removeAllRanges(); }catch(x){}
+      st.raf = requestAnimationFrame(tick);
+    }
+    ev.preventDefault();
+    var edge = 80;
+    st.vy = ev.clientY < edge ? -Math.ceil((edge - ev.clientY) / 3) : ev.clientY > innerHeight - edge ? Math.ceil((ev.clientY - innerHeight + edge) / 3) : 0;
+    place();
+  }
+  function end(cancel){
+    document.removeEventListener('pointermove', move, true); document.removeEventListener('pointerup', up, true);
+    document.removeEventListener('pointercancel', cx, true); document.removeEventListener('keydown', key, true);
+    cancelAnimationFrame(st.raf); box.classList.remove('bs-bmoving'); main.classList.remove('bs-dragging'); BOARD.drag = null;
+    if(!st.on){ boardLayout(); return; }
+    var eat = function(ce){ ce.stopPropagation(); ce.preventDefault(); };
+    document.addEventListener('click', eat, true); setTimeout(function(){ document.removeEventListener('click', eat, true); }, 0);
+    if(!cancel){
+      // Every box keeps the place it shows now, so moving one never rearranges the rest; the dropped box
+      // keeps its spot and only the boxes it lands on move down to make room.
+      var view = bd.getAttribute('data-bview'), pos = boardPos(view), all = bd.querySelectorAll(':scope > [data-box]');
+      var keep = function(){ [].forEach.call(all, function(el){ pos[el.getAttribute('data-box')] = { x:parseInt(el.style.left, 10) || 0, y:parseInt(el.style.top, 10) || 0 }; }); };
+      keep(); boardLayout(box); keep();
+      if(view === 'cat'){
+        var at = function(t){ return pos[t] || { x:1e9, y:1e9 }; };
+        cats().list.sort(function(a, b){ var p = at(a), q = at(b); return p.y - q.y || p.x - q.x; });
+      }
+      save();
+    } else boardLayout();
+  }
+  function up(){ end(false); }
+  function cx(){ end(true); }
+  function key(ev){ if(ev.key === 'Escape'){ ev.preventDefault(); ev.stopPropagation(); end(true); } }
+  document.addEventListener('pointermove', move, true); document.addEventListener('pointerup', up, true);
+  document.addEventListener('pointercancel', cx, true); document.addEventListener('keydown', key, true);
+  return true;
+}
 function catMenu(btn, name){
   var C = cats(), i = C.list.indexOf(name); if(i < 0) return;
   var items = [{ label:'Rename', icon:'pencil', fn:function(){ catRename(name); } }];
-  if(i > 0) items.push({ label:'Move up', icon:'back', fn:function(){ catShift(name, -1); } });
-  if(i < C.list.length - 1) items.push({ label:'Move down', icon:'arrow', fn:function(){ catShift(name, 1); } });
+  var onBoard = !!main.querySelector('.bs-board');
+  if(i > 0 && !onBoard) items.push({ label:'Move up', icon:'back', fn:function(){ catShift(name, -1); } });
+  if(i < C.list.length - 1 && !onBoard) items.push({ label:'Move down', icon:'arrow', fn:function(){ catShift(name, 1); } });
   items.push({ label:'Delete category', icon:'trash', kind:'bad', fn:function(){ catDelete(name); } });
   bsMenu(btn, name, items);
 }
@@ -4995,6 +5099,7 @@ async function catRename(name){
   C.list[C.list.indexOf(name)] = t;
   Object.keys(C.of).forEach(function(k){ if(C.of[k] === name) C.of[k] = t; });
   Object.keys(C.also).forEach(function(k){ C.also[k] = C.also[k].map(function(x){ return x === name ? t : x; }); });
+  var bp = C.pos.cat; if(bp && bp[name]){ bp[t] = bp[name]; delete bp[name]; }
   // A renamed category is no longer offered under its old name.
   lsSet('forge.catNames', JSON.stringify(catNamesUsed().filter(function(x){ return x !== name; })));
   noteCatName(t); save(); catRedraw();
@@ -5005,6 +5110,7 @@ function catDelete(name){
   C.list.splice(C.list.indexOf(name), 1);
   Object.keys(C.of).forEach(function(k){ if(C.of[k] === name){ delete C.of[k]; n++; } });
   Object.keys(C.also).forEach(function(k){ C.also[k] = C.also[k].filter(function(x){ return x !== name; }); if(!C.also[k].length) delete C.also[k]; });
+  if(C.pos.cat) delete C.pos.cat[name];
   save(); catRedraw();
   toast('Deleted <b>' + esc(name) + '</b>.' + (n ? ' Its ' + n + ' card' + (n > 1 ? 's are' : ' is') + ' under No category yet.' : ''), { undo:catUndo(snap) });
 }
@@ -5091,22 +5197,26 @@ function drawDeckPage(){
   if(isCat && !cats().list.length) h += '<div class="bs-callout">' + ico('info') + '<p><b>Make your own categories.</b> Press New category, then ' +
     (touch ? 'tap a card and pick its category.' : 'drag cards into it, or tap a card and pick its category.') + ' Categories you make on Moxfield come in when you bring the deck in.</p></div>';
   var cnt2 = function(g){ return g.items.reduce(function(s, it){ return s + it.q; }, 0); };
-  function head(g){
-    var menu = isCat && g.cat ? '<span class="bs-acts"><button class="bs-ibtn bs-sm" type="button" data-catmenu="' + esc(g.cat) + '" aria-label="Rename, move or delete ' + esc(g.t) + '">' + ico('more', 'bs-i16') + '</button></span>' : '';
-    return '<div class="bs-group">' + esc(g.t) + ' <span class="bs-count">' + cnt2(g) + '</span>' + menu + '</div>';
+  var onBoard = !lv.p && !touch;
+  function boxKey(g){ return isCat ? (g.cat == null ? '#cmd' : g.none ? '#none' : g.cat) : g.t; }
+  function head(g, grip){
+    var menu = isCat && g.cat ? '<span class="bs-acts"><button class="bs-ibtn bs-sm" type="button" data-catmenu="' + esc(g.cat) + '" aria-label="' + (grip ? 'Rename or delete ' : 'Rename, move or delete ') + esc(g.t) + '">' + ico('more', 'bs-i16') + '</button></span>' : '';
+    return '<div class="bs-group"' + (grip ? ' data-boxgrip title="Drag to move this box"' : '') + '>' + esc(g.t) + ' <span class="bs-count">' + cnt2(g) + '</span>' + menu + '</div>';
   }
   function zone(g){ return isCat && g.cat != null ? ' data-cat="' + esc(g.cat) + '"' : ''; }
   function empty(g){
     if(g.items.length || !isCat) return '';
     return '<p class="bs-catdrop">' + (g.none ? 'Every card has a category.' + (touch ? '' : ' Drop a card here to take it out of its category.') : touch ? 'Tap a card and pick ' + esc(g.t) + '.' : 'Drag cards here, or tap a card and pick ' + esc(g.t) + '.') + '</p>';
   }
-  function drawGroups(gs){
+  function drawGroups(gs, board){
     if(!gs.length) return '';
+    if(board) return '<div class="bs-board" data-bview="' + esc(lv.g) + '" style="--cw:' + BOARD.cw + 'px">' + gs.map(function(g){
+      return '<div class="bs-clist" data-box="' + esc(boxKey(g)) + '"' + zone(g) + '>' + head(g, true) + g.items.map(crowHtml).join('') + empty(g) + '</div>'; }).join('') + '</div>';
     if(lv.p) return '<div class="sh-pics">' + gs.map(function(g){ return '<section' + zone(g) + '>' + head(g) + '<div class="bs-cgrid" style="--card-min:140px">' + g.items.map(ctileHtml).join('') + '</div>' + empty(g) + '</section>'; }).join('') + '</div>';
     return '<div class="bs-flow" style="--cw:300px">' + gs.map(function(g){ return '<div class="bs-clist"' + zone(g) + '>' + head(g) + g.items.map(crowHtml).join('') + empty(g) + '</div>'; }).join('') + '</div>';
   }
   var inGs = groups.filter(function(g){ return !g.board; }), outGs = groups.filter(function(g){ return g.board; });
-  h += drawGroups(inGs) + '</section>';
+  h += drawGroups(inGs, onBoard) + '</section>';
   // Cards that are with the deck but not in it: a line and a heading of their own, so the 99 ends clearly.
   if(outGs.length) h += '<section class="sh-boards"><div class="bs-section-head"><h2 class="bs-h2">Not in the 99</h2><span class="bs-count">' +
     outGs.map(function(g){ return esc(g.t) + ' ' + cnt2(g); }).join(', ') + '</span></div>' + drawGroups(outGs) + '</section>';
@@ -5114,7 +5224,8 @@ function drawDeckPage(){
   main.innerHTML = h;
   main.onclick = onDeckClick;
   main.onkeydown = function(e){ if((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role=button][data-card]')){ e.preventDefault(); e.target.click(); } };
-  catDrag(isCat && !touch);
+  catDrag(isCat && !touch, onBoard);
+  boardWatch();
   drawDeckSide();
   sumSoon();
   loadBasicPics();   // the basics' art, for the list's thumbnails and the pictures alike
