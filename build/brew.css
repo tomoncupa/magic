@@ -906,3 +906,14 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{border-color:var
 .bs-combo-src a{display:inline-flex;align-items:center;gap:6px;min-height:44px;color:var(--brass)}
 .bs-cmblink{display:inline;padding:0;border:0;background:none;font:inherit;color:inherit;text-align:left;text-decoration:underline dotted;text-underline-offset:3px;cursor:pointer}
 .bs-cmblink:hover{color:var(--ink)}
+
+/* Add a card (Deck tab) */
+.bs-acq{width:100%;padding-left:12px}
+.bs-aclist{display:flex;flex-direction:column;gap:var(--s2);margin-top:var(--s3)}
+.bs-acrow{display:flex;align-items:center;gap:var(--s2)}
+.bs-acrow .bs-btn{flex:1 1 auto;justify-content:flex-start;min-height:44px;text-align:left}
+.bs-acrow .bs-badge{flex:none}
+.bs-acdone:empty{display:none}
+.bs-acdone{display:flex;align-items:center;gap:var(--s3);margin-top:var(--s3);padding:var(--s2) var(--s3);border-radius:var(--r-sm);background:var(--bg3);color:var(--ink2)}
+.bs-acdone p{flex:1 1 auto;margin:0;min-width:0}
+.bs-acdone .bs-btn{flex:none;min-height:44px}

@@ -2237,7 +2237,6 @@ function onRoundsClick(e){
     else {
       if(R.ticked.length >= openSlots(R.job)){ msg('<span class="warn">' + ROLE_NAMES[R.job] + ' has ' + openSlots(R.job) + ' open. Untick one first.</span>'); return; }
       var c = poolCard(n), gcT = R.ticked.filter(function(x){ var k = poolCard(x); return k && isGC(k); }).length;
-      if(c && isGC(c) && draftGcs(gcT) >= gcLimit()){ msg('<span class="warn">' + esc(n) + ' is a Game Changer and the deck is at its limit of ' + gcLimit() + '.</span>'); return; }
       R.ticked.push(n);
     }
     save();
@@ -2731,7 +2730,6 @@ async function applySwap(sw, mine){
   if(!withinCI(c)) return c.n + ' is outside the colour identity.';
   if(!allowed(c)) return c.n + ' breaks a rule you set (refused card or bracket).';
   var gcs = S.deck.filter(function(d){ return d.gc; }).length - (S.deck[i].gc ? 1 : 0);
-  if(isGC(c) && gcs >= gcLimit()) return c.n + ' is a Game Changer and the deck is at its limit.';
   var role = isLand(c) ? 'lands' : (S.deck[i].role !== 'lands' && c.roles[ROLE_KEY[S.deck[i].role]] ? S.deck[i].role : primaryRole(c));
   var e = entry(c, role), outD = S.deck[i]; e.why = 'Claude: ' + sw.why;
   S.deck[i] = e; sw.done = true; sw.inn = c.n;
@@ -3311,7 +3309,7 @@ function changeDeck(outName, inCard, why, undo, o){
       if(!anyNumber(c) && S.deck.some(function(d, j){ return j !== i && (sameName(d.n, c.n) || sameName(c.n, d.n)); })) return c.n + ' is already in the deck.';
       var gcs = S.deck.filter(function(d){ return d.gc; }).length - (outD && outD.gc ? 1 : 0);
       // o.trust: the card is already in his real deck (My deck now), so his own limits do not refuse it.
-      if(!o.trust && isGC(c) && gcs >= gcLimit()) return c.n + ' is a Game Changer and the deck is at its limit of ' + gcLimit() + '.';
+      // Game Changers past the limit come in like cards past 100: his call (Tom, 2026-10-19). The count shows it.
       if(!o.trust && !allowed(c)) return c.n + ' breaks a rule set for this deck (a refused card, mass land destruction at this bracket, or your own Game Changer picks).';
       e = entry(c, roleForIn(c, outD)); e.why = (why ? why + ' ' : 'Added by you. ') + e.why;
     }
@@ -5038,6 +5036,48 @@ function catNew(forCard){
 // Pointer events, not the browser's own drag and drop: a name follows the pointer, the window scrolls
 // near its top and bottom edge (the 99 is long), Escape cancels, and the click that ends a drag does
 // not open the card.
+// Add any card from the Deck tab (Tom, 2026-10-19: "Let me add a card in the deck screen"). The sheet
+// stays open after each add, since he over-adds and culls later.
+function addCardSheet(){
+  var seq = 0, tm = 0;
+  var sh = bsSheet({ title:'Add a card', body:'<label class="bs-sr" for="acQ">Card name</label>' +
+    '<input id="acQ" class="bs-swm-q bs-acq" type="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Card name">' +
+    '<div class="bs-acdone" id="acDone" aria-live="polite"></div><div class="bs-aclist" id="acList"></div>' });
+  var inp = sh.body.querySelector('#acQ'), list = sh.body.querySelector('#acList'), done = sh.body.querySelector('#acDone'), undo = null;
+  // What was added says so inside the sheet, under the box: a toast would sit on the next result on a phone.
+  done.addEventListener('click', function(e){ if(!e.target.closest('[data-acundo]') || !undo) return; var u = undo; undo = null; done.innerHTML = u() ? '<p class="bs-soft">Undone.</p>' : ''; });
+  try{ inp.focus({ preventScroll:true }); }catch(e){}
+  inp.addEventListener('input', function(){
+    clearTimeout(tm); var q = inp.value.trim(), my = ++seq;
+    if(q.length < 2){ list.innerHTML = ''; return; }
+    tm = setTimeout(async function(){
+      var j = await sf('/cards/autocomplete?q=' + encodeURIComponent(q)).catch(function(){ return null; });
+      if(my !== seq || sh.closed) return;
+      var d = (j && j.data) || [];
+      list.innerHTML = !j ? '<p class="bs-soft">Scryfall did not answer.</p>' : !d.length ? '<p class="bs-soft">No card by that name.</p>' :
+        d.slice(0, 12).map(function(n){ var w = cardWhere(n);
+          return '<div class="bs-acrow" data-card="' + esc(n) + '"><button class="bs-btn" type="button" data-acn="' + esc(n) + '">' + ico('plus', 'bs-i16') + '<span>' + esc(n) + '</span></button>' +
+            (w.main ? '<span class="bs-badge">In the deck</span>' : w.side ? '<span class="bs-badge">Side deck</span>' : w.maybe ? '<span class="bs-badge">Considering</span>' : '') + '</div>'; }).join('');
+    }, 200);
+  });
+  list.addEventListener('click', async function(e){
+    var b = e.target.closest('[data-acn]'); if(!b || b.disabled) return;
+    var n = b.getAttribute('data-acn'), was = b.innerHTML;
+    b.disabled = true; b.textContent = 'Adding…';
+    var c = isBasicName(n) ? basicCardOf(n) : poolCard(n);
+    if(!c){
+      var raw = await sf('/cards/named?exact=' + encodeURIComponent(n)).catch(function(){ return null; });
+      if(!raw){ toast('Scryfall did not answer. Try again.', { kind:'bad' }); b.disabled = false; b.innerHTML = was; return; }
+      c = slim(raw); c.stats = {}; c.roles = rolesOf(c);
+    }
+    var from = boardQty('side', n) ? 'side' : boardQty('maybe', n) ? 'maybe' : '';
+    var r = applyChange(null, c, from === 'side' ? 'From your side deck.' : 'Added by you.', from ? { from:from } : {});
+    if(r !== true){ toast(esc(r), { kind:'bad' }); b.disabled = false; b.innerHTML = was; return; }
+    undo = undoTop(); done.innerHTML = '<p>' + changeToast() + '</p><button class="bs-btn bs-sm bs-quiet" type="button" data-acundo>Undo</button>';
+    inp.value = ''; list.innerHTML = ''; seq++;
+    try{ inp.focus({ preventScroll:true }); }catch(x){}
+  });
+}
 function catDrag(on, board){
   main.onpointerdown = null; main.ondragstart = null;
   main.classList.remove('bs-dragging'); main.classList.toggle('bs-catdnd', !!on);
@@ -5361,6 +5401,7 @@ function drawDeckPage(){
     '<div class="bs-seg" role="group" aria-label="Show as"><button type="button" data-lv="p:0"' + (!lv.p ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>List</button><button type="button" data-lv="p:1"' + (lv.p ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Pictures</button></div>' +
     '<div class="bs-seg" role="group" aria-label="Group by"><button type="button" data-lv="g:type"' + (lv.g === 'type' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>By type</button><button type="button" data-lv="g:job"' + (lv.g === 'job' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>By job</button>' +
     '<button type="button" data-lv="g:cat"' + (lv.g === 'cat' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>My categories</button></div>' +
+    '<button class="bs-btn bs-sm' + (lv.g === 'cat' ? '' : ' bs-primary') + '" type="button" data-addcard>' + ico('plus', 'bs-i16') + 'Add a card</button>' +
     (lv.g === 'cat' ? '<button class="bs-btn bs-sm bs-primary" type="button" data-catnew>' + ico('plus', 'bs-i16') + 'New category</button>' : '') +
     '</div></div>';
   var isCat = lv.g === 'cat', touch = phone();
@@ -5526,6 +5567,7 @@ function onDeckClick(e){
   var fl = t.closest('[data-flip]'); if(fl){ flipCard(fl.getAttribute('data-flip')); return; }
   var bas = t.closest('[data-bas]'); if(bas){ basicStep(bas.getAttribute('data-bas'), +bas.getAttribute('data-d')); return; }
   var lvb = t.closest('[data-lv]'); if(lvb){ var kv = lvb.getAttribute('data-lv').split(':'); setListView(kv[0], kv[1]); drawDeckPage(); return; }
+  if(t.closest('[data-addcard]')){ addCardSheet(); return; }
   if(t.closest('[data-catnew]')){ catNew(); return; }
   var cm = t.closest('[data-catmenu]'); if(cm){ catMenu(cm, cm.getAttribute('data-catmenu')); return; }
   var cd = t.closest('[data-card]'); if(cd){ openCardSheet(cd.getAttribute('data-card'), { board:cd.getAttribute('data-board') || '' }); return; }
@@ -5570,7 +5612,7 @@ function drawDeckSide(){
   var gcs = S.deck.filter(function(d){ return d.gc; }).length, lim = gcLimit();
   var h = '<div class="bs-stats" style="--stat-min:132px">' +
     '<div class="bs-stat"><span class="bs-stat-k">Average mana</span><span class="bs-stat-v">' + st.avg.toFixed(2) + '</span><span class="bs-stat-n">' + st.spells + ' spells, lands left out</span></div>' +
-    '<div class="bs-stat"><span class="bs-stat-k">Game Changers</span><span class="bs-stat-v">' + gcs + '<small>/ ' + (lim === Infinity ? 'any' : lim) + '</small></span><span class="bs-stat-n">bracket ' + (S.bracket || 3) + ' limit</span></div>' +
+    '<div class="bs-stat"><span class="bs-stat-k">Game Changers</span><span class="bs-stat-v">' + gcs + '<small>/ ' + (lim === Infinity ? 'any' : lim) + '</small></span><span class="bs-stat-n">' + (gcs > lim ? '<span class="bs-badge bs-warn">' + (gcs - lim) + ' over the bracket ' + (S.bracket || 3) + ' limit</span>' : 'bracket ' + (S.bracket || 3) + ' limit') + '</span></div>' +
     '</div>';
   var max = Math.max.apply(null, st.curve) || 1;
   h += '<section class="bs-panel"><div class="bs-panel-head"><h3 class="bs-panel-title">Mana curve</h3><span class="bs-count" style="margin-left:auto">' + st.spells + ' spells</span></div>' +
@@ -6148,7 +6190,6 @@ function swmNo(c, outD, gcs){
   if(c.legal !== 'legal') return 'Not legal in Commander.';
   if(!anyNumber(c) && S.deck.some(function(d){ return d !== outD && (sameName(d.n, c.n) || sameName(c.n, d.n)); })) return 'Already in the deck.';
   if(sameName(c.n, S.cmd.n) || (S.partner && sameName(c.n, S.partner.n))) return 'It is your commander.';
-  if(isGC(c) && gcs >= gcLimit()) return 'A Game Changer, and the deck is at its limit of ' + gcLimit() + '.';
   if(!allowed(c)) return 'Breaks a rule set for this deck.';
   return '';
 }
