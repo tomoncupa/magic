@@ -118,6 +118,22 @@ var TH = [
     // triggers on creating tokens, which name tokens by nature (tested on o).
     pay:function(c, o, r){ return /if (?:one or more )?tokens? would be created|whenever you create [^.]*?\btokens?\b|whenever you (?:create or )?sacrifice (?:a|one or more) tokens?/.test(o) ||
       /\btokens? you control\b|\bcreature tokens?\b|whenever (?:one or more |a |an |another )?(?:other )?(?:nontoken )?creatures? (?:you control )?enters?\b|creatures you control get \+|for each (?:other )?creature you control|number of creatures you control/.test(r) || DMG_AMP.test(o); } },
+  // Treasure, Food, Clues and the like, with what doubles or rewards every kind of token (Doubling Season,
+  // Parallel Lives since its wording changed, Elspeth, Storm Slayer, Kambal). Creature tokens are Tokens' job.
+  { k:'anytokens', label:'Treasure and other tokens', full:6, pf:1,
+    enN:'make Treasure, Food, Clues or other tokens', payN:'double or reward every kind of token', enW:'makes Treasure or other noncreature tokens', payW:'doubles or rewards every kind of token',
+    en:function(c, o){
+      var re = /\bcreates? ([^.]*?)\btokens?\b/g, m;
+      while((m = re.exec(o))){
+        if(/creature|\d+\/\d+|cop(?:y|ies)|that many|those|^or /.test(m[1])) continue;
+        if(m[1].replace(/\b(?:a|an|one or more|tapped|untapped|x|two|three|four)\b/g, '').replace(/[\s,]+/g, '')) return 1;
+      }
+      return 0; },
+    pay:function(c, o){
+      if(/one or more tokens would be created|would create one or more tokens|twice that many (?:of those )?tokens|whenever you create (?:or sacrifice )?(?:a|one or more) tokens?\b|whenever (?:one or more|a|another) tokens? (?:you control )?enters?\b|whenever one or more tokens you control enter|for each token you control/.test(o)) return true;
+      var re = /(\w+ )?tokens? you control (?:get|have|enter|are)\b/g, m;
+      while((m = re.exec(o))) if(m[1] !== 'creature ') return true;
+      return false; } },
   { k:'sacrifice', label:'Sacrifice and death', full:8, pf:3,
     enN:'give you bodies to sacrifice', payN:'turn deaths into value', enW:'gives it bodies to sacrifice', payW:'turns deaths into value',
     en:function(c, o){ return /\bwhen ~ dies\b/.test(o) || TOKEN_MAKER.test(o) ? 1 : 0; },
