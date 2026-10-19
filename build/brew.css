@@ -427,6 +427,11 @@ button.bs-crow,.bs-crow.bs-tap{cursor:pointer}
 /* A card shown again in a category it also counts in: shaded, lit on hover, opens its sheet, not dragged. */
 .bs-echo{opacity:.5}
 .bs-echo:focus-within,.bs-crow.bs-echo:focus-visible{opacity:1}
+/* Pinned to the top of its category: gold outline and a pin (Tom, 2026-10-19) */
+.bs-crow.bs-pin{box-shadow:inset 0 0 0 1.5px var(--brass);border-radius:var(--r-sm)}
+.bs-ctile.bs-pin .bs-ctile-pic{box-shadow:0 0 0 2px var(--brass)}
+.bs-pinmark{display:inline-grid;place-items:center;color:var(--brass)}
+.bs-ctile-pin{position:absolute;top:6px;right:6px;z-index:2;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--bg);box-shadow:0 0 0 1.5px var(--brass)}
 @media (hover:hover){ .bs-echo:hover{opacity:.85} }
 .bs-catdnd [data-cat] .bs-echo[data-board=main],.bs-catdnd [data-cat] .bs-echo [data-board=main]{cursor:pointer}
 .bs-dragging,.bs-dragging *{cursor:grabbing!important;user-select:none;-webkit-user-select:none}
@@ -434,7 +439,7 @@ button.bs-crow,.bs-crow.bs-tap{cursor:pointer}
 .bs-catghost{position:fixed;left:0;top:0;z-index:200;pointer-events:none;max-width:260px;padding:6px var(--s3);border:1px solid var(--brass);border-radius:var(--r-sm);background:var(--bg3);color:var(--ink);font-size:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 6px 18px rgba(0,0,0,.45)}
 [data-cat].bs-dropon{background:var(--brass-soft);box-shadow:0 0 0 2px var(--brass)}
 /* The free board: boxes sit where he dropped them (boardLayout in index.html sets left and top). */
-.bs-board{position:relative;min-height:240px}
+.bs-board{position:relative;min-height:240px;--board-gap:var(--s4)}
 .bs-board > [data-box]{position:absolute;left:0;top:0;width:var(--cw,300px);background:var(--bg);border-radius:var(--r-sm)}
 .bs-board [data-boxgrip]{cursor:grab;touch-action:none;margin-top:0}
 .bs-board > .bs-bpush{box-shadow:0 0 0 2px var(--warn);background:var(--warn-soft)}
