@@ -5028,6 +5028,12 @@ function catMove(n, cat){
   var snap = catSnap(); catSet(n, cat); save(); catRedraw();
   toast('<b>' + esc(n) + '</b> ' + (cat ? 'is in ' + esc(cat) : 'has no category now') + '.', { undo:catUndo(snap) });
 }
+function catAlsoAdd(n, cat){
+  var c = cats(), k = moxKey(n), snap = catSnap(), l = (c.also[k] || []).slice();
+  if(l.indexOf(cat) < 0) l.push(cat);
+  c.also[k] = l; save(); catRedraw();
+  toast('<b>' + esc(n) + '</b> also counts as ' + esc(cat) + '.', { undo:catUndo(snap) });
+}
 function catToggleAlso(n, cat){
   var c = cats(), k = moxKey(n), l = (c.also[k] || []).slice(), i = l.indexOf(cat);
   if(i >= 0) l.splice(i, 1); else l.push(cat);
@@ -5126,7 +5132,7 @@ function catDrag(on, board){
     if(board && boardDown(e)) return;
     if(!on || e.pointerType !== 'mouse' || e.button !== 0) return;
     var c = e.target.closest(sel); if(!c || e.target.closest('[data-bas],[data-echo],[data-flip]')) return;
-    var st = { n:c.getAttribute('data-card'), from:c.getAttribute('data-board'), x:e.clientX, y:e.clientY, px:e.clientX, py:e.clientY, on:false, over:null, drop:null, ghost:null, vy:0, raf:0 };
+    var st = { n:c.getAttribute('data-card'), from:c.getAttribute('data-board'), x:e.clientX, y:e.clientY, px:e.clientX, py:e.clientY, on:false, over:null, drop:null, ghost:null, vy:0, raf:0, ctrl:e.ctrlKey || e.metaKey };
     function mark(d){
       var z = d && d.el;
       if(st.over !== z){ if(st.over) st.over.classList.remove('bs-dropon', 'bs-swapon'); st.over = z; }
@@ -5146,7 +5152,14 @@ function catDrag(on, board){
       }
       if(st.from === 'main'){
         if(!cat || listView().g !== 'cat') return null;
-        return { el:cat, say:cat.getAttribute('data-cat') ? 'Into ' + cat.getAttribute('data-cat') : 'No category', go:function(){ catMove(st.n, cat.getAttribute('data-cat')); } };
+        var cn = cat.getAttribute('data-cat');
+        // Ctrl held: the card keeps its home and also counts here (Tom, 2026-10-19: "let me ctrl drag to assign ... a sub category").
+        if(st.ctrl && cn && catOf(st.n)){   // a card with no home yet just moves in
+          if(catOf(st.n) === cn) return { el:cat, say:'It lives in ' + cn + ' already', go:function(){} };
+          if(catAlso(st.n).indexOf(cn) >= 0) return { el:cat, say:'Already also in ' + cn, go:function(){} };
+          return { el:cat, say:'Also counts as ' + cn, go:function(){ catAlsoAdd(st.n, cn); } };
+        }
+        return { el:cat, say:cn ? 'Into ' + cn + (catOf(st.n) ? ' (Ctrl: also counts as)' : '') : 'No category', go:function(){ catMove(st.n, cn); } };
       }
       // Coming in from the side deck or Considering.
       var into = cat ? cat.getAttribute('data-cat') : null;
@@ -5154,7 +5167,7 @@ function catDrag(on, board){
     }
     function tick(){ if(st.vy){ scrollBy(0, st.vy); mark(dropAt(st.px, st.py)); } st.raf = requestAnimationFrame(tick); }
     function move(ev){
-      st.px = ev.clientX; st.py = ev.clientY;
+      st.px = ev.clientX; st.py = ev.clientY; st.ctrl = ev.ctrlKey || ev.metaKey;
       if(!st.on){
         if(Math.abs(ev.clientX - st.x) + Math.abs(ev.clientY - st.y) < 8) return;
         st.on = true; main.classList.add('bs-dragging');
@@ -5170,7 +5183,7 @@ function catDrag(on, board){
     }
     function end(cancel){
       document.removeEventListener('pointermove', move, true); document.removeEventListener('pointerup', up, true);
-      document.removeEventListener('pointercancel', cx, true); document.removeEventListener('keydown', key, true);
+      document.removeEventListener('pointercancel', cx, true); document.removeEventListener('keydown', key, true); document.removeEventListener('keyup', key, true);
       cancelAnimationFrame(st.raf); if(st.ghost) st.ghost.remove(); main.classList.remove('bs-dragging');
       var d = st.drop; mark(null);
       if(!st.on) return;
@@ -5180,9 +5193,12 @@ function catDrag(on, board){
     }
     function up(){ end(false); }
     function cx(){ end(true); }
-    function key(ev){ if(ev.key === 'Escape'){ ev.preventDefault(); ev.stopPropagation(); end(true); } }
+    function key(ev){
+      if(ev.type === 'keydown' && ev.key === 'Escape'){ ev.preventDefault(); ev.stopPropagation(); end(true); return; }
+      if(ev.key === 'Control' || ev.key === 'Meta'){ st.ctrl = ev.type === 'keydown'; if(st.on) mark(dropAt(st.px, st.py)); }
+    }
     document.addEventListener('pointermove', move, true); document.addEventListener('pointerup', up, true);
-    document.addEventListener('pointercancel', cx, true); document.addEventListener('keydown', key, true);
+    document.addEventListener('pointercancel', cx, true); document.addEventListener('keydown', key, true); document.addEventListener('keyup', key, true);
   };
 }
 // A dragged card between the side deck and Considering, or out of the 99 into one of them.
