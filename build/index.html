@@ -1713,12 +1713,15 @@ var TYPE_GROUPS = ['Creature', 'Planeswalker', 'Instant', 'Sorcery', 'Artifact',
 var GROUP_PLURAL = { Creature:'Creatures', Planeswalker:'Planeswalkers', Instant:'Instants', Sorcery:'Sorceries',
   Artifact:'Artifacts', Enchantment:'Enchantments', Battle:'Battles', Land:'Lands', Other:'Other' };
 function listView(){
-  var v = { g:'type', p:0 };
-  try { var s = JSON.parse(localStorage.getItem('forge.listView') || '{}'); if(s.g === 'job' || s.g === 'cat') v.g = s.g; if(s.p) v.p = 1; } catch(e){}
+  // s: the order inside each group, per grouping (Tom, 2026-10-19: "manacost, or alphabetical"); each grouping keeps the order it had.
+  var v = { g:'type', p:0, s:{ type:'az', job:'mv', cat:'mv' } };
+  try { var s = JSON.parse(localStorage.getItem('forge.listView') || '{}'); if(s.g === 'job' || s.g === 'cat') v.g = s.g; if(s.p) v.p = 1;
+    if(s.s && typeof s.s === 'object') Object.keys(v.s).forEach(function(g){ if(s.s[g] === 'mv' || s.s[g] === 'az') v.s[g] = s.s[g]; }); } catch(e){}
   return v;
 }
 function setListView(k, val){
-  var v = listView(); v[k] = k === 'p' ? +val : val;
+  var v = listView();
+  if(k === 's') v.s[v.g] = val; else v[k] = k === 'p' ? +val : val;
   lsSet('forge.listView', JSON.stringify(v));
 }
 function typeGroup(d){
@@ -5373,6 +5376,12 @@ function catDelete(name){
   toast('Deleted <b>' + esc(name) + '</b>.' + (n ? ' Its ' + n + ' card' + (n > 1 ? 's are' : ' is') + ' under No category yet.' : ''), { undo:catUndo(snap) });
 }
 function jobSub(it){ var fx = roleFixOf(it.n); return (ROLE_NAMES[it.d.role] || it.d.role) + (fx ? ' (your pick)' : ''); }
+// The order inside a group: mana value (spells, then lands, then basics) or A to Z (basics last).
+function itemOrder(lv){
+  var lnd = function(it){ return it.basic ? 2 : it.c && isLand(it.c) ? 1 : 0; };
+  return lv.s[lv.g] === 'az' ? function(a, b){ return !!a.basic - !!b.basic || a.n.localeCompare(b.n); }
+    : function(a, b){ return lnd(a) - lnd(b) || (a.c ? a.c.mv : 0) - (b.c ? b.c.mv : 0) || a.n.localeCompare(b.n); };
+}
 function deckGroups(lv){
   var items = deckItems(), groups = [];
   var cmds = [S.cmd].concat(S.partner ? [S.partner] : []).map(function(c){
@@ -5382,7 +5391,7 @@ function deckGroups(lv){
   groups.push({ t:S.partner ? 'Commanders' : 'Commander', items:cmds });
   if(lv.g === 'job'){
     ['synergy', 'ramp', 'tutor', 'draw', 'removal', 'wipes', 'protection', 'wincon', 'lands'].forEach(function(g){
-      var l = items.filter(function(it){ return it.d.role === g; }).sort(function(a, b){ return (a.c ? a.c.mv : 0) - (b.c ? b.c.mv : 0) || a.n.localeCompare(b.n); });
+      var l = items.filter(function(it){ return it.d.role === g; }).sort(itemOrder(lv));
       l.forEach(function(it){ it.sub = it.basic ? 'Basic land' : typeShort(it.c) + (roleFixOf(it.n) ? ', your pick' : ''); });
       if(l.length) groups.push({ t:ROLE_NAMES[g], items:l });
     });
@@ -5397,9 +5406,8 @@ function deckGroups(lv){
       if(home) (byC[home] = byC[home] || []).push(it); else none.push(it);
       al.forEach(function(t){ (byC[t] = byC[t] || []).push(Object.assign({}, it, { echo:true, sub:kind + ', lives in ' + (home || 'No category yet') })); });
     });
-    // Spells by mana value, then lands, then basics; shaded copies last.
-    var lnd = function(it){ return it.basic ? 2 : it.c && isLand(it.c) ? 1 : 0; };
-    var srt = function(a, b){ return !!a.echo - !!b.echo || lnd(a) - lnd(b) || (a.c ? a.c.mv : 0) - (b.c ? b.c.mv : 0) || a.n.localeCompare(b.n); };
+    // In the order he picked; shaded copies last.
+    var ord = itemOrder(lv), srt = function(a, b){ return !!a.echo - !!b.echo || ord(a, b); };
     // Pinned cards first, newest pin on top; each is a copy so a card's pin in one box doesn't show in another.
     cats().list.forEach(function(t){
       var l = (byC[t] || []).map(function(it){ var p = catPinned(t, it.n); return p < 0 ? it : Object.assign({}, it, { pin:p + 1 }); });
@@ -5410,7 +5418,7 @@ function deckGroups(lv){
     var byT = {};
     items.forEach(function(it){ var t = typeGroup(it.d); (byT[t] = byT[t] || []).push(it); it.sub = it.basic ? 'Basic land' : jobSub(it); });
     TYPE_GROUPS.forEach(function(t){
-      var l = (byT[t] || []).sort(function(a, b){ return a.basic - b.basic || a.n.localeCompare(b.n); });
+      var l = (byT[t] || []).sort(itemOrder(lv));
       if(l.length) groups.push({ t:GROUP_PLURAL[t] || t, items:l });
     });
   }
@@ -5457,6 +5465,7 @@ function drawDeckPage(){
     '<div class="bs-seg" role="group" aria-label="Show as"><button type="button" data-lv="p:0"' + (!lv.p ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>List</button><button type="button" data-lv="p:1"' + (lv.p ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Pictures</button></div>' +
     '<div class="bs-seg" role="group" aria-label="Group by"><button type="button" data-lv="g:type"' + (lv.g === 'type' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>By type</button><button type="button" data-lv="g:job"' + (lv.g === 'job' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>By job</button>' +
     '<button type="button" data-lv="g:cat"' + (lv.g === 'cat' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>My categories</button></div>' +
+    '<div class="bs-seg" role="group" aria-label="Sort"><button type="button" data-lv="s:mv"' + (lv.s[lv.g] === 'mv' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Mana value</button><button type="button" data-lv="s:az"' + (lv.s[lv.g] === 'az' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>A to Z</button></div>' +
     '<button class="bs-btn bs-sm' + (lv.g === 'cat' ? '' : ' bs-primary') + '" type="button" data-addcard>' + ico('plus', 'bs-i16') + 'Add a card</button>' +
     (lv.g === 'cat' ? '<button class="bs-btn bs-sm bs-primary" type="button" data-catnew>' + ico('plus', 'bs-i16') + 'New category</button>' : '') +
     '</div></div>';
