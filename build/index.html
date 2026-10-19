@@ -5432,6 +5432,51 @@ function deckGroups(lv){
   });
   return groups;
 }
+/* ---------- search and filters on the Deck tab (Tom, 2026-10-19: "Let me set different filter/sort views", picked both) ----------
+   FLT lasts this visit. The search matches a card's name or rules text; chips are OR inside a row, AND across
+   rows. The commander always shows; groups with nothing left are hidden while a filter is on. */
+var FLT = { q:'', type:[], col:[], mv:[], open:false };
+var FLT_TYPES = ['Creature', 'Instant', 'Sorcery', 'Artifact', 'Enchantment', 'Planeswalker', 'Land', 'Battle'];
+var FLT_COLS = [['W', 'White'], ['U', 'Blue'], ['B', 'Black'], ['R', 'Red'], ['G', 'Green'], ['C', 'Colourless']];
+var FLT_MV = [['01', '0 to 1'], ['2', '2'], ['3', '3'], ['4', '4'], ['5', '5'], ['6', '6+']];
+function fltOn(){ return !!(FLT.q.trim() || FLT.type.length || FLT.col.length || FLT.mv.length); }
+function fltChips(){ return FLT.type.length + FLT.col.length + FLT.mv.length; }
+function fltMatch(it){
+  var c = it.c || {}, q = FLT.q.trim().toLowerCase();
+  if(q && (it.n + ' ' + (c.type || '') + ' ' + (c.o || '')).toLowerCase().indexOf(q) < 0) return false;
+  if(FLT.type.length && !FLT.type.some(function(t){ return (' ' + (c.type || '').replace(/[^A-Za-z]+/g, ' ') + ' ').indexOf(' ' + t + ' ') >= 0; })) return false;
+  if(FLT.col.length){ var ci = c.ci || []; if(!FLT.col.some(function(k){ return k === 'C' ? !ci.length : ci.indexOf(k) >= 0; })) return false; }
+  if(FLT.mv.length){ var mv = c.mv || 0, b = mv <= 1 ? '01' : mv >= 6 ? '6' : String(mv); if(isLand(c) || FLT.mv.indexOf(b) < 0) return false; }
+  return true;
+}
+function fltBar(){
+  var row = function(key, label, list){ return '<div class="bs-flt-row"><span class="bs-label">' + label + '</span><div class="bs-chips" role="group" aria-label="' + label + '">' + list.map(function(x){
+    var v = Array.isArray(x) ? x[0] : x, t = Array.isArray(x) ? x[1] : x, on = FLT[key].indexOf(v) >= 0;
+    return '<button class="bs-chip' + (on ? ' on' : '') + '" type="button" aria-pressed="' + on + '" data-flt="' + key + ':' + v + '">' + esc(t) + '</button>'; }).join('') + '</div></div>'; };
+  var n = fltChips();
+  return '<div class="bs-flt"><div class="bs-flt-top"><input class="bs-swm-q bs-flt-q" type="search" data-fltq autocomplete="off" spellcheck="false" placeholder="Search names and rules text" aria-label="Search the deck" value="' + esc(FLT.q) + '">' +
+    '<button class="bs-btn bs-sm' + (n ? ' bs-primary' : '') + '" type="button" data-flt="open" aria-expanded="' + FLT.open + '">Filters' + (n ? ' <span class="bs-num">' + n + '</span>' : '') + '</button>' +
+    (fltOn() ? '<button class="bs-btn bs-sm bs-quiet" type="button" data-flt="clear">Clear</button>' : '') + '</div>' +
+    (FLT.open ? '<div class="bs-flt-panel">' + row('type', 'Type', FLT_TYPES) + row('col', 'Colour', FLT_COLS) + row('mv', 'Mana value', FLT_MV) + '</div>' : '') + '</div>';
+}
+function fltClick(e){
+  var b = e.target.closest && e.target.closest('[data-flt]'); if(!b) return false;
+  var v = b.getAttribute('data-flt');
+  if(v === 'open') FLT.open = !FLT.open;
+  else if(v === 'clear'){ FLT.q = ''; FLT.type = []; FLT.col = []; FLT.mv = []; }
+  else { var kv = v.split(':'), l = FLT[kv[0]], i = l.indexOf(kv[1]); if(i >= 0) l.splice(i, 1); else l.push(kv[1]); }
+  drawDeckPage(); return true;
+}
+var FLT_T = 0;
+function fltInput(e){
+  if(!e.target.matches('[data-fltq]')) return;
+  FLT.q = e.target.value; clearTimeout(FLT_T);
+  FLT_T = setTimeout(function(){
+    var el = main.querySelector('[data-fltq]'), at = el ? el.selectionStart : null;
+    drawDeckPage();
+    var nw = main.querySelector('[data-fltq]'); if(nw){ nw.focus(); if(at != null) nw.setSelectionRange(at, at); }
+  }, 150);
+}
 function drawDeckPage(){
   var tok = RENDER_N;
   if(!S.cmd){
@@ -5452,6 +5497,15 @@ function drawDeckPage(){
     return;
   }
   var lv = listView(), groups = deckGroups(lv), total = S.deck.length + (S.partner ? 2 : 1);
+  var shown = -1;
+  if(fltOn()){
+    shown = 0;
+    groups = groups.filter(function(g){
+      if(g.items.some(function(it){ return it.board === 'cmd'; })) return true;
+      g.items = g.items.filter(function(it){ var ok = fltMatch(it); if(ok && !it.echo && g.board == null) shown += it.q; return ok; });
+      return g.items.length > 0;
+    });
+  }
   var cnt = total === 100 ? '<span class="bs-count">100 cards</span>' : '<span class="bs-badge bs-warn">' + total + ' cards, ' + (total < 100 ? (100 - total) + ' short' : (total - 100) + ' too many') + '</span>';
   var h = '<div class="bs-cols"><div class="bs-main">';
   if(S.importMissing && S.importMissing.length) h += '<div class="bs-callout bs-bad">' + ico('warn') + '<p><b>Scryfall did not know ' + S.importMissing.length + ' card' + (S.importMissing.length > 1 ? 's' : '') + ' from the list,</b> so they are left out: ' + esc(S.importMissing.join(', ')) + '. ' +
@@ -5468,7 +5522,7 @@ function drawDeckPage(){
     '<div class="bs-seg" role="group" aria-label="Sort"><button type="button" data-lv="s:mv"' + (lv.s[lv.g] === 'mv' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Mana value</button><button type="button" data-lv="s:az"' + (lv.s[lv.g] === 'az' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>A to Z</button></div>' +
     '<button class="bs-btn bs-sm' + (lv.g === 'cat' ? '' : ' bs-primary') + '" type="button" data-addcard>' + ico('plus', 'bs-i16') + 'Add a card</button>' +
     (lv.g === 'cat' ? '<button class="bs-btn bs-sm bs-primary" type="button" data-catnew>' + ico('plus', 'bs-i16') + 'New category</button>' : '') +
-    '</div></div>';
+    '</div></div>' + fltBar() + (shown >= 0 ? '<p class="pg-fine bs-flt-n">' + (shown ? shown + (shown === 1 ? ' card' : ' cards') + ' in the 99 match.' : 'No card in the 99 matches.') + '</p>' : '');
   var isCat = lv.g === 'cat', touch = phone();
   if(isCat && !cats().list.length) h += '<div class="bs-callout">' + ico('info') + '<p><b>Make your own categories.</b> Press New category, then ' +
     (touch ? 'tap a card and pick its category.' : 'drag cards into it, or tap a card and pick its category.') + ' Categories you make on Moxfield come in when you bring the deck in.</p></div>';
@@ -5500,7 +5554,8 @@ function drawDeckPage(){
     outGs.map(function(g){ return esc(g.t) + ' ' + cnt2(g); }).join(', ') + '</span></div>' + drawGroups(outGs) + '</section>';
   h += '</div><aside class="bs-side bs-sticky" id="deckSide"></aside></div>';
   main.innerHTML = h;
-  main.onclick = onDeckClick;
+  main.onclick = function(e){ if(fltClick(e)) return; onDeckClick(e); };
+  main.oninput = fltInput;
   main.onkeydown = function(e){ if((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role=button][data-card]')){ e.preventDefault(); e.target.click(); } };
   catDrag(!touch, onBoard);
   boardWatch();

@@ -922,3 +922,11 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{border-color:var
 .bs-acdone{display:flex;align-items:center;gap:var(--s3);margin-top:var(--s3);padding:var(--s2) var(--s3);border-radius:var(--r-sm);background:var(--bg3);color:var(--ink2)}
 .bs-acdone p{flex:1 1 auto;margin:0;min-width:0}
 .bs-acdone .bs-btn{flex:none;min-height:44px}
+
+/* Deck tab search and filters */
+.bs-flt{display:flex;flex-direction:column;gap:var(--s3);margin:0 0 var(--s4)}
+.bs-flt-top{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap}
+.bs-flt-q{flex:1 1 260px;max-width:520px;padding-left:12px;font-size:16px}
+.bs-flt-panel{display:flex;flex-direction:column;gap:var(--s3);padding:var(--s4);border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg2)}
+.bs-flt-row{display:flex;flex-direction:column;gap:var(--s1)}
+.bs-flt-n{margin:0 0 var(--s3)}
