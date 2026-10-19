@@ -340,3 +340,20 @@
   .bs-flow .bs-group{break-after:avoid}
   .bs-flow .bs-crow{break-inside:avoid}
 }
+
+/* Mana: asked for against made */
+.pg-mana{margin-top:var(--s4)}
+.pg-mrow{padding:var(--s3) 0;border-top:1px solid var(--line)}
+.pg-mrow:first-of-type{border-top:0}
+.pg-mrow-k{margin:0 0 var(--s2);font-family:var(--num);font-weight:600;color:var(--ink)}
+.pg-mbar{display:grid;grid-template-columns:7.5em 1fr 3.2em;align-items:center;gap:var(--s2);margin:0 0 4px;font-size:var(--t2);color:var(--ink2)}
+.pg-mbar-t{height:8px;border-radius:4px;background:var(--bg3);overflow:hidden}
+.pg-mbar-t i{display:block;height:100%;border-radius:4px}
+.pg-need .pg-mbar-t i{background:var(--ink3)}
+.pg-make .pg-mbar-t i{background:var(--brass)}
+.pg-mbar-v{text-align:right;color:var(--ink)}
+.pg-mrow .pg-fine{margin:4px 0 0}
+.pg-mnotes{margin-top:var(--s3);padding-top:var(--s3);border-top:1px solid var(--line);font-size:var(--t2);color:var(--ink2);line-height:1.55}
+.pg-mnotes p{margin:0 0 var(--s2);max-width:75ch}
+.pg-mnotes b{color:var(--ink)}
+.pg-mnotes .bs-btn{margin-left:4px;vertical-align:middle}

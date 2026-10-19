@@ -626,6 +626,70 @@ function deckScoreHtml(){
     '<p class="bs-panel-note pg-mt">The average of ' + words(s.parts.length, 'part') + ', weighted equally' + (s.parts.length < 5 ? ' (one colour, so colours are left out)' : '') + '. Brewing Station\'s own estimate.</p>' +
   '</section>';
 }
+// Mana made against mana asked for. Needs: every mana symbol in the deck's spells and commander, as a
+// share (generic mana is payable by any colour). Makes: lands, cards that add mana or Treasure, and
+// cards that put extra lands out; one source can make several colours.
+function manaHtml(rows, landRows, ci, cb){
+  var cols = ci.length ? ci.slice() : [];
+  var need = { C:0 }, needAll = 0, x = function(c){ return String((c && c.o) || ''); };
+  cols.forEach(function(k){ need[k] = 0; });
+  rows.forEach(function(r){
+    var c = r.c; if(!c || isLandC(c) || r.role === 'lands' || c.cost == null) return;
+    var p = typeof pips === 'function' ? pips(c.cost || '') : {};
+    cols.forEach(function(k){ need[k] += (p[k] || 0) * r.q; needAll += (p[k] || 0) * r.q; });
+    var g = 0; (String(c.cost).match(/\{(\d+|C)\}/g) || []).forEach(function(s){ g += s === '{C}' ? 1 : +s.slice(1, -1); });
+    need.C += g * r.q; needAll += g * r.q;
+  });
+  // How much one land makes once it is out: the most symbols in one of its "Add" clauses.
+  function landMana(c){
+    var best = 0; (x(c).match(/add ((?:\{[^}]+\})+)/gi) || []).forEach(function(m){ best = Math.max(best, (m.match(/\{/g) || []).length); });
+    return best || ((c.prod && c.prod.length) || /search your library for a basic land/i.test(x(c)) ? 1 : 0);
+  }
+  var src = [], landMade = 0, big = [];
+  landRows.forEach(function(r){
+    var c = r.c || {}, prod = c.prod && c.prod.length ? c.prod.slice() : [];
+    if(!prod.length && /search your library for a basic land|any color/i.test(x(c))) prod = cols.length ? cols.slice() : ['C'];
+    var m = landMana(c); landMade += m * r.q;
+    if(m > 1) big.push(r.n + ' makes ' + m);
+    if(prod.length) src.push({ n:r.n, q:r.q, prod:prod, land:true });
+  });
+  var once = [], stays = [], extra = [], grows = [];
+  rows.forEach(function(r){
+    var c = r.c; if(!c || isLandC(c) || r.role === 'lands') return;
+    var o = x(c), prod = c.prod && c.prod.length ? c.prod.slice() : [];
+    var treasure = /create[^.]*treasure/i.test(o), lands = /search your library for [^.]*lands? cards?[^.]*onto the battlefield|put (?:a|up to \w+|any number of) land cards? from your hand onto the battlefield/i.test(o);
+    if(treasure || lands) prod = uniqArr(prod.concat(cols.length ? cols : ['C']));
+    if(!prod.length) return;
+    var one = /\b(instant|sorcery)\b/i.test(c.type || '') || (treasure && !/\{t\}[^.]*: add/i.test(o)) || /sacrifice (?:~|this|it)[^:]*: add/i.test(o);
+    (lands ? extra : one ? once : stays).push(r.n);
+    if(/add [^.]*for each|add an amount of|add x\b|add mana equal|for each [^.]*, add/i.test(o)) grows.push(r.n);
+    src.push({ n:r.n, q:r.q, prod:prod, land:false });
+  });
+  var allSrc = src.reduce(function(s, a){ return s + a.q; }, 0) || 1;
+  function makes(k){ return src.reduce(function(s, a){ return s + (k === 'C' ? (a.prod.every(function(p){ return p === 'C'; }) ? a.q : 0) : (a.prod.indexOf(k) >= 0 ? a.q : 0)); }, 0); }
+  var keys = cols.concat(['C']);
+  var bar = function(cls, v, label){ return '<div class="pg-mbar ' + cls + '"><span class="pg-mbar-k">' + label + '</span><span class="pg-mbar-t"><i style="width:' + Math.round(v * 100) + '%"></i></span><span class="pg-mbar-v bs-num">' + pct(v) + '</span></div>'; };
+  var H = '<section class="bs-panel pg-mana"><div class="bs-panel-head"><h3 class="bs-panel-title">Mana</h3><span class="bs-count pg-right">asked for, against made</span></div>';
+  H += keys.map(function(k){
+    var nv = needAll ? need[k] / needAll : 0, m = makes(k), mv = m / allSrc;
+    var nm = k === 'C' ? 'Any colour' : COLN[k];
+    return '<div class="pg-mrow"><p class="pg-mrow-k">' + (k === 'C' ? '' : '<span class="bs-pips">' + pipsOf([k]) + '</span> ') + h(nm) + '</p>' +
+      bar('pg-need', nv, k === 'C' ? 'Generic' : 'Asks for') +
+      bar('pg-make', mv, k === 'C' ? 'Colourless only' : 'Can make') +
+      '<p class="pg-fine">' + (k === 'C' ? 'Generic mana in your costs. ' + m + ' of ' + allSrc + ' sources make only colourless.' : m + ' of ' + allSrc + ' sources make it.') + '</p></div>';
+  }).join('');
+  var L = [];
+  L.push('<b>Lands</b>: ' + sumQ(landRows) + ' lands make ' + landMade + ' mana a turn once all are out' + (big.length ? ' (' + h(big.join(', ')) + ')' : '') + '.');
+  if(stays.length || once.length || extra.length) L.push('<b>Ramp</b>: ' + [stays.length ? stays.length + ' stay and make mana every turn' : '', once.length ? once.length + ' make it once (rituals, Treasure)' : '', extra.length ? extra.length + ' put extra lands out' : ''].filter(Boolean).join(', ') + '.');
+  if(grows.length) L.push('<b>Grows with your board</b>: ' + grows.map(function(n){ return link(n); }).join(', ') + '.');
+  var mc = cb && cb.inDeck ? cb.inDeck.filter(function(o){ return /infinite[^+]*mana/i.test(o.result || ''); }) : [];
+  if(mc.length) L.push('<b>Combos that make mana</b>: ' + mc.slice(0, 4).map(function(o){ return h(o.cards.join(' + ')) + ' (' + h(plain(o.result)) + ') ' + (o.id ? comboBtn(o.id) : ''); }).join('; ') + (mc.length > 4 ? '; and ' + (mc.length - 4) + ' more on the Synergy page' : '') + '.');
+  var gap = cols.filter(function(k){ return needAll && Math.abs(need[k] / needAll - makes(k) / allSrc) >= 0.15; });
+  if(cols.length > 1 && gap.length) L.push(gap.map(function(k){ return COLN[k] + ' is ' + pct(need[k] / needAll) + ' of what your spells ask for and ' + pct(makes(k) / allSrc) + ' of your sources make it.'; }).join(' '));
+  H += '<div class="pg-mnotes">' + L.map(function(s){ return '<p>' + s + '</p>'; }).join('') + '</div></section>';
+  return H;
+}
+function uniqArr(a){ return a.filter(function(v, i){ return a.indexOf(v) === i; }); }
 function drawAnalysis(ctx, st){
   var e = E(), el = ctx.el, b = bk(), br = BR(b);
   var cb = combosNow(ctx);
@@ -737,6 +801,11 @@ function drawAnalysis(ctx, st){
           (landN > mono ? '. The other ' + (landN - mono) + ' make colourless mana or do something else.' : ', every one of them.')) + '</p>' +
     '</section>';
   }
+
+  // ---- mana: what the spells ask for against what lands, ramp and combos make (Tom, 2026-10-19:
+  // "how much mana my lands give me and the proportion of mana my deck needs, taking into account
+  // ramp and other mana effects/combos/synergies").
+  colHtml += safe(function(){ return manaHtml(rows, landRows, ci, cb); }, '');
 
   // ---- bracket check
   var hs = S.house || {}, lim = hs.gc != null && hs.gc !== '' ? +hs.gc : br.gc;
