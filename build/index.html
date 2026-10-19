@@ -645,6 +645,54 @@ function loadCombos(){
   return combosP;
 }
 
+// Each combo's steps (Tom, 2026-10-19: "detail the combos it tells me about"). slim_combos.py writes
+// them nightly into steps/ as 64 files and comboShard picks the same file, so a page loads only the
+// one a combo lives in. Spellbook itself does not let a page ask it.
+var STEPS = {};
+function comboShard(id){ var h = 0; id = String(id); for(var i = 0; i < id.length; i++) h = (Math.imul(h, 31) + id.charCodeAt(i)) >>> 0; return ('0' + (h % 64)).slice(-2); }
+function comboSteps(id){
+  var k = comboShard(id);
+  if(!STEPS[k]){
+    var p = STEPS[k] = fetch('steps/s' + k + '.json').then(function(r){ if(!r.ok) throw new Error('steps ' + r.status); return r.json(); });
+    p.catch(function(){ if(STEPS[k] === p) delete STEPS[k]; });
+  }
+  return STEPS[k].then(function(m){ return m[id] || null; });
+}
+function comboById(id){
+  return loadCombos().then(function(d){
+    for(var i = 0; i < d.v.length; i++){ var v = d.v[i]; if(v[5] === id) return { id:id, cards:v[0].map(function(x){ return d.names[x]; }), result:v[4], mvNeeded:v[2] }; }
+    return null;
+  });
+}
+function comboBtn(id, label){ return id ? '<button class="bs-btn bs-sm" type="button" data-combo="' + esc(id) + '">' + esc(label || 'How it works') + '</button>' : ''; }
+function nameSpan(n){ return '<span class="bs-cardlink" role="button" tabindex="0" data-card="' + esc(n) + '">' + esc(n) + '</span>'; }
+// The combo sheet: its pieces, what must be in play first, each step, and what it makes.
+function openCombo(id){
+  var url = 'https://commanderspellbook.com/combo/' + id + '/';
+  var sh = bsSheet({ title:'How the combo works', body:loadingHtml('Loading the steps') });
+  Promise.all([comboById(id).catch(function(){ return null; }), comboSteps(id).catch(function(){ return null; })]).then(function(r){
+    if(sh.closed) return;
+    var o = r[0], s = r[1], h = '';
+    if(o) noteCardNames(o.cards);
+    if(o) h += '<section class="bs-combo-sec"><h3 class="bs-label">The pieces</h3><ul class="bs-combo-list">' + o.cards.map(function(n){ return '<li>' + nameSpan(n) + '</li>'; }).join('') + '</ul></section>';
+    if(s){
+      var pre = s[1] || [], need = s[2] || [];
+      if(pre.length || need.length || s[3]) h += '<section class="bs-combo-sec"><h3 class="bs-label">Before you start</h3><ul class="bs-combo-list">' +
+        need.map(function(x){ return '<li>Also needs: ' + esc(x) + '</li>'; }).join('') + pre.map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') +
+        (s[3] ? '<li>Mana to start it: <span class="bs-num">' + esc(s[3]) + '</span></li>' : '') + '</ul></section>';
+      if((s[0] || []).length) h += '<section class="bs-combo-sec"><h3 class="bs-label">Steps</h3><ol class="bs-combo-steps">' + s[0].map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('') + '</ol></section>';
+      if((s[4] || []).length) h += '<section class="bs-combo-sec"><h3 class="bs-label">What you get</h3><ul class="bs-combo-list">' + s[4].map(function(x){ return '<li>' + esc(plainCombo(x)) + '</li>'; }).join('') + '</ul></section>';
+    } else h += '<div class="bs-callout">' + ico('info') + '<p>The steps for this combo are not saved here yet. Commander Spellbook has them.</p></div>';
+    h += '<p class="bs-combo-src"><a href="' + esc(url) + '" target="_blank" rel="noopener">' + ico('ext', 'bs-i16') + 'Open on Commander Spellbook</a></p>';
+    sh.body.innerHTML = h;
+  });
+}
+document.addEventListener('click', function(e){
+  var b = e.target && e.target.closest && e.target.closest('[data-combo]'); if(!b) return;
+  e.preventDefault(); e.stopPropagation();
+  openCombo(b.getAttribute('data-combo'));
+}, true);
+
 /* ============ card reading ============ */
 function low(c){ return (c.o || '').toLowerCase().split(c.n.toLowerCase()).join('~'); }
 function isLand(c){ return /\bLand\b/.test(c.type) && c.type.indexOf('//') < 0; }
@@ -2437,12 +2485,12 @@ function drawChecks(r){
 
   h += '<h2>Combos</h2>';
   if(!r.combos.length) h += '<p class="note">No combos found in the deck.</p>';
-  else { h += '<p class="note">Power is Commander Spellbook\'s own label for how strong a combo is.</p><div class="tablewrap"><table><tr><th>Cards</th><th>Result</th><th>Power</th><th><span class="bs-sr">Link</span></th></tr>';
-    r.combos.slice().sort(function(a, b){ return (a.req ? 1 : 0) - (b.req ? 1 : 0) || comboRank(a) - comboRank(b) || b.pop - a.pop; }).slice(0, 20).forEach(function(o){ h += '<tr><td>' + esc(o.cards.join(' + ')) + (o.req ? ' <span class="small">(also needs a card of a certain kind, so not counted)</span>' : '') + (!o.req && comboBreaksBracket(o) ? ' <span class="tag gc">Breaks bracket</span>' : '') + '</td><td>' + esc(plainCombo(o.res)) + '</td><td>' + esc(tagName(o.tag)) + '</td><td><a class="sh-sbl" href="https://commanderspellbook.com/combo/' + esc(o.id) + '/" target="_blank" rel="noopener" aria-label="Open ' + esc(o.cards.join(' + ')) + ' on Commander Spellbook">Open on Spellbook</a></td></tr>'; });
+  else { h += '<p class="note">Power is Commander Spellbook\'s own label for how strong a combo is.</p><div class="tablewrap"><table><tr><th>Cards</th><th>Result</th><th>Power</th><th><span class="bs-sr">Steps</span></th></tr>';
+    r.combos.slice().sort(function(a, b){ return (a.req ? 1 : 0) - (b.req ? 1 : 0) || comboRank(a) - comboRank(b) || b.pop - a.pop; }).slice(0, 20).forEach(function(o){ h += '<tr><td>' + esc(o.cards.join(' + ')) + (o.req ? ' <span class="small">(also needs a card of a certain kind, so not counted)</span>' : '') + (!o.req && comboBreaksBracket(o) ? ' <span class="tag gc">Breaks bracket</span>' : '') + '</td><td>' + esc(plainCombo(o.res)) + '</td><td>' + esc(tagName(o.tag)) + '</td><td>' + comboBtn(o.id) + '</td></tr>'; });
     h += '</table></div>'; }
   if(r.near.length){
-    h += '<h3>One card away</h3><div class="tablewrap"><table><tr><th>Add</th><th>With</th><th>Result</th></tr>';
-    r.near.forEach(function(o){ h += '<tr><td><b>' + esc(o.missing) + '</b></td><td>' + esc(o.cards.filter(function(n){ return n !== o.missing; }).join(' + ')) + '</td><td>' + esc(plainCombo(o.res)) + (comboBreaksBracket(o) ? ' <span class="tag gc">Would break bracket</span>' : '') + '</td></tr>'; });
+    h += '<h3>One card away</h3><div class="tablewrap"><table><tr><th>Add</th><th>With</th><th>Result</th><th><span class="bs-sr">Steps</span></th></tr>';
+    r.near.forEach(function(o){ h += '<tr><td><b>' + esc(o.missing) + '</b></td><td>' + esc(o.cards.filter(function(n){ return n !== o.missing; }).join(' + ')) + '</td><td>' + esc(plainCombo(o.res)) + (comboBreaksBracket(o) ? ' <span class="tag gc">Would break bracket</span>' : '') + '</td><td>' + comboBtn(o.id) + '</td></tr>'; });
     h += '</table></div>';
   }
   h += '<p class="src" style="margin-top:8px">Combos from <a href="https://commanderspellbook.com" target="_blank" rel="noopener">Commander Spellbook</a>, refreshed nightly.</p>';
@@ -6307,13 +6355,14 @@ function swmHeadHtml(me, c, M){
     swmFact('Works with', '<b class="bs-num">' + M.hLinks + '</b> <small>' + (M.hLinks === 1 ? 'card here' : 'cards here') + '</small>') +
     swmFact('Game Changer', rawGC(c) ? '<span class="bs-badge bs-bad">Yes</span>' : '<span class="bs-muted">No</span>');
   var notes = '', near = mode === 'out' ? (M.cmb.near[moxKey(c.n)] || []) : [];
-  var cmbTxt = function(o){ return o.cards.map(shortName).join(' + ') + (o.result ? ' (' + plainCombo(String(o.result).split(/[.;]/)[0].trim()) + ')' : ''); };
+  var cmbTxt = function(o){ var t = esc(o.cards.map(shortName).join(' + ') + (o.result ? ' (' + plainCombo(String(o.result).split(/[.;]/)[0].trim()) + ')' : ''));
+    return o.id ? '<button class="bs-cmblink" type="button" data-combo="' + esc(o.id) + '">' + t + '</button>' : t; };
   // Every combo is named (up to 4, then "and N more"), the ones that win first.
   var cmbList = function(l){ l = l.slice().sort(function(a, b){ return comboRank(a) - comboRank(b) || (b.pop || 0) - (a.pop || 0); }); return l.slice(0, 4).map(cmbTxt).join('; ') + (l.length > 4 ? '; and ' + (l.length - 4) + ' more' : ''); };
   if(near.length) notes += '<p class="bs-swm-hnote bs-good">' + ico('check', 'bs-i16') + '<span>Completes ' + (near.length === 1 ? 'a combo' : near.length + ' combos') + ' with cards you already run: ' +
-    esc(cmbList(near)) + '.</span></p>';
+    cmbList(near) + '.</span></p>';
   if(mode === 'in' && M.breaks && M.breaks.length) notes += '<p class="bs-swm-hnote bs-warn">' + ico('warn', 'bs-i16') + '<span>Part of ' + (M.breaks.length === 1 ? 'a combo' : M.breaks.length + ' combos') + ' in this deck: ' +
-    esc(cmbList(M.breaks)) + '. Swapping it out breaks ' + (M.breaks.length === 1 ? 'it' : 'them') + '.</span></p>';
+    cmbList(M.breaks) + '. Swapping it out breaks ' + (M.breaks.length === 1 ? 'it' : 'them') + '.</span></p>';
   if(mode === 'out'){
     var f = M.from;
     notes += '<p class="bs-swm-hnote">' + ico('side', 'bs-i16') + '<span>' + (f === 'side' ? 'From your side deck: the card you take out takes its place there.' : f === 'maybe' ? 'From Considering: it stays there too. The card you take out goes to your side deck.' : 'The card you take out goes to your side deck, so nothing is lost.') + '</span></p>';

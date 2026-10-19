@@ -895,3 +895,14 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{border-color:var
 .bs-dkbar .bs-seg button{min-height:38px}
 .bs-dkbar .bs-dkquiet{margin-left:auto;min-height:44px}
 @media (max-width:720px){ .bs-dkbar > .bs-label{display:none} .bs-dkbar .bs-seg{display:flex;flex:1 1 100%} .bs-dkbar .bs-seg button{flex:1 1 0;min-width:0;padding:0 var(--s2);white-space:normal;line-height:1.15;text-align:center} .bs-dkbar .bs-dkquiet{margin-left:0;flex:1 1 100%} }
+
+/* Combo sheet: pieces, before you start, steps, what you get */
+.bs-combo-sec{margin:0 0 var(--s5)}
+.bs-combo-sec .bs-label{margin:0 0 var(--s2)}
+.bs-combo-list,.bs-combo-steps{margin:0;padding-left:1.3em;color:var(--ink2);line-height:1.6}
+.bs-combo-list li,.bs-combo-steps li{margin:0 0 var(--s2);max-width:75ch}
+.bs-combo-steps li::marker{font-family:var(--num);color:var(--brass)}
+.bs-combo-src{margin:0}
+.bs-combo-src a{display:inline-flex;align-items:center;gap:6px;min-height:44px;color:var(--brass)}
+.bs-cmblink{display:inline;padding:0;border:0;background:none;font:inherit;color:inherit;text-align:left;text-decoration:underline dotted;text-underline-offset:3px;cursor:pointer}
+.bs-cmblink:hover{color:var(--ink)}

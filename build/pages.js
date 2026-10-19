@@ -832,7 +832,8 @@ function smallPic(n){
   var img = c && (c.sm || c.img);
   return '<button class="pg-pic" type="button" data-pg-card="' + h(n) + '" aria-label="' + h(n) + '">' + (img ? '<img src="' + h(img) + '" alt="" loading="lazy">' : '<span class="bs-ctile-noimg">' + h(n) + '</span>') + '</button>';
 }
-function spellbook(o){ return o.url ? '<a class="bs-btn bs-sm bs-quiet" href="' + h(o.url) + '" target="_blank" rel="noopener">' + ico('ext', 'bs-i16') + 'Commander Spellbook</a>' : ''; }
+// How it works opens the combo's sheet (pieces, setup, steps); Spellbook's own page is linked from there.
+function spellbook(o){ return o.id ? comboBtn(o.id) : o.url ? '<a class="bs-btn bs-sm bs-quiet" href="' + h(o.url) + '" target="_blank" rel="noopener">' + ico('ext', 'bs-i16') + 'Commander Spellbook</a>' : ''; }
 
 function drawSynergy(ctx, st){
   var e = E(), el = ctx.el, b = bk();
@@ -919,7 +920,7 @@ function drawSynergy(ctx, st){
   if(cb && cb.cond && cb.cond.length){
     H += details('cond', words(cb.cond.length, 'more combo needs', 'more combos need') + ' one more card of a certain kind',
       '<p class="pg-fine">Every named card is in the deck, but Commander Spellbook says each of these also needs a card of a certain kind (such as "a creature with persist"). They count only if the deck has one, so they are not counted above. Spellbook names the kind.</p>' +
-      '<ul class="pg-badcombos">' + cb.cond.slice(0, 12).map(function(o){ return '<li>' + o.cards.map(function(n){ return link(n); }).join(' + ') + ': ' + h(plain(o.result)) + (o.url ? ' <a class="pg-sbl" href="' + h(o.url) + '" target="_blank" rel="noopener">Open on Spellbook</a>' : '') + '</li>'; }).join('') + '</ul>');
+      '<ul class="pg-badcombos">' + cb.cond.slice(0, 12).map(function(o){ return '<li>' + o.cards.map(function(n){ return link(n); }).join(' + ') + ': ' + h(plain(o.result)) + (o.id ? ' ' + comboBtn(o.id) : '') + '</li>'; }).join('') + '</ul>');
   }
   H += '</section>';
 

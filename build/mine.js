@@ -243,6 +243,18 @@ function deckSheet(){
   }
   return L.join('\n');
 }
+// The deck's combos from Commander Spellbook with their steps, so Claude explains real ones (Tom,
+// 2026-10-19: "detail the combos it tells me about"). Kept in ASK.cmb for the copy-the-question path.
+async function comboLines(){
+  try{
+    var r = await ENGINE.combos(), l = ((r && r.inDeck) || []).slice(0, 8);
+    var st = await Promise.all(l.map(function(o){ return comboSteps(o.id).catch(function(){ return null; }); }));
+    ASK.cmb = l.map(function(o, i){ var s = st[i];
+      return '- ' + o.cards.join(' + ') + ': ' + o.result + '.' + (s && (s[1] || []).length ? ' Before: ' + s[1].join(' ') : '') +
+        (s && (s[0] || []).length ? ' Steps: ' + s[0].map(function(x, j){ return (j + 1) + ') ' + x; }).join(' ') : ''); });
+  }catch(e){ ASK.cmb = ASK.cmb || []; }
+  return ASK.cmb;
+}
 function askPrompt(q){
   var L = [];
   L.push('You are a Magic: The Gathering Commander deckbuilding expert. Tom is asking about one of his decks in his deck app, Brewing Station.');
@@ -251,7 +263,9 @@ function askPrompt(q){
   L.push('If you recommend changing cards, end the answer with one line per change in exactly this form, and nothing after them:');
   L.push('SWAP: <card in the deck> -> <card to put in>', 'CUT: <card in the deck>', 'ADD: <card>');
   L.push('A card going in must be legal in Commander and inside the colour identity. Prefer cards from his side deck when they do the job, since he owns them.');
+  L.push('When you mention a combo, detail it: the pieces, what must be in play first, each step as a numbered list, and what it gets you. For a combo listed below, follow its Commander Spellbook steps.');
   L.push('', '=== THE DECK ===', deckSheet());
+  if((ASK.cmb || []).length) L.push('', '=== COMBOS IN THE DECK (Commander Spellbook) ===', ASK.cmb.join('\n'));
   var t = thread().filter(function(m){ return m.a; }).slice(-KEEP);
   if(t.length){
     L.push('', '=== EARLIER IN THIS CONVERSATION (last ' + t.length + ') ===');
@@ -369,11 +383,13 @@ async function askSend(q){
   var T = thread(); T.push({ q:q, a:'', at:Date.now() }); if(T.length > 30) T.splice(0, T.length - 30);
   ASK.draft = ''; ASK.err = '';
   save({ quiet:true });
-  if(!canDirect()){ render(); return; }   // the copy / paste box shows under the question
+  if(!canDirect()){ comboLines(); render(); return; }   // the copy / paste box shows under the question
   var mine = CUR, D = S, msg = T[T.length - 1];
   // The prompt leaves out the question being asked, so it is not counted twice.
-  T.pop(); var prompt = askPrompt(q); T.push(msg);
   ASK.busy = mine; render();
+  await comboLines();
+  if(CUR !== mine || S !== D){ ASK.busy = ''; askRedraw(); return; }
+  T.pop(); var prompt = askPrompt(q); T.push(msg);
   try{
     var r = await fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:prompt }) });
     var j = await r.json();

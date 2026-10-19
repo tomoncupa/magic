@@ -495,7 +495,7 @@ function comboList(){
 }
 function nearList(){
   if(CB.res && CB.key === namesSig()) return CB.res.near;
-  return ((S.lastCheck && S.lastCheck.near) || []).filter(function(o){ return !o.req; }).map(function(o){ return { cards:o.cards, missing:o.missing, result:o.res, inf:o.inf, mvNeeded:o.mvNeeded }; });
+  return ((S.lastCheck && S.lastCheck.near) || []).filter(function(o){ return !o.req; }).map(function(o){ return { cards:o.cards, missing:o.missing, result:o.res, inf:o.inf, mvNeeded:o.mvNeeded, id:o.id }; });
 }
 // Every combo this deck is one named card away from (not only the 30 the page lists), for the
 // suggestion lists: a card that would complete one never comes in as a plain upgrade.
@@ -553,7 +553,7 @@ E.combos = function(){
       o.c = c; o.breaks = breaksAt(o, bk()); keep.push(o);
     });
     res.inDeck = inDeck; res.near = keep;
-    res.nearAll = near.map(function(o){ return { cards:o.cards, missing:o.missing, result:o.result, inf:o.inf, mvNeeded:o.mvNeeded }; });
+    res.nearAll = near.map(function(o){ return { cards:o.cards, missing:o.missing, result:o.result, inf:o.inf, mvNeeded:o.mvNeeded, id:o.id }; });
     if(!inDeck.length && !res.note) res.note = 'Commander Spellbook lists no combo made only of cards in this deck.';
     CB.res = res; CB.key = key;
     return res;

@@ -14,9 +14,9 @@ jobs:
         with: { python-version: '3.12' }
       - run: pip install ijson
       - run: curl -sSfL -o /tmp/variants.json https://json.commanderspellbook.com/variants.json
-      - run: python build/slim_combos.py /tmp/variants.json build/combos.json
+      - run: python build/slim_combos.py /tmp/variants.json build/combos.json build/steps
       - run: |
           git config user.name "combo-bot"
           git config user.email "combo-bot@users.noreply.github.com"
-          git add build/combos.json
+          git add build/combos.json build/steps
           git diff --cached --quiet || (git commit -m "Refresh combo list" && git pull --rebase origin "$GITHUB_REF_NAME" && git push origin "HEAD:$GITHUB_REF_NAME")
