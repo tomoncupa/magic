@@ -1327,7 +1327,15 @@ async function loadPool(onStep){
   // So do the side deck and the maybeboard (a deck brought in from Moxfield has both).
   var bd = s.boards || {};
   (bd.side || []).concat(bd.maybe || []).forEach(function(x){ var k = x.n.toLowerCase(); if(!isBasicName(x.n) && !m[k]) m[k] = { n:x.n, stats:{} }; });
-  // His Moxfield printing beats the one EDHREC names, for every card he has one for.
+  // His Moxfield printing beats the one EDHREC names, for every card he has one for. A deck his public list
+  // doesn't show (unlisted, like Myrkul) has no feed copy, so on the PC its printings are read live once.
+  if(!s.prints && s.mox && LOCAL && !feedDeck(s.mox.id)){
+    try{
+      var pj = await (await fetch('/api/moxfield/deck?id=' + encodeURIComponent(s.mox.id), { cache:'no-store' })).json();
+      if(pj && Array.isArray(pj.main)){ s.prints = printsOf(pj); if(s === S) save(); }
+    }catch(e){}   // Moxfield or the desktop server not answering: EDHREC's art this time, asked again next open
+    alive();
+  }
   var pr = deckPrints(s);
   Object.keys(m).forEach(function(k){ var id = pr[moxKey(m[k].n)]; if(id) m[k].id = id; });
   var list = Object.keys(m).map(function(k){ return m[k]; });
