@@ -1948,6 +1948,64 @@ function fixPackage(pairs){
   if(chosen.length) chosen.all = { from:base.raw, to:cur };
   return chosen;
 }
+/* Three swaps that raise one pillar (Tom, 2026-10-19: "in the what would raise it, Give 3 suggestions").
+   The pillar's short parts name the jobs to add; the cuts are the weakest cards that hold nothing up and do no
+   main job (ramp, removal, wipes, protection, tutors, finishers). Three separate options, each judged alone on the
+   pillar's own score; one that lowers the deck score is left out. */
+var RAISE_JOB = { draw:'draw', selection:'draw', tutor:'tutor', ramp:'ramp', cheapRamp:'ramp', fastMana:'ramp',
+  removal:'removal', instantShare:'removal', counterspells:'removal', wipes:'wipes', protection:'protection',
+  finishers:'wincon', winTurn:'wincon', lands:'lands', colours:'lands' };
+var RAISE_WORD = { draw:'Card draw', tutor:'A tutor', ramp:'Ramp', removal:'Removal', wipes:'A board wipe', protection:'Protection', wincon:'A finisher', lands:'A land' };
+function pillarRaw(p){
+  var sw = 0, s = 0;
+  ((p && p.parts) || []).forEach(function(x){ if(x.weight > 0){ sw += x.weight; s += x.weight * x.value; } });
+  return sw ? 10 * s / sw : 0;
+}
+E.raiseFix = function(pk){
+  try{
+    var X = ctx(); if(!X.ok) return withNote([], X.why);
+    var P = E.pillars()[pk]; if(!P) return withNote([], '');
+    var gaps = P.parts.filter(function(p){ return p.weight > 0 && p.value < 0.8 && RAISE_JOB[p.key]; })
+      .sort(function(a, b){ return (b.weight * (1 - b.value)) - (a.weight * (1 - a.value)); });
+    var jobs = uniq(gaps.map(function(p){ return RAISE_JOB[p.key]; }));
+    if(!jobs.length) return withNote([], 'No swap can raise this one: what it is short of is not a job a card fills.');
+    var tb = bk(), cset = comboNameSet(), prot = protectedNames(X);
+    var jobOf = function(c, f){ for(var i = 0; i < jobs.length; i++) if(doesJob(jobs[i], c, f)) return jobs[i]; return ''; };
+    var adds = candidatePool(X).map(function(c){ var f = feats(c); return { c:c, f:f, job:jobOf(c, f) }; })
+      .filter(function(a){ return a.job && !(tb <= 3 && (a.f.mld || (a.c.roles && a.c.roles.mld))) && !(tb <= 3 && nearBad(a.c.n, tb)); })
+      .map(function(a){ a.v = valueOf(a.c, X, false).v + (ownedIn(a.c.n) ? 0.05 : 0); return a; })
+      .sort(function(a, z){ return z.v - a.v; }).slice(0, 12);
+    var cuts = X.rows.filter(function(r){
+      return !r.cmd && !r.basic && !r.must && !r.missing && !r.f.land && !prot[lc(r.n)] && !prot[front(r.n)] &&
+        !jobs.some(function(j){ return r.jobs[j] || jobFor(r) === j; }) &&
+        !['ramp', 'removal', 'wipes', 'protection', 'tutor', 'wincon'].some(function(j){ return r.jobs[j] || jobFor(r) === j; });
+    }).sort(function(a, z){ return valueOf(a.c, X, true, cset).v - valueOf(z.c, X, true, cset).v; }).slice(0, 10);
+    var gap = function(j){ return gaps.filter(function(p){ return RAISE_JOB[p.key] === j; })[0]; };
+    var pairs = fixPairs(X, null, cuts, adds, function(o, a){
+      var g = gap(a.job), hv = g && typeof g.have === 'number' ? g.have : null, w = g && typeof g.want === 'number' ? g.want : null;
+      return (g ? 'Adds to ' + g.label.toLowerCase() + (hv != null && w != null ? ' (now ' + hv + ' of ' + w + ')' : '') : RAISE_WORD[a.job]) + '. Out: ' + o.n + ', the card here the deck leans on least.';
+    }, 10);
+    if(!pairs.length) return withNote([], 'Nothing in ' + short() + '\'s EDHREC pool fills these jobs better than what you run.');
+    // More pairs than fixPairs' one-per-cut: each cut with its three best adds, so three options can differ.
+    var more = [];
+    cuts.slice(0, 6).forEach(function(o){ var n = 0; adds.forEach(function(a){
+      if(n >= 3 || (isGc(a.c) && !o.gc && Math.max(0, gcLim() - X.gcs.length) <= 0)) return;
+      if(!pairs.some(function(p){ return p.out === o.n && p.inn === a.c; })) more.push({ out:o.n, inn:a.c, why:'', a:a, o:o });
+      n++; }); });
+    var base = E.score(), curD = base ? base.raw : 0, curP = pillarRaw(P), tried = [];
+    pairs.concat(more.slice(0, 18)).forEach(function(p){
+      if(!p.why){ var g = gap(p.a.job), hv = g && typeof g.have === 'number' ? g.have : null, w = g && typeof g.want === 'number' ? g.want : null;
+        p.why = (g ? 'Adds to ' + g.label.toLowerCase() + (hv != null && w != null ? ' (now ' + hv + ' of ' + w + ')' : '') : RAISE_WORD[p.a.job]) + '. Out: ' + p.out + ', the card here the deck leans on least.'; }
+      var l = [{ out:p.out, inn:p.inn }], pv = whatIf(l, function(){ return pillarRaw(E.pillars()[pk]); }), sc = E.scoreWith(l);
+      if(!sc || pv < curP + 0.05 || sc.raw < curD - 0.001) return;
+      tried.push({ out:p.out, inn:p.inn, why:p.why, pil:{ from:curP, to:pv }, score:{ from:curD, to:sc.raw, d:sc.raw - curD } });
+    });
+    tried.sort(function(a, b){ return (b.pil.to - a.pil.to) || (b.score.to - a.score.to); });
+    var chosen = [], usedO = {}, usedI = {};
+    tried.forEach(function(p){ if(chosen.length >= 3 || usedO[p.out] || usedI[p.inn.n]) return; usedO[p.out] = usedI[p.inn.n] = 1; chosen.push(p); });
+    return withNote(chosen, chosen.length ? '' : 'Every swap found for this raises it but lowers the deck as a whole, so none is offered.');
+  }catch(e){ return withNote([], 'Could not work out swaps: ' + e.message); }
+};
 // The old name, for pages that still ask for traps.
 E.traps = E.guides;
 

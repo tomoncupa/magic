@@ -490,8 +490,28 @@ function pillarCard(ctx, def, p){
     meter(p ? p.score : 0, def[1]) +
     '<p class="pg-what">' + def[2] + '</p>' +
     '<p class="bs-verdict">' + h(p ? p.verdict : '') + '</p>' +
-    '<div class="pg-folds">' + details('c-' + k, 'What counts', counts) + details('r-' + k, 'What would raise it', raise) + '</div>' +
+    '<div class="pg-folds">' + details('c-' + k, 'What counts', counts) + raiseFold(ctx, def, raise) + '</div>' +
   '</section>';
+}
+// What would raise it: the tips, then three swaps worked out only once the fold is opened (onToggle draws again).
+function raiseFold(ctx, def, tips){
+  var k = def[0], key = 'r-' + k, open = !!state().open[key];
+  return '<details class="bs-more" data-pg-open="' + key + '" data-pg-fix' + (open ? ' open' : '') + '><summary>What would raise it</summary><div class="bs-more-body">' +
+    tips + (open ? raiseFixHtml(ctx, k, def[1]) : '') + '</div></details>';
+}
+function raiseFixHtml(ctx, k, label){
+  var e = E(), res = e.raiseFix ? safe(function(){ return e.raiseFix(k); }, []) : [];
+  if(!res.length) return '<p class="pg-fine pg-gfix-none">' + h(res.note || 'No swap found for this one.') + '</p>';
+  return '<p class="bs-label pg-alsohead">Swaps that raise it</p><p class="pg-fine">Each is scored on its own against the deck as it is.</p>' +
+    '<div class="pg-gfix">' + res.map(function(p){
+    var inn = p.inn;
+    return '<div class="pg-gfix-row">' +
+      '<div class="pg-gfix-pair">' + link(p.out) + ' <span class="pg-gfix-arr" aria-hidden="true">&rarr;</span> ' + link(inn.n) + '</div>' +
+      '<p class="pg-gfix-why">' + h(p.why) + '<br><span class="bs-pos">' + h(label) + ' <b class="bs-num">' + e.scorePair(p.pil.from, p.pil.to) + '</b> &middot; Deck score <b class="bs-num">' + e.scorePair(p.score.from, p.score.to) + '</b></span></p>' +
+      '<button class="bs-btn bs-sm bs-primary" type="button"' + ctx.act(function(){
+        change(p.out, inn, 'Raises ' + label + '.', 'Swapped <b>' + h(p.out) + '</b> for <b>' + h(inn.n) + '</b>.');
+      }) + ' aria-label="Swap ' + h(p.out) + ' out for ' + h(inn.n) + '">' + ico('swap', 'bs-i16') + 'Swap</button></div>';
+  }).join('') + '</div>';
 }
 function hbarCls(v, t){
   if(t == null) return 'bs-notarget';
