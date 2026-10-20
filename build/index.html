@@ -587,7 +587,9 @@ function slim(c){
     // The back face's picture of a two-faced card ('' for one face). Cards kept from before have no bk: backsNeeded() asks.
     bk:!c.image_uris && f[1] && f[1].image_uris ? f[1].image_uris.normal || '' : '',
     // A reprint (Chaos Warp in an upcoming set) is out already: only a first printing has a release date to wait for.
-    rel:c.reprint ? '' : c.released_at || '', usd:usdOfRaw(c) };
+    rel:c.reprint ? '' : c.released_at || '', usd:usdOfRaw(c),
+    // The printing's other name (Tom, 2026-10-21: "include the alt names"): Kefka Palazzo is Purphoros, God of the Forge.
+    fn:c.flavor_name || f.map(function(x){ return x.flavor_name || ''; }).filter(Boolean).join(' // ') || '' };
 }
 // Scryfall's US dollar price: normal, else foil, else etched. null when it has none.
 function usdOfRaw(c){
@@ -5058,7 +5060,8 @@ function crowHtml(it){
   var src = (FLIP[moxKey(n)] && twoFaced(c)) || !it.thumb ? faceImg(c, n) : '', art = src ? src.replace('/normal/', '/art_crop/') : it.thumb || '';
   var lead = art ? '<img class="bs-crow-thumb" src="' + esc(art) + '" alt="" loading="lazy">' : '<span class="bs-crow-thumb" aria-hidden="true"></span>';
   var mv = it.board !== 'cmd' && !it.basic && c.mv != null && !(c.type && isLand(c)) ? '<span class="bs-crow-mv" title="Mana value">' + c.mv + '</span>' : '';
-  var mid = '<span class="bs-crow-main"><span class="bs-crow-n">' + (it.q > 1 ? '<span class="bs-crow-q">' + it.q + '</span>' : '') + esc(n) + '</span>' + (it.sub ? '<span class="bs-crow-s">' + esc(it.sub) + '</span>' : '') + '</span>';
+  var alt = altOf(c), sub2 = alt ? '“' + alt + '”' + (it.sub ? ', ' + it.sub : '') : it.sub;
+  var mid = '<span class="bs-crow-main"><span class="bs-crow-n">' + (it.q > 1 ? '<span class="bs-crow-q">' + it.q + '</span>' : '') + esc(n) + '</span>' + (sub2 ? '<span class="bs-crow-s">' + esc(sub2) + '</span>' : '') + '</span>';
   if(it.basic && it.board === 'main'){
     return '<div class="bs-crow bs-tap' + itCls(it) + '" role="button" tabindex="0" data-card="' + esc(n) + '" data-board="main">' + lead + mid + '<span class="bs-crow-end">' + pinMark(it) + '<span class="sh-bas">' +
       '<button class="bs-ibtn bs-sm" type="button" data-bas="' + esc(n) + '" data-d="-1" aria-label="One fewer ' + esc(n) + '">' + ico('minus', 'bs-i16') + '</button>' +
@@ -5072,7 +5075,7 @@ function ctileHtml(it){
     (img ? '<img src="' + esc(img) + '" alt="' + esc(it.n) + '" loading="lazy">' : '<span class="bs-ctile-noimg">' + esc(it.n) + '</span>') +
     (it.q > 1 ? '<span class="sh-qty">&times;' + it.q + '</span>' : '') + (bad ? '<span class="bs-ctile-bl">' + bad + '</span>' : '') + (it.pin ? '<span class="bs-ctile-pin">' + pinMark(it) + '</span>' : '') + '</button>' +
     (twoFaced(c) ? '<button class="bs-ctile-flip" type="button" data-flip="' + esc(it.n) + '" aria-pressed="' + back + '" aria-label="' + (back ? 'Show the front of ' : 'Flip ') + esc(it.n) + '" title="' + (back ? 'Show the front' : 'Flip') + '">' + ico('flip', 'bs-i16') + '</button>' : '') +
-    cardLink(it.n, null, { cls:'bs-ctile-n', board:it.board, title:it.n }) + (it.sub ? '<span class="bs-ctile-s"><span>' + esc(it.sub) + '</span></span>' : '') + '</div>';
+    cardLink(it.n, null, { cls:'bs-ctile-n', board:it.board, title:it.n }) + (altOf(c) || it.sub ? '<span class="bs-ctile-s"><span>' + esc(altOf(c) ? '“' + altOf(c) + '”' + (it.sub ? ', ' + it.sub : '') : it.sub) + '</span></span>' : '') + '</div>';
 }
 /* ---------- his own categories (Tom, 2026-10-17: "create categories and sort my cards into those") ----------
    Per deck in S.cats: list (his order), of (card key -> its one home), also (card key -> extra tags,
@@ -5575,7 +5578,7 @@ function fltOn(){ return !!(FLT.q.trim() || FLT.type.length || FLT.col.length ||
 function fltChips(){ return FLT.type.length + FLT.col.length + FLT.mv.length; }
 function fltMatch(it){
   var c = it.c || {}, q = FLT.q.trim().toLowerCase();
-  if(q && (it.n + ' ' + (c.type || '') + ' ' + (c.o || '')).toLowerCase().indexOf(q) < 0) return false;
+  if(q && (it.n + ' ' + (c.fn || '') + ' ' + (c.type || '') + ' ' + (c.o || '')).toLowerCase().indexOf(q) < 0) return false;
   if(FLT.type.length && !FLT.type.some(function(t){ return (' ' + (c.type || '').replace(/[^A-Za-z]+/g, ' ') + ' ').indexOf(' ' + t + ' ') >= 0; })) return false;
   if(FLT.col.length){ var ci = c.ci || []; if(!FLT.col.some(function(k){ return k === 'C' ? !ci.length : ci.indexOf(k) >= 0; })) return false; }
   if(FLT.mv.length){ var mv = c.mv || 0, b = mv <= 1 ? '01' : mv >= 6 ? '6' : String(mv); if(isLand(c) || FLT.mv.indexOf(b) < 0) return false; }
@@ -5707,6 +5710,7 @@ function drawDeckPage(){
   sumSoon();
   loadBasicPics();   // the basics' art, for the list's thumbnails and the pictures alike
   backsNeeded();
+  altNeeded();
 }
 /* ---------- two-faced cards flip (Tom, 2026-10-19: "Let me flip cards as well") ----------
    FLIP holds the cards turned to their back, for this visit only. Every picture of the card follows it:
@@ -5720,6 +5724,28 @@ function flipCard(n){
   if(CS && !CS.closed && sameName(CS.name, n)) drawCardSheet();
   if(HOVER.on && document.contains(HOVER.on)) hoverShow(HOVER.on);
 }
+// Cards kept from before alt names were read (fn undefined): ask Scryfall once, by the printing, for its other name.
+var ALTS = { asked:{}, busy:false };
+function altNeeded(){
+  if(ALTS.busy || !S.cmd) return;
+  var all = [S.cmd, S.partner].filter(Boolean).map(function(c){ return poolCard(c.n) || c; })
+    .concat(S.deck.map(function(d){ return d.basic ? null : poolCard(d.n); }), ['side', 'maybe'].reduce(function(a, b){ return a.concat(boardList(b).map(function(x){ return poolCard(x.n); })); }, []));
+  var need = all.filter(function(c){ return c && c.fn === undefined && c.id && !ALTS.asked[c.id]; });
+  if(!need.length) return;
+  need.forEach(function(c){ ALTS.asked[c.id] = 1; });
+  ALTS.busy = true; var tok = CUR;
+  fetch('https://api.scryfall.com/cards/collection', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ identifiers:need.slice(0, 75).map(function(c){ return { id:c.id }; }) }) })
+    .then(function(r){ return r.json(); }).then(function(j){
+      ALTS.busy = false; if(CUR !== tok) return;
+      var by = {}; (j.data || []).forEach(function(r){ by[r.id] = r; });
+      var any = false;
+      need.slice(0, 75).forEach(function(c){ var r = by[c.id]; var f = r ? r.flavor_name || (r.card_faces || []).map(function(x){ return x.flavor_name || ''; }).filter(Boolean).join(' // ') : ''; c.fn = f || ''; if(f) any = true;
+        [S.cmd, S.partner].forEach(function(x){ if(x && sameName(x.n, c.n)) x.fn = c.fn; }); });
+      if(need.length > 75) setTimeout(altNeeded, 200);
+      if(any && APP.view === 'deck' && S.page === 'deck' && !main.classList.contains('bs-dragging')) drawDeckPage();
+    }, function(){ ALTS.busy = false; });
+}
+function altOf(c){ return c && c.fn ? c.fn : ''; }
 // Cards kept from before bk existed: ask Scryfall once for the "A // B" ones (only those can have a back).
 function backsNeeded(){
   if(BACKS.busy || !S.cmd) return;
@@ -6317,7 +6343,7 @@ function csShell(n, c, type, rest){
   return csBackHtml() + '<div class="bs-cardsheet"><div class="bs-cardsheet-pic">' + (c && c.img ? '<button class="sh-zoom" type="button" data-cs-zoom aria-label="Read ' + esc(nm) + ' bigger"><img src="' + esc(faceImg(c, nm)) + '" alt="' + esc(nm) + '"></button>' +
     (twoFaced(c) ? '<button class="bs-btn bs-sm bs-block bs-cs-flip" type="button" data-cs-flip aria-pressed="' + !!FLIP[moxKey(nm)] + '">' + ico('flip', 'bs-i16') + (FLIP[moxKey(nm)] ? 'Show the front' : 'Flip') + '</button>' : '') +
     '<p class="sh-sub" style="text-align:center">Open the picture to read it bigger.</p>' : '<div class="bs-skel bs-skel-card"></div>') + '</div>' +
-    '<div class="bs-stack"><div><h3 class="bs-cardsheet-name" data-nolink>' + esc(nm) + '</h3><p class="bs-cardsheet-type">' + type + '</p></div>' + (rest || '') + '</div></div>';
+    '<div class="bs-stack"><div><h3 class="bs-cardsheet-name" data-nolink>' + esc(nm) + '</h3>' + (altOf(poolCard(nm) || c) ? '<p class="bs-cardsheet-type" data-nolink>Your printing: “' + esc(altOf(poolCard(nm) || c)) + '”</p>' : '') + '<p class="bs-cardsheet-type">' + type + '</p></div>' + (rest || '') + '</div></div>';
 }
 function csPriceLine(c){
   if(!c || isBasicName(c.n)) return '';

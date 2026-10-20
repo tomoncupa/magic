@@ -263,7 +263,7 @@ function deckSheet(){
   (B.side || []).forEach(function(x){ var c = poolCard(x.n); if(c && !seen[c.n] && c.rel && c.rel >= NEW_SINCE){ seen[c.n] = 1; rows.push(c); } });
   if(rows.length){
     L.push('', 'Rules text of every card above (read these, do not go from memory):');
-    rows.forEach(function(c){ L.push('- ' + c.n + ' ' + (c.cost || '') + ' | ' + c.type + ' | ' + String(c.o || '').replace(/\n/g, ' / ')); });
+    rows.forEach(function(c){ L.push('- ' + c.n + (c.fn ? ' (his printing is named ' + c.fn + ')' : '') + ' ' + (c.cost || '') + ' | ' + c.type + ' | ' + String(c.o || '').replace(/\n/g, ' / ')); });
   }
   return L.join('\n');
 }
