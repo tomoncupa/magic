@@ -134,6 +134,11 @@ var TH = [
       var re = /(\w+ )?tokens? you control (?:get|have|enter|are)\b/g, m;
       while((m = re.exec(o))) if(m[1] !== 'creature ') return true;
       return false; } },
+  // Copying spells, and the instants and sorceries worth copying.
+  { k:'copyspell', label:'Copying spells', full:3, pf:6,
+    enN:'copy spells', payN:'are spells worth copying', enW:'copies spells', payW:'is a spell worth copying',
+    en:rxW(/\bcopy (?:target|that|the next|it|each|those) (?:instant|sorcery|spell)|copy (?:target|that) (?:instant or sorcery|activated or triggered)|\bcasualty\b|\breplicate\b|\bstorm\b|copy it\. you may choose new targets/),
+    pay:function(c, o){ return /\b(?:Instant|Sorcery)\b/.test(c.type || '') && (c.mv || 0) >= 2 && /\bdraw|\bdestroy|\bexile|\breturn|\bsearch|\bcreate|\btake an extra turn|\bdeals? \d|\bcounter target/.test(o); } },
   { k:'sacrifice', label:'Sacrifice and death', full:8, pf:3,
     enN:'give you bodies to sacrifice', payN:'turn deaths into value', enW:'gives it bodies to sacrifice', payW:'turns deaths into value',
     en:function(c, o){ return /\bwhen ~ dies\b/.test(o) || TOKEN_MAKER.test(o) ? 1 : 0; },
@@ -593,7 +598,7 @@ E.combos = function(){
 /* ============ ENGINE.links and cardLinks ============ */
 function buildLinks(X){
   // Rebuilt when the full combo list arrives after the first call.
-  var ck = comboList().length + (CB.res && CB.key === namesSig() ? 'c' : 'l');
+  var ck = comboList().length + (CB.res && CB.key === namesSig() ? 'c' : 'l') + '|' + ((S.plan && S.plan.at) || '');
   if(X.links && X.linksCk === ck) return X.links;
   X.linksCk = ck;
   var by = {}, per = {};
@@ -605,17 +610,30 @@ function buildLinks(X){
   // Engine weight: each theme a card sits in adds the square root of its partners
   // there (tribal counts 0.6, it links almost everything); each combo adds 2.5 (up to 4).
   function eng(n, k, v){ var m = per[n] || (per[n] = {}); m[k] = (m[k] || 0) + v; }
+  // C (Tom picked it 2026-10-21): a payoff that triggers on the theme ("whenever a token enters") weighs 1.5, a
+  // standing reward ("creatures you control get +1/+1") 1. A: links from Claude's plan map (S.plan) weigh more:
+  // a pair Claude named 3, two cards in the same plan where one drives it 2.
+  var trig = /\bwhenever\b|\bat the beginning of\b|\bif [^.]*would\b/;
   X.themes.forEach(function(h){
     if(!h.active) return;
     h.enRows.forEach(function(e){
       h.payRows.forEach(function(p){
         if(e === p) return;
-        add(e.n, p.n, h.t.payW, 1);
-        add(p.n, e.n, h.t.enW, 1);
+        var w = trig.test(tx(p.c)) ? 1.5 : 1;
+        add(e.n, p.n, h.t.payW, w);
+        add(p.n, e.n, h.t.enW, w);
         eng(e.n, h.t.k, 1); eng(p.n, h.t.k, 1);
       });
     });
   });
+  var PM = planMap(X);
+  if(PM){
+    PM.pairs.forEach(function(pr){ if(pr.a && pr.b && pr.a !== pr.b){ add(pr.a.n, pr.b.n, 'plan: ' + pr.why, 3); add(pr.b.n, pr.a.n, 'plan: ' + pr.why, 3); eng(pr.a.n, 'plan', 2); eng(pr.b.n, 'plan', 2); } });
+    PM.plans.forEach(function(pl){
+      var drive = pl.rows.filter(function(x){ return x.part === 'engine' || x.part === 'payoff'; }), rest = pl.rows.filter(function(x){ return x.part === 'enabler' || x.part === 'support'; });
+      drive.forEach(function(a){ rest.concat(drive).forEach(function(b){ if(a.r !== b.r){ add(a.r.n, b.r.n, 'plan: ' + pl.name, 2); add(b.r.n, a.r.n, 'plan: ' + pl.name, 2); } }); eng(a.r.n, 'plan', 1); });
+    });
+  }
   var cw = {};
   comboList().forEach(function(o){
     var pcs = o.cards.map(rowOf).filter(Boolean);
@@ -626,7 +644,7 @@ function buildLinks(X){
     if(r.basic) return;
     var m = by[r.n] || {};
     var list = Object.keys(m).map(function(k){ return m[k]; }).sort(function(a, b){ return b.w - a.w || (a.n < b.n ? -1 : 1); })
-      .map(function(e){ return { n:e.n, why:e.why.slice(0, 2).join('; ') }; });
+      .map(function(e){ return { n:e.n, why:e.why.slice(0, 2).join('; '), w:e.w }; });
     byCard[r.n] = list;
     if(list.length){
       if(!r.f.land){
@@ -1043,7 +1061,7 @@ function fixOnly(c){
   var o = tx(c);
   if(!FIXTXT.test(o)) return false;
   if(isLand(c)) return true;
-  return (c.mv || 0) >= 3 && /(?:Artifact|Enchantment)/.test(c.type || '') && !/Creature/.test(c.type || '');
+  return (c.mv || 0) >= 3 && /\b(?:Artifact|Enchantment)\b/.test(c.type || '') && !/\bCreature\b/.test(c.type || '');
 }
 E.fixOnly = function(c){ try{ return fixOnly(c); }catch(e){ return false; } };
 function candidatePool(X){
@@ -1848,8 +1866,25 @@ function protectedNames(X){ return engineSet(X); }
 // The deck's engine: combo pieces, cards that repeat or untap the commander's own ability (Patriar's
 // Seal and Rings of Brighthearth in Krenko, cmdEngineBonus) and cards whose text needs the commander.
 // A Fix never offers one as a cut, and the swap menu never calls cutting one an upgrade.
+/* A (Tom, 2026-10-21): Claude's plan map, saved per deck in S.plan by the Synergy tab:
+   { at, key, plans:[{ name, how }], cards:{ name:{ plan, part } }, pairs:[{ a, b, why }] }, part one of engine, payoff,
+   enabler, support, none. Read here against the rows of this deck; names the deck no longer has drop out. */
+function planMap(X){
+  var P = S.plan; if(!P || !P.cards) return null;
+  var byN = {}; X.rows.forEach(function(r){ byN[lc(r.n)] = r; byN[front(r.n)] = r; });
+  var rowOf2 = function(n){ return byN[lc(n)] || byN[front(n)] || null; };
+  var plans = (P.plans || []).map(function(pl){ return { name:pl.name, how:pl.how || '', rows:[] }; }), pi = {};
+  plans.forEach(function(pl){ pi[lc(pl.name)] = pl; });
+  var cards = {};
+  Object.keys(P.cards).forEach(function(n){ var r = rowOf2(n), c = P.cards[n]; if(!r || !c) return; cards[r.n] = c; var pl = pi[lc(c.plan || '')]; if(pl && c.part && c.part !== 'none') pl.rows.push({ r:r, part:c.part }); });
+  var pairs = (P.pairs || []).map(function(x){ return { a:rowOf2(x.a), b:rowOf2(x.b), why:x.why || '' }; }).filter(function(x){ return x.a && x.b; });
+  return { plans:plans, cards:cards, pairs:pairs, stale:P.key !== E.key() };   // saved with E.key(), the 99's fingerprint
+}
+E.planMap = function(){ try{ return planMap(ctx()); }catch(e){ return null; } };
 function engineSet(X){
   var s = {}, K = gCtx(X);
+  // Claude's plan map names the deck's engines: never offered as cuts either.
+  var PMe = planMap(X); if(PMe) Object.keys(PMe.cards).forEach(function(n){ if(PMe.cards[n].part === 'engine' && !s[lc(n)]){ s[lc(n)] = 'plan'; s[front(n)] = 'plan'; } });
   // Cards he marked Keep are never offered as a cut, by anything (Tom picked C, 2026-10-20).
   Object.keys(S.keep || {}).forEach(function(k){ s[k] = 'keep'; s[front(k)] = 'keep'; });
   comboList().forEach(function(o){ o.cards.forEach(function(n){ s[lc(n)] = 'combo'; s[front(n)] = 'combo'; }); });
@@ -2035,6 +2070,39 @@ E.raiseFix = function(pk){
     return withNote(chosen, chosen.length ? '' : 'Every swap found for this raises it but lowers the deck as a whole, so none is offered.');
   }catch(e){ return withNote([], 'Could not work out swaps: ' + e.message); }
 };
+/* ============ ENGINE.clashes: cards working against the deck (Tom picked B, 2026-10-21) ============
+   Fixed rules, each a card whose text hurts a plan the deck runs. A card that only hurts opponents ("your
+   opponents", "creatures you don't control") never counts. -> [{ n, plan, why }] */
+function clashes(X){
+  var th = {}; X.themes.forEach(function(h){ if(h.active && h.v >= 0.25) th[h.t.k] = h; });
+  var creatures = X.rows.filter(function(r){ return /\bCreature\b/.test((r.c && r.c.type) || ''); }).reduce(function(t, r){ return t + (r.q || 1); }, 0);
+  var tutors = X.rows.filter(function(r){ return r.jobs && r.jobs.tutor; }).length;
+  var oppOnly = /\b(?:your opponents|each opponent|opponents|you don't control|an opponent controls|target opponent|nontoken creatures your opponents)\b/;
+  var rules = [
+    // A deck that wants its creatures to die (sacrifice, graveyard) likes a wipe.
+    { plan:'a wide board', when:function(){ return (th.tokens || creatures >= 30) && !th.sacrifice && !th.graveyard; }, re:/\b(?:destroy|exile) all (?:creatures|nonland permanents|permanents)\b|\ball creatures get -\d+\/-\d+|\beach (?:player sacrifices|creature deals \d+ damage to itself)\b|deals \d+ damage to each creature/, why:'wipes your own wide board too' },
+    { plan:'the graveyard', when:function(){ return th.graveyard || th.sacrifice; }, re:/exile all (?:cards from all )?graveyards|exile (?:all|each player's) graveyards?|if a (?:card|nontoken permanent|creature) would be put into a graveyard[^.]*exile it instead|cards in graveyards can't|creature cards in graveyards can't|players can't cast spells from graveyards/, why:'shuts off your own graveyard' },
+    { plan:'reanimation', when:function(){ return th.graveyard; }, re:/creatures? (?:cards )?can't enter the battlefield from graveyards|if a nontoken creature would enter (?:the battlefield )?and it wasn't cast/, why:'stops your own creatures coming back' },
+    { plan:'tutors', when:function(){ return tutors >= 3; }, re:/\bplayers can't search libraries\b|\bif a player would search a library\b/, why:'stops your own tutors' },
+    { plan:'enter abilities', when:function(){ return th.etb; }, re:/creatures entering (?:the battlefield )?don't cause abilities to trigger|don't cause abilities to trigger/, why:'turns off your own enter abilities' },
+    { plan:'many spells a turn', when:function(){ return th.spells || th.copyspell; }, re:/each player can't cast more than one spell each turn|players can't cast more than one spell/, why:'stops you casting your spells' },
+    { plan:'tokens', when:function(){ return th.tokens || th.anytokens; }, re:/\btokens? (?:can't|don't) (?:be created|enter)|if a token would be created[^.]*instead|whenever a token[^.]*(?:its controller loses|sacrifice it)/, why:'punishes your own tokens' }
+  ];
+  var out = [];
+  X.rows.forEach(function(r){
+    if(r.basic || r.cmd || r.missing || !r.c) return;
+    var o = tx(r.c);
+    rules.forEach(function(ru){
+      if(!ru.when() || !ru.re.test(o)) return;
+      var hit = (o.match(ru.re) || [''])[0], i = o.indexOf(hit), near = o.slice(Math.max(0, i - 60), i + hit.length + 30);
+      if(oppOnly.test(near)) return;
+      out.push({ n:r.n, plan:ru.plan, why:r.n + ' ' + ru.why + ' (' + ru.plan + ').' });
+    });
+  });
+  return out;
+}
+E.clashes = function(){ try{ return clashes(ctx()); }catch(e){ return []; } };
+
 /* ============ ENGINE.trim: three ways back to 100 (Tom, 2026-10-21: "I want 3 options for cuts, since cards
    dont exist on their own") ============
    Each option is a whole package of cuts, scored together on the whole deck. Never a commander, a must-include,
@@ -2311,7 +2379,7 @@ var SCX = {};   // scores by deck picture
 function scoreNow(){
   var X = ctx(); if(!X.ok) return null;
   var cl = comboList();
-  var key = X.key + '|' + JSON.stringify(S.trapOff || {}) + '|' + cl.length + '|' + STAP.cards.length;
+  var key = X.key + '|' + JSON.stringify(S.trapOff || {}) + '|' + cl.length + '|' + STAP.cards.length + '|' + ((S.plan && S.plan.at) || '');
   if(SCX[key]) return SCX[key];
   var P = E.pillars(), parts = [];
   // Interaction
@@ -2327,12 +2395,15 @@ function scoreNow(){
   // Engine pieces (see engineSet) count their links twice. Rising toward 1 with no ceiling, so one
   // more linked card always counts: 160 links gives 0.63, 240 gives 0.78.
   var ES = engineSet(X), nEng = 0;
-  var mass = plan.reduce(function(s, r){ var e = ES[lc(r.n)]; if(e) nEng++; return s + Math.min(8, (L.byCard[r.n] || []).length) * (e ? 2 : 1); }, 0);
-  var massV = 1 - Math.exp(-mass / 160);
+  // Links are weighed now (C): each card's link weights added up, up to 12 (8 plain links' worth and then some).
+  var mass = r1(plan.reduce(function(s, r){ var e = ES[lc(r.n)]; if(e) nEng++; var wsum = (L.byCard[r.n] || []).reduce(function(t, x){ return t + (x.w || 1); }, 0); return s + Math.min(12, wsum) * (e ? 2 : 1); }, 0));
+  var massV = 1 - Math.exp(-mass / 200);
+  // B: cards working against the deck's own plan cost the synergy score, 0.4 each, 2 at most.
+  var CL = clashes(X), clashCut = Math.min(2, 0.4 * CL.length);
   var top = X.themes.filter(function(h){ return h.active; }).sort(function(a, z){ return z.v - a.v; })[0];
   var topV = top ? top.v : 0;
-  parts.push({ k:'syn', label:'Synergy', score:10 * (0.7 * massV + 0.3 * topV),
-    line:plan.length + ' plan cards with ' + mass + ' links between them' + (nEng ? ', the ' + words(nEng, 'engine piece') + ' counted twice' : '') + (top ? '; strongest plan ' + top.t.label + ' at ' + Math.round(topV * 100) + '%' : '; no plan found') + '.' });
+  parts.push({ k:'syn', label:'Synergy', score:Math.max(0, 10 * (0.7 * massV + 0.3 * topV) - clashCut),
+    line:(CL.length ? words(CL.length, 'clash', 'clashes') + ' between cards (-' + r1(clashCut) + '); ' : '') + plan.length + ' plan cards with ' + mass + ' weighted links between them' + (nEng ? ', the ' + words(nEng, 'engine piece') + ' counted twice' : '') + (top ? '; strongest plan ' + top.t.label + ' at ' + Math.round(topV * 100) + '%' : '; no plan found') + '.' });
   // Guidelines
   var gl = E.guides().filter(function(t){ return t.status !== 'habit'; });
   var gv = { good:1, watch:0.5, fix:0 }, gs = gl.reduce(function(s, t){ return s + (gv[t.status] != null ? gv[t.status] : 1); }, 0);

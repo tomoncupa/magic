@@ -1099,6 +1099,61 @@ function smallPic(n){
 // How it works opens the combo's sheet (pieces, setup, steps); Spellbook's own page is linked from there.
 function spellbook(o){ return o.id ? comboBtn(o.id) : o.url ? '<a class="bs-btn bs-sm bs-quiet" href="' + h(o.url) + '" target="_blank" rel="noopener">' + ico('ext', 'bs-i16') + 'Commander Spellbook</a>' : ''; }
 
+/* A: Claude's plan map (Tom, 2026-10-21, picked A): one Opus call per deck, saved in S.plan, made again when the
+   deck changed and he asks. The engine weighs its pairs and plans in every link and protects its engines from cuts. */
+var PLAN = { busy:'', err:'', auto:{} };
+var PART_W = { engine:'Engine', payoff:'Payoff', enabler:'Enabler', support:'Support' };
+function planPrompt(){
+  return ['You are mapping the plan of Tom\'s Commander deck for his app, Brewing Station, as a top player would read it.',
+    'Name the deck\'s real plans (1 to 4), in plain words he would use, such as "copy Jin-Gitaxias\'s card draw" or "reanimate big creatures": what each plan does and how it wins or what it gets.',
+    'Then give every nonland card in the deck its plan and its part in it: engine (makes the plan run, the deck is built round it), payoff (what the plan is for), enabler (feeds the plan), support (helps the deck generally: ramp, removal, draw that is not plan-specific), or none (does nothing for any plan). Exact card names.',
+    'Then name up to 12 pairs of cards that are much stronger together in this deck than apart, with why in under 15 words.',
+    'Answer with JSON only, no other text: {"plans":[{"name":"...","how":"one sentence"}],"cards":{"Card Name":{"plan":"plan name or empty","part":"engine|payoff|enabler|support|none"}},"pairs":[{"a":"Card","b":"Card","why":"..."}]}',
+    '', typeof window.askDeckPage === 'function' ? window.askDeckPage() : ''].join('\n');
+}
+function planRun(){
+  var mine = curId(), D = S, e = E(), key = e.key ? e.key() : '';
+  PLAN.busy = mine; PLAN.err = ''; redraw();
+  fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:planPrompt() }) })
+    .then(function(r){ return r.json(); }).then(function(j){
+      if(j.error) throw new Error(j.error);
+      var t = String(j.text || ''), a = t.indexOf('{'), z = t.lastIndexOf('}'), v = JSON.parse(t.slice(a, z + 1));
+      if(!v || !Array.isArray(v.plans) || !v.cards) throw new Error('the plan map came back in an odd shape');
+      if(S !== D) return;
+      S.plan = { at:Date.now(), key:key, plans:v.plans.slice(0, 4), cards:v.cards, pairs:(v.pairs || []).slice(0, 12) };
+      save({ quiet:true });
+    }).catch(function(err){ PLAN.err = 'Claude could not map the plan: ' + (err && err.message || 'no answer') + '.'; })
+    .then(function(){ PLAN.busy = ''; var y = window.pageYOffset || 0; redraw(); keepScroll(y); });
+}
+function planHtml(ctx){
+  var e = E(), PM = e.planMap ? safe(function(){ return e.planMap(); }, null) : null, busy = PLAN.busy === curId();
+  var can = typeof window.askCanDirect === 'function' && window.askCanDirect();
+  // Made on its own once per deck the first time the Synergy tab opens on the PC.
+  if(!S.plan && can && !busy && !PLAN.auto[curId()]){ PLAN.auto[curId()] = 1; setTimeout(planRun, 0); busy = true; }
+  var H = '<section class="bs-section">' + sectionHead('The deck\'s plan', PM ? PM.plans.length : null, '<span class="bs-count">read by Claude</span>');
+  if(PLAN.err) H += '<p class="pg-fine bs-neg">' + h(PLAN.err) + '</p>';
+  if(busy && !PM) return H + loadingLine('Claude is reading the deck\'s plan') + '</section>';
+  if(!PM) return H + '<p class="pg-fine">' + (can ? 'No plan map yet.' : 'The plan map is made in the Brewing Station app on your PC.') + '</p>' + (can ? '<div class="bs-acts"><button class="bs-btn bs-sm bs-primary" type="button"' + ctx.act(function(){ planRun(); }) + '>Map the plan</button></div>' : '') + '</section>';
+  H += '<p class="pg-legend">Every link below and the deck score weigh these: a pair Claude names counts three times a plain link, and engines are never offered as cuts.' + (PM.stale ? ' <b>The deck changed since this map.</b>' : '') + '</p>';
+  H += '<div class="bs-grid" style="--grid-min:320px">' + PM.plans.map(function(pl){
+    var by = {}; pl.rows.forEach(function(x){ (by[x.part] = by[x.part] || []).push(x.r.n); });
+    return '<article class="bs-panel"><h3 class="bs-panel-title">' + h(pl.name) + '</h3><p class="pg-fine">' + h(pl.how) + '</p>' +
+      ['engine', 'payoff', 'enabler', 'support'].filter(function(k){ return by[k]; }).map(function(k){ return '<p><span class="bs-label">' + PART_W[k] + '</span> ' + by[k].map(function(n){ return link(n); }).join(', ') + '</p>'; }).join('') + '</article>';
+  }).join('') + '</div>';
+  if(PM.pairs.length) H += '<p class="bs-label pg-alsohead">Stronger together</p><ul class="pg-badcombos">' + PM.pairs.map(function(pr){ return '<li>' + link(pr.a.n) + ' + ' + link(pr.b.n) + ': ' + h(pr.why) + '</li>'; }).join('') + '</ul>';
+  var none = Object.keys(PM.cards).filter(function(n){ return PM.cards[n].part === 'none'; });
+  if(none.length) H += '<p class="pg-fine"><b>Does nothing for any plan:</b> ' + none.map(function(n){ return link(n); }).join(', ') + '</p>';
+  H += can ? '<div class="bs-acts pg-mt"><button class="bs-btn bs-sm" type="button"' + (busy ? ' disabled' : ctx.act(function(){ planRun(); })) + '>' + (busy ? 'Making…' : 'Make again') + '</button></div>' : '';
+  return H + '</section>';
+}
+// B: cards working against the deck's own plans.
+function clashHtml(){
+  var e = E(), cl = e.clashes ? safe(function(){ return e.clashes(); }, []) : [];
+  var H = '<section class="bs-section">' + sectionHead('Working against the deck', cl.length);
+  if(!cl.length) return H + '<p class="pg-fine">No card works against the deck\'s plans.</p></section>';
+  return H + '<p class="pg-legend">Each one costs the deck score 0.4 (2 at most). A card that only hits opponents never counts.</p><ul class="pg-badcombos">' +
+    cl.map(function(c){ return '<li>' + link(c.n) + ': ' + h(c.why.replace(c.n + ' ', '')) + '</li>'; }).join('') + '</ul></section>';
+}
 function drawSynergy(ctx, st){
   var e = E(), el = ctx.el, b = bk();
   var cb = combosNow(ctx);
@@ -1114,8 +1169,9 @@ function drawSynergy(ctx, st){
     '<div class="bs-stat"><span class="bs-stat-k">Combos</span><span class="bs-stat-v">' + (cb ? cb.inDeck.length : '<span class="bs-skel bs-skel-title" style="--w:40px"></span>') + '</span><span class="bs-stat-n">' + (cb ? (cb.near.length ? cb.near.length + ' more are one card away' : 'none one card away') : 'checking') + '</span></div>' +
   '</div>';
 
+  H += planHtml(ctx) + clashHtml();
   // ---- plans (themes)
-  H += '<section class="bs-section">' + sectionHead('Plans in this deck', th.length) +
+  H += '<section class="bs-section">' + sectionHead('Themes in this deck', th.length) +
     '<p class="pg-legend"><b>Strong</b>: plenty of cards on both sides. <b>Working</b>: enough to matter. <b>Thin</b>: a few cards, easy to build up or cut.</p>';
   if(th.length) H += '<div class="bs-stack">' + th.map(function(t, i){ return themePanel(ctx, st, t, i, per); }).join('') + '</div>';
   else H += empty('info', 'No plan stands out yet', h(th.note || 'No theme has both cards that feed it and cards that reward it.') + ' Adding a few cards that reward what the deck already does will show up here.');

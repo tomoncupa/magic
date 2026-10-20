@@ -317,6 +317,11 @@ function analysisLines(){
   var K = t(function(){ return E.links(); });
   if(K && K.engines && K.engines.length) L.push('Most linked cards (the engine): ' + K.engines.slice(0, 8).map(function(e){ return e.n + ' (' + e.count + ' links)'; }).join('; '));
   if(K && K.loners && K.loners.length) L.push('Cards linked to nothing else: ' + K.loners.slice(0, 12).join('; '));
+  // A and B: Claude's own plan map, and the cards the rules say work against the deck.
+  var PM = t(function(){ return E.planMap(); });
+  if(PM && PM.plans.length) L.push('Plan map: ' + PM.plans.map(function(pl){ return pl.name + ' (' + pl.how + ') engines ' + (pl.rows.filter(function(x){ return x.part === 'engine'; }).map(function(x){ return x.r.n; }).join(', ') || 'none'); }).join('; ') + (PM.pairs.length ? '. Key pairs: ' + PM.pairs.map(function(p){ return p.a.n + ' + ' + p.b.n; }).join('; ') : ''));
+  var CL = t(function(){ return E.clashes(); }) || [];
+  if(CL.length) L.push('Cards working against the deck: ' + CL.map(function(c){ return c.why; }).join(' '));
   return L;
 }
 // C: the numbers a strong player checks on EDHREC, from the pool the app already loaded: each card's share of
@@ -420,7 +425,7 @@ function canDirect(){ return LOCAL && CL.status && CL.status.available && CL.sta
 function claudeOk(){
   if(!LOCAL) return;
   if(!CL.status && !ASK.checking){ ASK.checking = true; fetch('/api/claude/status').then(function(r){ return r.ok ? r.json() : { available:false }; }, function(){ return { available:false }; })
-    .then(function(j){ CL.status = j; ASK.checking = false; if(APP.view === 'deck' && (S.page === 'ask' || S.page === 'analysis')) render(); }); }
+    .then(function(j){ CL.status = j; ASK.checking = false; if(APP.view === 'deck' && (S.page === 'ask' || S.page === 'analysis' || S.page === 'synergy')) render(); }); }
 }
 // The same deck page Ask Claude gets, for Claude's check of the engine's swaps on Analysis (pages.js, Tom picked D).
 window.askDeckPage = function(){
