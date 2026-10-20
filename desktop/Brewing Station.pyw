@@ -100,22 +100,29 @@ def claude_login():
     subprocess.Popen([exe, "auth", "login", "--claudeai"], creationflags=subprocess.CREATE_NEW_CONSOLE)
 
 
-SYSTEM = ("You are a Magic: The Gathering Commander deckbuilding expert working inside Brewing Station, "
-          "Tom's deck app. Follow the instructions in the message exactly.")
+SYSTEM = ("You are a Magic: The Gathering Commander player of the highest level, the kind who wins "
+          "tournaments and brews decks other players copy, working inside Brewing Station, Tom's deck app. "
+          "Think like that player: read the deck's plan before judging a card, count, check rules text, and "
+          "never state a rule, number or card text you have not checked. Follow the instructions in the message exactly.")
+
+# Tom, 2026-10-21: "make the claude in brewing station a lot smarter, like a super pro player" (picked A to E).
+# A: the strongest model, thinking hard. D: Ask Claude may search the web (rulings, EDHREC, current lists).
+MODEL, EFFORT = "opus", "high"
+WEB_TOOLS = "WebSearch,WebFetch"
 
 
-def claude_ask(prompt):
+def claude_ask(prompt, web=False):
     # Two Claude processes renewing the sign-in at once fails the second; it clears in seconds.
     try:
-        return claude_ask_once(prompt)
+        return claude_ask_once(prompt, web)
     except RuntimeError as e:
         if "OAuth token" not in str(e):
             raise
         time.sleep(20)
-        return claude_ask_once(prompt)
+        return claude_ask_once(prompt, web)
 
 
-def claude_ask_once(prompt):
+def claude_ask_once(prompt, web=False):
     exe = find_claude()
     if not exe:
         raise RuntimeError("The Claude app's command was not found on this PC.")
@@ -124,7 +131,8 @@ def claude_ask_once(prompt):
         proc = subprocess.run(
             # Only the page's own prompt: no CLAUDE.md files, MCP servers, skills or Claude Code's own
             # system prompt. That cut one question from about 48,000 tokens of context to under 700.
-            [exe, "-p", "--output-format", "json", "--tools", "", "--no-session-persistence",
+            [exe, "-p", "--output-format", "json", "--model", MODEL, "--effort", EFFORT,
+             "--tools", WEB_TOOLS if web else ""] + (["--allowedTools", WEB_TOOLS] if web else []) + ["--no-session-persistence",
              "--setting-sources", "project", "--settings", json.dumps({"claudeMdExcludes": ["**/*.md"]}),
              "--strict-mcp-config", "--disable-slash-commands", "--system-prompt", SYSTEM],
             input=prompt, capture_output=True, text=True, encoding="utf-8", errors="replace",
@@ -329,7 +337,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 prompt = str(data.get("prompt") or "")
                 if not prompt:
                     raise RuntimeError("Nothing to ask.")
-                return self.send_json({"text": claude_ask(prompt)})
+                return self.send_json({"text": claude_ask(prompt, bool(data.get("web")))})
             self.send_error(404)
         except Exception as e:  # the page shows the message
             self.send_json({"error": str(e)}, 500)

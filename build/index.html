@@ -2061,6 +2061,7 @@ function roundPrompt(job){
   var open = openSlots(job), n = Math.min(12, Math.max(6, open * 2)), passed = S.draft.passed[job] || [];
   var L = ['You are helping Tom build a Magic: The Gathering Commander deck one job at a time. He plays at a kitchen table with friends.', ''];
   L = L.concat(tableLines());
+  if(window.PRO_DOCTRINE) L.push(window.PRO_DOCTRINE, '');
   L.push('Game Changers in the deck now: ' + draftGcs() + '.');
   if((S.gcNames || []).length) L.push('The current official Game Changer list (your memory of it is out of date; cards not on it are not Game Changers): ' + S.gcNames.join('; ') + '.');
   L.push('', 'Picked so far, ' + S.deck.length + ' of ' + deckSlots() + ':');
@@ -2657,6 +2658,7 @@ function claudePrompt(){
   var r = S.lastCheck || {}, B = BRACKETS[S.bracket], lim = gcLimit();
   var th = themeLabel();
   var L = [];
+  if(window.PRO_DOCTRINE) L.push(window.PRO_DOCTRINE, '');
   L.push('You are reviewing a Magic: The Gathering Commander deck for Tom, who plays it at a kitchen table with friends.', '');
   L.push('Commander: ' + S.cmd.n + (S.partner ? ' + ' + S.partner.n : '') + '. Colour identity: ' + (S.ci.join('') || 'colourless') + '.');
   L.push('Bracket ' + S.bracket + ' (' + B.name + '): ' + B.desc + ' Game Changer limit: ' + (lim === Infinity ? 'none' : lim) + '.');

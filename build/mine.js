@@ -211,7 +211,22 @@ function openOut(url){
 }
 
 /* ================= Ask Claude ================= */
-var ASK = { busy:'', err:'', draft:'', paste:'' };
+// B: how a top player reads and builds a Commander deck (Tom, 2026-10-21: "a lot smarter, like a super pro player").
+// Every Claude prompt in Brewing Station carries it (window.PRO_DOCTRINE).
+var DOCTRINE = [
+  'HOW YOU THINK (a top Commander player):',
+  '1. Plan first. Before judging any card, say in one line how this deck wins, what the commander does in that plan (engine, value, finisher, combo piece) and which turns matter. Judge every card by what it does for that plan, not by how strong it is in general. A card that looks weak alone can hold the deck up, and a strong card can do nothing here.',
+  '2. Mana is the first thing that loses games. Check land count against the curve and the card draw, ramp that comes down on turns 1 to 3, colour sources against the pips, and how many cards cost 6 or more. Count; do not estimate.',
+  '3. Efficiency. Cost against impact: what does the card do the turn it lands and the turn after. Favour cheap, flexible, instant-speed cards. A slow card must win the game or bury the table in value.',
+  '4. Interaction. Count answers by threat type (creature, artifact, enchantment, planeswalker, graveyard, stack, a whole board). Prefer cheap and flexible answers. The deck must protect its engine or commander, and its board wipes must suit its own plan.',
+  '5. Card flow. Repeatable draw and engines beat one-shot draw. Tutors are only as good as their targets: name them.',
+  '6. Winning. Count real ways to close the game and how they survive one removal spell or counterspell. Combos: name every piece, what must be in play first and how fragile they are. Fit the bracket: its expected game length, the Game Changer list and count given below, and the combo rules.',
+  '7. The table. It is a four-player game: threat assessment, not becoming the archenemy too early, what the table will answer, what to play around.',
+  '8. Swaps. Each one names the job, the card out and why it is the right cut in this deck, the card in and what it really does (read its rules text below), and the cost: curve, colours, synergy lost. Never cut combo pieces, engine pieces or cards he marked Keep unless he asks. Prefer cards from his side deck. Weigh each swap against the whole deck, never on its own.',
+  '9. Truth. Read the rules text given; never go from memory for card text, rulings, Game Changers or legality. Use the app\'s numbers. If you are not sure, say so in a few words rather than guess.'
+].join('\n');
+window.PRO_DOCTRINE = DOCTRINE;
+var ASK = { busy:'', err:'', draft:'', paste:'', stage:'' };
 var KEEP = 3, ANSWER_CAP = 1200, NEW_SINCE = '2025-09-01';
 
 function thread(){ S.ask = S.ask || { msgs:[] }; return S.ask.msgs; }
@@ -255,6 +270,7 @@ async function comboLines(){
   try{
     var r = await ENGINE.combos(), l = ((r && r.inDeck) || []).slice(0, 8);
     var st = await Promise.all(l.map(function(o){ return comboSteps(o.id).catch(function(){ return null; }); }));
+    ASK.near = ((r && r.near) || []).slice(0, 10).map(function(o){ return o.cards.join(' + ') + ' (missing ' + o.missing + '): ' + (o.result || o.res || ''); });
     ASK.cmb = l.map(function(o, i){ var s = st[i];
       return '- ' + o.cards.join(' + ') + ': ' + o.result + '.' + (s && (s[1] || []).length ? ' Before: ' + s[1].join(' ') : '') +
         (s && (s[0] || []).length ? ' Steps: ' + s[0].map(function(x, j){ return (j + 1) + ') ' + x; }).join(' ') : ''); });
@@ -300,6 +316,23 @@ function analysisLines(){
   if(K && K.loners && K.loners.length) L.push('Cards linked to nothing else: ' + K.loners.slice(0, 12).join('; '));
   return L;
 }
+// C: the numbers a strong player checks on EDHREC, from the pool the app already loaded: each card's share of
+// this commander's decks and its synergy, then the most played cards this deck does not run.
+function edhOf(c){ var s = (c && c.stats) || {}; return s.base || s.theme || s.bracket || s.exp || null; }
+function pc(x){ return Math.round(x * 100) + '%'; }
+function edhLines(){
+  var L = [], pool = S.pool ? (Array.isArray(S.pool) ? S.pool : Object.keys(S.pool).map(function(k){ return S.pool[k]; })) : [];
+  var inDeck = {}; S.deck.forEach(function(d){ inDeck[d.n.toLowerCase()] = 1; });
+  var mine = [], seen = {};
+  S.deck.forEach(function(d){ if(d.basic || seen[d.n]) return; seen[d.n] = 1; var e = edhOf(poolCard(d.n)); mine.push(e && e.pd ? d.n + ' ' + pc(e.inc) + (e.syn != null ? ', synergy ' + (e.syn >= 0 ? '+' : '') + pc(e.syn) : '') : d.n + ' not on EDHREC\'s page'); });
+  if(mine.length) L.push('Each card in the deck, share of ' + shortName(S.cmd.n) + ' decks on EDHREC and synergy: ' + mine.join('; '));
+  var side = {}; ((S.boards || {}).side || []).forEach(function(x){ side[x.n.toLowerCase()] = 1; });
+  var miss = pool.filter(function(c){ var e = edhOf(c); return c && c.n && !inDeck[c.n.toLowerCase()] && e && e.pd && !(typeof isBasicName === 'function' && isBasicName(c.n)) && (typeof withinCI !== 'function' || withinCI(c)) && c.legal === 'legal'; })
+    .sort(function(a, b){ return edhOf(b).inc - edhOf(a).inc; }).slice(0, 30);
+  if(miss.length) L.push('Most played cards for this commander that the deck does not run: ' + miss.map(function(c){ var e = edhOf(c); return c.n + ' ' + pc(e.inc) + (e.syn != null ? ', synergy ' + (e.syn >= 0 ? '+' : '') + pc(e.syn) : '') + (side[c.n.toLowerCase()] ? ', in his side deck' : '') + (typeof isGC === 'function' && isGC(c) ? ', Game Changer' : ''); }).join('; '));
+  if((ASK.near || []).length) L.push('Combos one card away (Commander Spellbook): ' + ASK.near.join('; '));
+  return L;
+}
 // The 99 as names, one per copy, kept on each question so the next one can say what changed in between.
 function deckNames(){ return S.deck.map(function(d){ return d.n; }).sort(); }
 function deckDiff(was){
@@ -312,7 +345,9 @@ function askPrompt(q){
   var L = [];
   L.push('You are a Magic: The Gathering Commander deckbuilding expert. Tom is asking about one of his decks in his deck app, Brewing Station.');
   L.push('Answer his question about the deck below. Plain English, direct, under 250 words unless he asks for more. No em dashes. No tables. Use exact English card names.');
+  L.push(DOCTRINE, '');
   L.push('Write every card name in double square brackets, like [[Sol Ring]], so his app can show the card.');
+  if(canDirect()) L.push('You can search the web (WebSearch, WebFetch) for rulings, current EDHREC pages and recent tournament or high-power lists when that would change your answer. Do not search for what is already given below.');
   L.push('Game Changers and bracket rules: use only the Game Changer list and count given below. Your memory of the list is out of date.');
   L.push('If you recommend changing cards, end the answer with one line per change in exactly this form, and nothing after them:');
   L.push('SWAP: <card in the deck> -> <card to put in>', 'CUT: <card in the deck>', 'ADD: <card>');
@@ -322,6 +357,8 @@ function askPrompt(q){
   L.push('', '=== THE DECK ===', deckSheet());
   var an = analysisLines();
   if(an.length){ L.push('', '=== WHAT THE APP MEASURED (its own numbers; use them, and say so when you disagree) ==='); an.forEach(function(x){ L.push(x); }); }
+  var ed = edhLines();
+  if(ed.length){ L.push('', '=== EDHREC AND COMMANDER SPELLBOOK ==='); ed.forEach(function(x){ L.push(x); }); }
   var kp = Object.keys(S.keep || {}).map(function(k){ var d = S.deck.filter(function(x){ return x.n.toLowerCase() === k; })[0]; return d ? d.n : ''; }).filter(Boolean);
   if(kp.length) L.push('', 'Cards he marked Keep, never suggest cutting them: ' + kp.join('; '));
   var tl = typeof tasteLines === 'function' ? tasteLines() : [];
@@ -381,8 +418,9 @@ function claudeOk(){
 }
 // The same deck page Ask Claude gets, for Claude's check of the engine's swaps on Analysis (pages.js, Tom picked D).
 window.askDeckPage = function(){
-  var L = ['=== THE DECK ===', deckSheet()], an = analysisLines(), cl = catLines(), tl = typeof tasteLines === 'function' ? tasteLines() : [];
+  var L = [DOCTRINE, '', '=== THE DECK ===', deckSheet()], an = analysisLines(), cl = catLines(), tl = typeof tasteLines === 'function' ? tasteLines() : [], ed = edhLines();
   if(an.length){ L.push('', '=== WHAT THE APP MEASURED ==='); an.forEach(function(x){ L.push(x); }); }
+  if(ed.length){ L.push('', '=== EDHREC AND COMMANDER SPELLBOOK ==='); ed.forEach(function(x){ L.push(x); }); }
   if(cl.length){ L.push('', '=== HIS OWN CATEGORIES ==='); cl.forEach(function(x){ L.push(x); }); }
   if(tl.length){ L.push('', '=== HIS PAST CHOICES ==='); tl.forEach(function(x){ L.push(x); }); }
   return L.join(String.fromCharCode(10));
@@ -392,7 +430,8 @@ function askRedraw(){ if(APP.view === 'deck' && S.page === 'ask') render(); }
 
 // Done is read off the deck, so an Undo from anywhere puts the button back.
 function inDeck(n){ return S.deck.some(function(d){ return sameName(d.n, n) || sameName(n, d.n); }); }
-function moveDone(m){ return (!m.inn || inDeck(m.inn)) && (!m.out || !inDeck(m.out)); }
+// A basic land is in every deck already: adding one is done once the deck is back at 100.
+function moveDone(m){ if(m.kind === 'add' && m.inn && isBasicName(m.inn)) return S.deck.length + (S.partner ? 2 : 1) >= 100; return (!m.inn || inDeck(m.inn)) && (!m.out || !inDeck(m.out)); }
 // A name in the text, already escaped: a span, so it wraps with the words around it.
 function cardSpan(n){ return '<span class="bs-cardlink" role="button" tabindex="0" data-card="' + n + '">' + n + '</span>'; }
 // What each change Claude suggests does to the deck score, the same number the Fix rows show (Tom picked B,
@@ -452,7 +491,7 @@ function drawAsk(el){
       h += '<div class="mn-a">' + md(A.text) +
         (A.moves.length ? '<div class="mn-moves">' + A.moves.map(function(mv, i){ return moveHtml(mv, k + ':' + i, moveDone(mv)); }).join('') + '</div>' : '') + '</div>';
     } else if(busy && k === T.length - 1){
-      h += '<div class="mn-a">' + loadingLine('Claude is answering') + '</div>';
+      h += '<div class="mn-a">' + loadingLine(ASK.stage || 'Claude is answering') + '</div>';
     } else if(k === T.length - 1 && !direct){
       h += '<div class="mn-a mn-paste"><p class="pg-fine">Off the PC: copy the question, paste it into Claude, then paste Claude\'s whole answer here.</p>' +
         '<button class="bs-btn bs-sm" type="button" id="askCopy">' + ico('copy', 'bs-i16') + 'Copy the question for Claude</button>' +
@@ -498,15 +537,32 @@ async function askSend(q){
   if(CUR !== mine || S !== D){ ASK.busy = ''; askRedraw(); return; }
   T.pop(); var prompt = askPrompt(q); T.push(msg);
   try{
-    var r = await fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:prompt }) });
+    ASK.stage = 'Claude is answering'; askRedraw();
+    var r = await fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:prompt, web:true }) });
     var j = await r.json();
     if(j.error) throw new Error(j.error);
-    msg.a = String(j.text || '').trim(); msg.at = Date.now();
+    var draft = String(j.text || '').trim();
+    // E: a second read of its own answer against the same page before he sees it.
+    if(draft && CUR === mine && S === D){
+      ASK.stage = 'Claude is checking its answer'; askRedraw();
+      try{
+        var r2 = await fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:checkPrompt(prompt, draft) }) });
+        var j2 = await r2.json();
+        if(!j2.error && String(j2.text || '').trim().length > 40) draft = String(j2.text).trim();
+      }catch(e2){}   // the draft stands when the check fails
+    }
+    msg.a = draft; msg.at = Date.now();
     if(CUR === mine && S === D) save({ quiet:true });
     else toast('Claude\'s answer came back after you left that deck, so it was dropped. Ask again there.', { kind:'bad', ms:9000 });
   }catch(e){ ASK.err = 'Claude could not answer: ' + e.message; }
-  ASK.busy = '';
+  ASK.busy = ''; ASK.stage = '';
   askRedraw();
+}
+// E: the answer read again by a strict checker, with the whole page it was written from.
+function checkPrompt(prompt, draft){
+  return [prompt, '', '=== YOUR DRAFT ANSWER ===', draft, '', '=== NOW CHECK IT ===',
+    'You wrote the draft above. Check every claim in it against the page: card rules text, counts, which cards are in the deck or the side deck, legality, colour identity, Game Changers, bracket rules, combos and their pieces, and the app\'s numbers. Check each swap against the whole deck (rule 8). Fix every mistake, cut anything you cannot back, keep what is right.',
+    'Reply with only the final answer for Tom, in the same format (card names in [[ ]], SWAP / CUT / ADD lines last). Do not mention the checking.'].join('\n');
 }
 async function doMove(id){
   var p = id.split(':'), m = thread()[+p[0]]; if(!m) return;
