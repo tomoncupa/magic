@@ -232,14 +232,14 @@ function deckSheet(){
   if((B.side || []).length) L.push('Side deck (cards he owns for this deck, not in it now): ' + B.side.map(function(x){ return (x.q > 1 ? x.q + ' ' : '') + x.n; }).join('; '));
   if((B.maybe || []).length) L.push('Considering: ' + B.maybe.map(function(x){ return x.n; }).join('; '));
   if((S.rejects || []).length) L.push('He turned these down before, do not suggest them: ' + S.rejects.map(function(x){ return x.inn; }).join('; '));
-  // Rules text only for cards newer than Claude may know, so the page stays short.
-  var fresh = [];
-  S.deck.concat((B.side || []).map(function(x){ return { n:x.n }; })).forEach(function(d){
-    var c = poolCard(d.n); if(c && c.rel && c.rel >= NEW_SINCE && fresh.indexOf(c) < 0) fresh.push(c);
-  });
-  if(fresh.length){
-    L.push('', 'Rules text of newer cards (you may not know them):');
-    fresh.slice(0, 25).forEach(function(c){ L.push('- ' + c.n + ' ' + (c.cost || '') + ' | ' + c.type + ' | ' + String(c.o || '').replace(/\n/g, ' / ')); });
+  // Every card's rules text, so Claude reads what the cards do instead of remembering (Tom picked E, 2026-10-20);
+  // side deck cards only when newer than Claude may know.
+  var seen = {}, rows = [];
+  [S.cmd, S.partner].filter(Boolean).concat(S.deck).forEach(function(d){ if(d.basic || seen[d.n]) return; seen[d.n] = 1; var c = poolCard(d.n) || (d.o ? d : null); if(c) rows.push(c); });
+  (B.side || []).forEach(function(x){ var c = poolCard(x.n); if(c && !seen[c.n] && c.rel && c.rel >= NEW_SINCE){ seen[c.n] = 1; rows.push(c); } });
+  if(rows.length){
+    L.push('', 'Rules text of every card above (read these, do not go from memory):');
+    rows.forEach(function(c){ L.push('- ' + c.n + ' ' + (c.cost || '') + ' | ' + c.type + ' | ' + String(c.o || '').replace(/\n/g, ' / ')); });
   }
   return L.join('\n');
 }
@@ -271,6 +271,29 @@ function catLines(){
   if(none.length) L.push('No category yet: ' + none.join('; '));
   return L;
 }
+// What the app itself measured (Tom picked A, 2026-10-20), so Claude works from the same numbers as the
+// Analysis tab instead of guessing them. Every part is optional: a part that fails is left out.
+function analysisLines(){
+  var E = window.ENGINE, L = [], t = function(f){ try{ return f(); }catch(e){ return null; } };
+  if(!E) return L;
+  var sc = t(function(){ return E.score(); });
+  if(sc) L.push('Deck score ' + sc.score + ' of 10: ' + sc.parts.map(function(p){ return p.label + ' ' + p.score; }).join(', ') + '.');
+  var P = t(function(){ return E.pillars(); });
+  if(P && P.consistency) [['consistency', 'Consistency'], ['efficiency', 'Efficiency'], ['interaction', 'Interaction'], ['wincons', 'Win conditions']].forEach(function(d){
+    var p = P[d[0]]; if(!p) return;
+    var gaps = (p.parts || []).filter(function(x){ return x.weight > 0 && x.value < 0.8; }).map(function(x){ return x.label + ' ' + x.have + (typeof x.want === 'number' ? ' of ' + x.want : ''); });
+    L.push(d[1] + ' ' + p.score + ' of 10. ' + (p.verdict || '') + (gaps.length ? ' Short: ' + gaps.join('; ') + '.' : ''));
+  });
+  var G = t(function(){ return E.guides(); }) || [];
+  var gf = G.filter(function(g){ return g.status === 'fix' || g.status === 'watch'; });
+  if(gf.length) L.push('Guidelines not met: ' + gf.map(function(g){ return (g.status === 'fix' ? 'FIX ' : 'watch ') + g.title + (g.line ? ' (' + g.line + ')' : ''); }).join('; '));
+  var A = t(function(){ return E.answers(); });
+  if(A && A.rows) L.push('Answers by kind of threat: ' + A.rows.map(function(r){ return r.label + ' ' + r.n + (r.instant != null ? ' (' + r.instant + ' instant)' : ''); }).join(', ') + '.');
+  var K = t(function(){ return E.links(); });
+  if(K && K.engines && K.engines.length) L.push('Most linked cards (the engine): ' + K.engines.slice(0, 8).map(function(e){ return e.n + ' (' + e.count + ' links)'; }).join('; '));
+  if(K && K.loners && K.loners.length) L.push('Cards linked to nothing else: ' + K.loners.slice(0, 12).join('; '));
+  return L;
+}
 // The 99 as names, one per copy, kept on each question so the next one can say what changed in between.
 function deckNames(){ return S.deck.map(function(d){ return d.n; }).sort(); }
 function deckDiff(was){
@@ -290,6 +313,12 @@ function askPrompt(q){
   L.push('When you mention a combo, detail it: the pieces, what must be in play first, each step as a numbered list, and what it gets you. For a combo listed below, follow its Commander Spellbook steps.');
   L.push('Tom changes the deck between questions. THE DECK below is the deck as it is right now; earlier answers were about the deck as it was then. Never apologise for or correct an earlier answer because the deck changed, and never say a card count was wrong. When a change matters to the question, say it in one plain line ("Since then you added X").');
   L.push('', '=== THE DECK ===', deckSheet());
+  var an = analysisLines();
+  if(an.length){ L.push('', '=== WHAT THE APP MEASURED (its own numbers; use them, and say so when you disagree) ==='); an.forEach(function(x){ L.push(x); }); }
+  var kp = Object.keys(S.keep || {}).map(function(k){ var d = S.deck.filter(function(x){ return x.n.toLowerCase() === k; })[0]; return d ? d.n : ''; }).filter(Boolean);
+  if(kp.length) L.push('', 'Cards he marked Keep, never suggest cutting them: ' + kp.join('; '));
+  var tl = typeof tasteLines === 'function' ? tasteLines() : [];
+  if(tl.length){ L.push('', '=== HIS PAST CHOICES ACROSS HIS DECKS (learn his taste from these; do not suggest what he keeps turning down) ==='); tl.forEach(function(x){ L.push(x); }); }
   var cl = catLines();
   if(cl.length) L.push('', '=== HIS OWN CATEGORIES (how he groups the deck; use his names when you talk about a group) ==='); cl.forEach(function(x){ L.push(x); });
   if((ASK.cmb || []).length) L.push('', '=== COMBOS IN THE DECK (Commander Spellbook) ===', ASK.cmb.join('\n'));
@@ -341,8 +370,17 @@ function canDirect(){ return LOCAL && CL.status && CL.status.available && CL.sta
 function claudeOk(){
   if(!LOCAL) return;
   if(!CL.status && !ASK.checking){ ASK.checking = true; fetch('/api/claude/status').then(function(r){ return r.ok ? r.json() : { available:false }; }, function(){ return { available:false }; })
-    .then(function(j){ CL.status = j; ASK.checking = false; askRedraw(); }); }
+    .then(function(j){ CL.status = j; ASK.checking = false; if(APP.view === 'deck' && (S.page === 'ask' || S.page === 'analysis')) render(); }); }
 }
+// The same deck page Ask Claude gets, for Claude's check of the engine's swaps on Analysis (pages.js, Tom picked D).
+window.askDeckPage = function(){
+  var L = ['=== THE DECK ===', deckSheet()], an = analysisLines(), cl = catLines(), tl = typeof tasteLines === 'function' ? tasteLines() : [];
+  if(an.length){ L.push('', '=== WHAT THE APP MEASURED ==='); an.forEach(function(x){ L.push(x); }); }
+  if(cl.length){ L.push('', '=== HIS OWN CATEGORIES ==='); cl.forEach(function(x){ L.push(x); }); }
+  if(tl.length){ L.push('', '=== HIS PAST CHOICES ==='); tl.forEach(function(x){ L.push(x); }); }
+  return L.join(String.fromCharCode(10));
+};
+window.askCanDirect = function(){ claudeOk(); return canDirect(); };
 function askRedraw(){ if(APP.view === 'deck' && S.page === 'ask') render(); }
 
 // Done is read off the deck, so an Undo from anywhere puts the button back.
@@ -350,12 +388,40 @@ function inDeck(n){ return S.deck.some(function(d){ return sameName(d.n, n) || s
 function moveDone(m){ return (!m.inn || inDeck(m.inn)) && (!m.out || !inDeck(m.out)); }
 // A name in the text, already escaped: a span, so it wraps with the words around it.
 function cardSpan(n){ return '<span class="bs-cardlink" role="button" tabindex="0" data-card="' + n + '">' + n + '</span>'; }
+// What each change Claude suggests does to the deck score, the same number the Fix rows show (Tom picked B,
+// 2026-10-20). A card not in the pool is looked up once on Scryfall and the page drawn again.
+var MVC = {}, MVS = {}, MVQ = {};
+function moveCard(n){
+  var c = poolCard(n) || MVC[n.toLowerCase()]; if(c) return c;
+  var k = n.toLowerCase(); if(MVQ[k]) return null; MVQ[k] = 1;
+  sfCollection([{ n:n }]).then(function(r){ var x = r.cards[k]; if(x){ x = Object.assign({}, x); x.stats = x.stats || {}; x.roles = x.roles || rolesOf(x); MVC[k] = x; askRedraw(); } }, function(){});
+  return null;
+}
+function moveScore(m){
+  var E = window.ENGINE; if(!E || !E.scoreWith || !E.score) return null;
+  var inn = m.inn ? moveCard(m.inn) : null; if(m.inn && !inn) return { wait:true };
+  var outD = m.out ? S.deck.filter(function(d){ return sameName(d.n, m.out) || sameName(m.out, d.n); })[0] : null;
+  if(m.out && !outD) return null;
+  var key = (E.key ? E.key() : S.deck.length) + '|' + (outD ? outD.n : '') + '>' + (inn ? inn.n : '');
+  if(MVS[key]) return MVS[key];
+  var a = E.score(), b = E.scoreWith([{ out:outD ? outD.n : null, inn:inn }]);
+  if(!a || !b) return null;
+  return (MVS[key] = { from:a.raw, to:b.raw, d:b.raw - a.raw, kept:!!(outD && S.keep && S.keep[outD.n.toLowerCase()]), out:outD ? outD.n : '' });
+}
+function moveScoreHtml(m, done){
+  if(done) return '';
+  var r = moveScore(m); if(!r) return '';
+  if(r.wait) return '<span class="mn-move-s pg-fine">Working out the deck score…</span>';
+  var E = window.ENGINE, cls = r.d >= 0.03 ? 'bs-pos' : r.d <= -0.03 ? 'bs-neg' : 'pg-fine';
+  return '<span class="mn-move-s ' + cls + '">Deck score <b class="bs-num">' + E.scorePair(r.from, r.to) + '</b>' + (r.d <= -0.03 ? ', lowers it' : '') + '</span>' +
+    (r.kept ? '<span class="mn-move-s bs-neg">You marked ' + esc(r.out) + ' Keep</span>' : '');
+}
 // Each change Claude suggests: its cards as names with their hover, and its own button beside them.
 function moveHtml(m, i, done){
   var o = cardSpan(esc(m.out || '')), n = cardSpan(esc(m.inn || ''));
   var label = m.kind === 'swap' ? 'Swap ' + o + ' for ' + n : m.kind === 'cut' ? 'Move ' + o + ' to the side deck' : 'Add ' + n;
   var verb = m.kind === 'swap' ? 'Swap' : m.kind === 'cut' ? 'Move' : 'Add';
-  return '<div class="mn-move"><span class="mn-move-t">' + label + '</span>' + (done ? '<span class="bs-badge bs-good">' + ico('check', 'bs-i16 pg-i12') + '<span>Done</span></span>'
+  return '<div class="mn-move"><span class="mn-move-t">' + label + moveScoreHtml(m, done) + '</span>' + (done ? '<span class="bs-badge bs-good">' + ico('check', 'bs-i16 pg-i12') + '<span>Done</span></span>'
     : '<button class="bs-btn bs-sm" type="button" data-mv="' + i + '">' + ico(m.kind === 'swap' ? 'swap' : m.kind === 'cut' ? 'side' : 'plus', 'bs-i16') + verb + '</button>') + '</div>';
 }
 function drawAsk(el){

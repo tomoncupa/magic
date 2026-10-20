@@ -490,24 +490,62 @@ function pillarCard(ctx, def, p){
     meter(p ? p.score : 0, def[1]) +
     '<p class="pg-what">' + def[2] + '</p>' +
     '<p class="bs-verdict">' + h(p ? p.verdict : '') + '</p>' +
-    '<div class="pg-folds">' + details('c-' + k, 'What counts', counts) + raiseFold(ctx, def, raise) + '</div>' +
+    '<div class="pg-folds">' + details('c-' + k, 'What counts', counts) + raiseFold(ctx, def, raise, !!(p && p.raise && p.raise.length)) + '</div>' +
   '</section>';
 }
+/* Claude reads the engine's swaps against the whole deck before he acts on them (Tom picked D, 2026-10-20):
+   one call per list, on the PC only, kept for the visit by deck and list. A swap Claude says breaks the plan
+   stays on the list, last and faded, with its reason; nothing is hidden. */
+var CHK = {};
+function claudeChecks(res, purpose){
+  if(!res.length || typeof window.askDeckPage !== 'function' || !window.askCanDirect || !window.askCanDirect()) return null;
+  var e = E(), key = (e.key ? e.key() : '') + '|' + res.map(function(p){ return p.out + '>' + p.inn.n; }).join(',');
+  var c = CHK[key]; if(c) return c;
+  c = CHK[key] = { busy:true, v:null };
+  var L = ['You are a Magic: The Gathering Commander deckbuilding expert checking swaps a rules engine suggested for Tom\'s deck in his app, Brewing Station.',
+    'The engine counts jobs and scores; it does not understand the deck\'s plan. Judge each swap against the whole deck: what the card going out does in this deck\'s plan, his categories, combos, and what the card coming in really does (read the rules text).',
+    'Purpose of these swaps: ' + purpose + '.',
+    'Answer with JSON only, no other text: [{"i":0,"ok":true,"why":"one plain sentence under 20 words"}, ...], one entry per swap. ok is false when the swap hurts the deck\'s plan more than it helps.',
+    '', window.askDeckPage(), '', '=== THE SWAPS ==='];
+  res.forEach(function(p, i){ L.push(i + ': out ' + p.out + ', in ' + p.inn.n + (p.inn.o ? ' (' + String(p.inn.type || '') + ': ' + String(p.inn.o).replace(/\s+/g, ' ') + ')' : '')); });
+  fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:L.join(String.fromCharCode(10)) }) })
+    .then(function(r){ return r.json(); }).then(function(j){
+      if(j.error) throw new Error(j.error);
+      var t = String(j.text || ''), a = t.indexOf('['), b = t.lastIndexOf(']');
+      var v = JSON.parse(t.slice(a, b + 1)); c.v = {};
+      (Array.isArray(v) ? v : []).forEach(function(x){ if(x && typeof x.i === 'number') c.v[x.i] = { ok:x.ok !== false, why:String(x.why || '') }; });
+    }).catch(function(err){ c.err = 'Claude could not check these: ' + (err && err.message || 'no answer') + '.'; })
+    .then(function(){ c.busy = false; var y = window.pageYOffset || 0; redraw(); keepScroll(y); });
+  return c;
+}
+// The rows in Claude's order: the ones it backs first, the ones it says break the plan last.
+function checkedOrder(res, chk){
+  if(!chk || !chk.v) return res.map(function(p, i){ return { p:p, i:i }; });
+  return res.map(function(p, i){ return { p:p, i:i, ok:chk.v[i] ? chk.v[i].ok : true }; }).sort(function(a, b){ return (b.ok === true) - (a.ok === true) || a.i - b.i; });
+}
+function checkLine(chk, i){
+  if(!chk) return '';
+  if(chk.busy) return '<br><span class="pg-fine">Claude is checking this against your deck…</span>';
+  var v = chk.v && chk.v[i]; if(!v) return '';
+  return '<br><span class="' + (v.ok ? 'bs-pos' : 'bs-neg') + '">Claude: ' + h(v.why || (v.ok ? 'fits the deck.' : 'breaks the plan.')) + '</span>';
+}
 // What would raise it: the tips, then three swaps worked out only once the fold is opened (onToggle draws again).
-function raiseFold(ctx, def, tips){
+function raiseFold(ctx, def, tips, any){
   var k = def[0], key = 'r-' + k, open = !!state().open[key];
   return '<details class="bs-more" data-pg-open="' + key + '" data-pg-fix' + (open ? ' open' : '') + '><summary>What would raise it</summary><div class="bs-more-body">' +
-    tips + (open ? raiseFixHtml(ctx, k, def[1]) : '') + '</div></details>';
+    tips + (open && any ? raiseFixHtml(ctx, k, def[1]) : '') + '</div></details>';
 }
 function raiseFixHtml(ctx, k, label){
   var e = E(), res = e.raiseFix ? safe(function(){ return e.raiseFix(k); }, []) : [];
   if(!res.length) return '<p class="pg-fine pg-gfix-none">' + h(res.note || 'No swap found for this one.') + '</p>';
+  var chk = claudeChecks(res, 'raise the deck\'s ' + label + ' score');
   return '<p class="bs-label pg-alsohead">Swaps that raise it</p><p class="pg-fine">Each is scored on its own against the deck as it is.</p>' +
-    '<div class="pg-gfix">' + res.map(function(p){
-    var inn = p.inn;
-    return '<div class="pg-gfix-row">' +
+    (chk && chk.err ? '<p class="pg-fine">' + h(chk.err) + '</p>' : '') +
+    '<div class="pg-gfix">' + checkedOrder(res, chk).map(function(x){
+    var p = x.p, inn = p.inn;
+    return '<div class="pg-gfix-row' + (x.ok === false ? ' pg-gfix-no' : '') + '">' +
       '<div class="pg-gfix-pair">' + link(p.out) + ' <span class="pg-gfix-arr" aria-hidden="true">&rarr;</span> ' + link(inn.n) + '</div>' +
-      '<p class="pg-gfix-why">' + h(p.why) + '<br><span class="bs-pos">' + h(label) + ' <b class="bs-num">' + e.scorePair(p.pil.from, p.pil.to) + '</b> &middot; Deck score <b class="bs-num">' + e.scorePair(p.score.from, p.score.to) + '</b></span></p>' +
+      '<p class="pg-gfix-why">' + h(p.why) + '<br><span class="bs-pos">' + h(label) + ' <b class="bs-num">' + e.scorePair(p.pil.from, p.pil.to) + '</b> &middot; Deck score <b class="bs-num">' + e.scorePair(p.score.from, p.score.to) + '</b></span>' + checkLine(chk, x.i) + '</p>' +
       '<button class="bs-btn bs-sm bs-primary" type="button"' + ctx.act(function(){
         change(p.out, inn, 'Raises ' + label + '.', 'Swapped <b>' + h(p.out) + '</b> for <b>' + h(inn.n) + '</b>.');
       }) + ' aria-label="Swap ' + h(p.out) + ' out for ' + h(inn.n) + '">' + ico('swap', 'bs-i16') + 'Swap</button></div>';
@@ -536,14 +574,15 @@ function guideDeltaHtml(list){
 function guideFixHtml(ctx, t){
   var e = E(), res = safe(function(){ return e.guideFix(t.key); }, []);
   if(!res.length) return '<p class="pg-fine pg-gfix-none">' + h(res.note || 'No swap found for this one.') + '</p>';
-  var all = res.all;
+  var all = res.all, chk = claudeChecks(res, 'meet the guideline: ' + t.title);
   return '<p class="bs-label pg-alsohead">Swaps that fix it, judged on the whole deck</p>' +
     (all && res.length > 1 ? '<p class="pg-fine">Each swap is scored with the ones above it already made. All ' + words(res.length, 'swap') + ' together: deck score <b class="bs-num">' + e.scorePair(all.from, all.to) + '</b>.</p>' : '') +
-    '<div class="pg-gfix">' + res.map(function(p){
-    var inn = p.inn;
-    return '<div class="pg-gfix-row">' +
+    (chk && chk.err ? '<p class="pg-fine">' + h(chk.err) + '</p>' : '') +
+    '<div class="pg-gfix">' + checkedOrder(res, chk).map(function(x){
+    var p = x.p, inn = p.inn;
+    return '<div class="pg-gfix-row' + (x.ok === false ? ' pg-gfix-no' : '') + '">' +
       '<div class="pg-gfix-pair">' + link(p.out) + ' <span class="pg-gfix-arr" aria-hidden="true">&rarr;</span> ' + (inn.basic ? h(inn.n) : link(inn.n)) + '</div>' +
-      '<p class="pg-gfix-why">' + h(p.why) + (p.score ? '<br><span class="bs-pos">Deck score <b class="bs-num">' + e.scorePair(p.score.from, p.score.to) + '</b></span>' : '') + (p.chg && p.chg.length ? ' &middot; ' + guideDeltaHtml(p.chg) : '') + '</p>' +
+      '<p class="pg-gfix-why">' + h(p.why) + (p.score ? '<br><span class="bs-pos">Deck score <b class="bs-num">' + e.scorePair(p.score.from, p.score.to) + '</b></span>' : '') + (p.chg && p.chg.length ? ' &middot; ' + guideDeltaHtml(p.chg) : '') + checkLine(chk, x.i) + '</p>' +
       '<button class="bs-btn bs-sm bs-primary" type="button"' + ctx.act(function(){
         change(p.out, inn, 'Guideline: ' + t.title + '.', 'Swapped <b>' + h(p.out) + '</b> for <b>' + h(inn.n) + '</b>.');
       }) + ' aria-label="Swap ' + h(p.out) + ' out for ' + h(inn.n) + '">' + ico('swap', 'bs-i16') + 'Swap</button></div>';
@@ -1281,6 +1320,7 @@ function swapCard(ctx, p, kind, target){
 function hideIdea(out, inn){
   S.rejects = S.rejects || [];
   S.rejects.push({ out:out, inn:inn });
+  if(typeof tasteAdd === 'function') tasteAdd({ k:'no', out:out || '', inn:inn || '' });
   quietSave(); redraw();
   say('<b>' + h(inn) + '</b> will not be suggested for this deck again.', { undo:function(){
     S.rejects = (S.rejects || []).filter(function(x){ return !(x.inn === inn && x.out === out); });

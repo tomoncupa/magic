@@ -291,6 +291,7 @@ pre.out{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r
   <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></symbol>
   <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></symbol>
   <symbol id="i-cut" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
   <symbol id="i-pin" viewBox="0 0 24 24"><path d="M9 3h6l-1 6 4 4H6l4-4z"/><path d="M12 13v8"/></symbol>
   <symbol id="i-flip" viewBox="0 0 24 24"><path d="M4 9a8 8 0 0 1 14.5-3"/><path d="M19 2v4h-4"/><path d="M20 15a8 8 0 0 1-14.5 3"/><path d="M5 22v-4h4"/></symbol>
   <symbol id="i-side" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M15 5v14"/></symbol>
@@ -2817,7 +2818,7 @@ function drawClaude(){
     if(t.id === 'clRead'){ try{ readClaude($('clPaste').value); CL.err = ''; }catch(err){ CL.err = err.message; } drawClaude(); }
     if(t.dataset.sw) applySwaps([S.claude.swaps[+t.dataset.sw]]);
     if(t.id === 'clAll') applySwaps(S.claude.swaps.filter(function(sw){ return !sw.rejected; }));
-    function reject(sw){ if(sw.done || sw.rejected) return; sw.rejected = true; S.rejects = S.rejects || []; if(!wasRejected(sw.inn)) S.rejects.push({ out:sw.out, inn:sw.inn }); }
+    function reject(sw){ if(sw.done || sw.rejected) return; sw.rejected = true; tasteAdd({ k:'no', out:sw.out || '', inn:sw.inn || '' }); S.rejects = S.rejects || []; if(!wasRejected(sw.inn)) S.rejects.push({ out:sw.out, inn:sw.inn }); }
     if(t.dataset.rej){ reject(S.claude.swaps[+t.dataset.rej]); save(); drawClaude(); }
     if(t.id === 'clRejAll'){ S.claude.swaps.forEach(reject); save(); drawClaude(); }
     if(t.dataset.unrej){ var sw = S.claude.swaps[+t.dataset.unrej]; sw.rejected = false; S.rejects = (S.rejects || []).filter(function(x){ return !sameName(x.inn, sw.inn); }); save(); drawClaude(); }
@@ -3219,6 +3220,7 @@ function undoChange(want){
     return false;
   }
   SWUNDO.pop();
+  if(u.taste) tasteDrop(u.taste);
   S.deck = u.deck; if(u.boards) S.boards = u.boards; if(u.roleFix) S.roleFix = u.roleFix;
   S.side = null; save(); afterEdit(); return true;
 }
@@ -3241,6 +3243,23 @@ function afterEdit(){
 //         its card; the Deck tab marks it "In the deck".
 // Basic lands never go to the side deck on their own (surplus basics just leave; the toast says so).
 // Undo (undoChange) puts the deck, the side deck and Considering back exactly.
+/* His taste (Tom picked F, 2026-10-20): every swap he makes and every one he turns down, in every deck, in
+   forge.taste (kept in the PC store like the decks). Ask Claude and the engine's checks read it; the engine
+   ranks a card he turned down anywhere a little lower. An Undo takes its swap back out. */
+function tasteLog(){ try{ var l = JSON.parse(lsGet('forge.taste') || '[]'); return Array.isArray(l) ? l : []; }catch(e){ return []; } }
+function tasteAdd(x){
+  var l = tasteLog(); x.t = Date.now(); x.d = S.cmd ? S.cmd.n : ''; x.id = x.t.toString(36) + Math.random().toString(36).slice(2, 6);
+  l.push(x); if(l.length > 400) l.splice(0, l.length - 400);
+  lsSet('forge.taste', JSON.stringify(l)); return x.id;
+}
+function tasteDrop(id){ var l = tasteLog(), n = l.length; l = l.filter(function(x){ return x.id !== id; }); if(l.length !== n) lsSet('forge.taste', JSON.stringify(l)); }
+window.tasteRejected = function(){ var s = {}; tasteLog().forEach(function(x){ if(x.k === 'no' && x.inn) s[x.inn.toLowerCase()] = 1; }); return s; };
+function tasteLines(){
+  var l = tasteLog(), made = l.filter(function(x){ return x.k === 'swap'; }).slice(-25), no = l.filter(function(x){ return x.k === 'no'; }).slice(-25), L = [];
+  if(made.length) L.push('Swaps he made, newest last: ' + made.map(function(x){ return x.out + ' -> ' + x.inn + ' (' + shortName(x.d || '') + (x.src ? ', ' + x.src : '') + ')'; }).join('; '));
+  if(no.length) L.push('Swaps he turned down, newest last: ' + no.map(function(x){ return (x.out ? x.out + ' -> ' : '') + x.inn + ' (' + shortName(x.d || '') + ')'; }).join('; '));
+  return L;
+}
 var LASTCHG = null;
 function applyChange(outName, inCard, why, o){
   // What the swap does to the deckbuilding guidelines, read before the deck changes; the toast says it.
@@ -3251,6 +3270,7 @@ function applyChange(outName, inCard, why, o){
   var r = changeDeck(outName, inCard, why, true, o);
   if(r === true){
     if(LASTCHG){ LASTCHG.guide = gd; if(sd) LASTCHG.score = { from:sd.from, to:sd.to }; }
+    if(outName && inCard){ var tu = SWUNDO[SWUNDO.length - 1]; if(tu) tu.taste = tasteAdd({ k:'swap', out:String(outName), inn:typeof inCard === 'string' ? inCard : inCard.n, src:String(why || '').slice(0, 60) }); }
     afterEdit();
   }
   return r;
@@ -4952,6 +4972,17 @@ function itCls(it){
   var a = (it.echo ? ' bs-echo' : '') + (it.pin ? ' bs-pin' : ''), at = it.echo ? ' data-echo="1"' : '';
   return at ? a + '"' + at.slice(0, -1) : a;
 }
+// Keep: a card he never wants offered as a cut (S.keep, card name lower case -> 1).
+function isKept(n){ return !!(S.keep && S.keep[String(n).toLowerCase()]); }
+function toggleKeep(n){
+  var k = String(n).toLowerCase(), was = S.keep ? Object.assign({}, S.keep) : null;
+  S.keep = S.keep || {}; if(S.keep[k]) delete S.keep[k]; else S.keep[k] = 1;
+  var on = !!S.keep[k]; save();
+  if(APP.view === 'deck' && S.page === 'deck') drawDeckPage(); else if(typeof render === 'function') render();
+  if(CS && !CS.closed) drawCardSheet();
+  toast('<b>' + esc(n) + '</b> ' + (on ? 'is kept: it is never offered as a cut.' : 'is no longer kept.'), { undo:function(){ S.keep = was; save(); if(APP.view === 'deck' && S.page === 'deck') drawDeckPage(); else if(typeof render === 'function') render(); if(CS && !CS.closed) drawCardSheet(); } });
+}
+function keepMark(it){ return it.board === 'main' && !it.basic && isKept(it.n) ? '<span class="bs-keepmark" role="img" aria-label="Kept">' + ico('lock', 'bs-i16') + '</span>' : ''; }
 function pinMark(it){ return it.pin ? '<span class="bs-pinmark" role="img" aria-label="Pinned to the top">' + ico('pin', 'bs-i16') + '</span>' : ''; }
 function crowHtml(it){
   var c = it.c || {}, n = it.n;
@@ -4966,7 +4997,7 @@ function crowHtml(it){
       '<button class="bs-ibtn bs-sm" type="button" data-bas="' + esc(n) + '" data-d="-1" aria-label="One fewer ' + esc(n) + '">' + ico('minus', 'bs-i16') + '</button>' +
       '<button class="bs-ibtn bs-sm" type="button" data-bas="' + esc(n) + '" data-d="1" aria-label="One more ' + esc(n) + '">' + ico('plus', 'bs-i16') + '</button></span></span></div>';
   }
-  return '<button class="bs-crow' + itCls(it) + '" type="button" data-card="' + esc(n) + '" data-board="' + it.board + '">' + lead + mid + '<span class="bs-crow-end">' + pinMark(it) + itemBadges(it) + mv + '</span></button>';
+  return '<button class="bs-crow' + itCls(it) + '" type="button" data-card="' + esc(n) + '" data-board="' + it.board + '">' + lead + mid + '<span class="bs-crow-end">' + pinMark(it) + keepMark(it) + itemBadges(it) + mv + '</span></button>';
 }
 function ctileHtml(it){
   var c = it.c || {}, bad = itemBadges(it), img = faceImg(c, it.n), back = !!FLIP[moxKey(it.n)] && twoFaced(c);
@@ -5641,6 +5672,7 @@ function cardMenuItems(n, board, cat){
       items.push({ label:'Move to the side deck', icon:'side', fn:act('toside') });
       if(!w.maybe) items.push({ label:'Move to Considering', icon:'side', fn:act('tomaybe') });
       if(cats().list.length) items.push({ label:'Pick its category', icon:'pencil', fn:open() });
+      items.push({ label:isKept(c.n) ? 'Stop keeping' : 'Keep: never offer it as a cut', icon:'lock', fn:function(){ toggleKeep(dn); } });
       if(cat) items.push({ label:catPinned(cat, c.n) < 0 ? 'Pin to the top of ' + cat : 'Unpin from ' + cat, icon:'pin', fn:function(){ catPin(cat, c.n); } });
     } else if(here === 'side' || here === 'maybe'){
       var cb = function(){ return function(){ var cc = csCard(n) || c; if(!poolCard(cc.n) && S.pool && cc.type) inPool(Object.assign({}, cc));
@@ -6114,6 +6146,10 @@ function drawCardSheet(){
       ROLE_LIST.map(function(r){ var on = r === role; return '<button class="bs-chip' + (on ? ' on' : '') + '" type="button" aria-pressed="' + on + '" data-cs-job="' + r + '">' + ROLE_NAMES[r] + '</button>'; }).join('') +
       (fix ? '<button class="bs-chip" type="button" data-cs-job="">Let Brewing Station decide</button>' : '') + '</div></div>';
   }
+  if(w.main && !isBasicName(c.n)){
+    var kp = isKept(c.n);
+    h += '<div><p class="bs-label" style="margin:0 0 var(--s2)">Keep</p><div class="bs-chips"><button class="bs-chip' + (kp ? ' on' : '') + '" type="button" aria-pressed="' + kp + '" data-cs-keep>' + ico('lock', 'bs-i16') + 'Never offer it as a cut</button></div></div>';
+  }
   if(w.main){
     var CL = cats().list, home = catOf(c.n), al = catAlso(c.n);
     h += '<div><p class="bs-label" style="margin:0 0 var(--s2)">Your category</p><div class="bs-chips" role="group" aria-label="Your category">' +
@@ -6184,6 +6220,7 @@ function onCardSheetClick(e){
   if(me.opts.readonly) return;
   var jb = t.closest('[data-cs-job]'); if(jb){ jobFix(c.n, jb.getAttribute('data-cs-job')); return; }
   var ct = t.closest('[data-cs-cat]'); if(ct){ var yC = me.body.scrollTop; catMove(cardWhere(c.n).d ? cardWhere(c.n).d.n : c.n, ct.getAttribute('data-cs-cat')); me.body.scrollTop = yC; return; }
+  if(t.closest('[data-cs-keep]')){ var yK = me.body.scrollTop; toggleKeep(cardWhere(c.n).d ? cardWhere(c.n).d.n : c.n); me.body.scrollTop = yK; return; }
   var cp = t.closest('[data-cs-pin]'); if(cp){ var yP = me.body.scrollTop; catPin(cp.getAttribute('data-cs-pin'), c.n); me.body.scrollTop = yP; return; }
   var ca = t.closest('[data-cs-also]'); if(ca){ var yA = me.body.scrollTop; catToggleAlso(c.n, ca.getAttribute('data-cs-also')); me.body.scrollTop = yA; return; }
   if(t.closest('[data-cs-catnew]')){ catNew(cardWhere(c.n).d ? cardWhere(c.n).d.n : c.n); return; }
@@ -6422,10 +6459,10 @@ function swmCalc(r, M){
   // Taking out a piece of a combo the deck runs is never called an upgrade: the deck loses a way to win.
   // Nor is taking out a piece of the commander's engine (Patriar's Seal untaps Krenko): the deck is built round it.
   r.eng = !outD.basic && window.ENGINE && ENGINE.engine ? ENGINE.engine(outD.n) : '';
-  var capped = r.vk === 'up' && !outD.basic && ((r.breaks.length && !r.completes.length) || r.eng === 'commander' || r.eng === 'needs');
+  var capped = r.vk === 'up' && !outD.basic && ((r.breaks.length && !r.completes.length) || r.eng === 'commander' || r.eng === 'needs' || r.eng === 'keep');
   if(capped) r.vk = 'even';
   r.vw = { up:'Upgrade', even:'Even trade', down:'Downgrade', no:'Cannot go in' }[r.vk];
-  r.vwhy = r.no ? '' : capped ? (r.eng === 'commander' ? 'better for the deck score, but ' + shortName(outD.n) + ' works with ' + shortName(S.cmd.n) + '’s own ability' : r.eng === 'needs' ? 'better for the deck score, but ' + shortName(outD.n) + ' is built round ' + shortName(S.cmd.n) : 'better for the deck score, but it breaks a combo in the deck') : r.sd ? swmScoreWhy(r, parts, li, lo, dmv, M) : swmDecider(r, parts, li, lo, dmv, M);
+  r.vwhy = r.no ? '' : capped ? (r.eng === 'keep' ? 'better for the deck score, but you marked ' + shortName(outD.n) + ' Keep' : r.eng === 'commander' ? 'better for the deck score, but ' + shortName(outD.n) + ' works with ' + shortName(S.cmd.n) + '’s own ability' : r.eng === 'needs' ? 'better for the deck score, but ' + shortName(outD.n) + ' is built round ' + shortName(S.cmd.n) : 'better for the deck score, but it breaks a combo in the deck') : r.sd ? swmScoreWhy(r, parts, li, lo, dmv, M) : swmDecider(r, parts, li, lo, dmv, M);
   r.mv = r.card.mv || 0; r.inc = swmInc(r.card); r.syn = swmSyn(r.card);
   r.gc = !isBasicName(r.card.n) && rawGC(r.card);
   r.why = r.no || swmWhy(r, M);

@@ -1064,12 +1064,13 @@ E.upgrades = function(opts){
   try{
     var X = ctx(); if(!X.ok) return withNote([], X.why);
     var cur = bk(), tb = clamp(+((opts && opts.bracket) || cur) || cur, 1, 5), lim = limFor(tb);
-    var gcNow = X.gcs.length, room = Math.max(0, lim - gcNow), cset = comboNameSet();
+    var gcNow = X.gcs.length, room = Math.max(0, lim - gcNow), cset = comboNameSet(), TN = tasteNo();
     var push = tb > cur;
     // A piece of a combo the deck already runs (Zealous Conscripts with Kiki-Jiki) is a way to win,
     // so an upgrade never takes it out; only a combo the target bracket forbids is fair game (Downgrades).
     var keep = {};
     comboList().forEach(function(o){ if(breaksAt(o, tb)) return; o.cards.forEach(function(n){ keep[lc(n)] = 1; keep[front(n)] = 1; }); });
+    Object.keys(S.keep || {}).forEach(function(k){ keep[k] = 1; keep[front(k)] = 1; });
     var outs = X.rows.filter(function(r){ return !r.cmd && !r.basic && !r.must && !r.missing && !keep[lc(r.n)] && !keep[front(r.n)]; })
       .map(function(r){ var vv = valueOf(r.c, X, true, cset); return { r:r, v:vv.v, links:vv.links, job:jobFor(r) }; })
       .sort(function(a, b){ return a.v - b.v; });
@@ -1084,6 +1085,7 @@ E.upgrades = function(opts){
       var bonus = push ? (isGc(c) ? 0.25 : 0) + (f.fast ? 0.15 : 0) + (f.tutorAny ? 0.15 : 0) : 0;
       // A card he already owns (side deck, Considering) goes first when it is about as good.
       if(own) bonus += 0.05;
+      if(TN[lc(c.n)]) bonus -= 0.15;   // he turned it down before, in some deck
       return { c:c, f:f, v:vv.v + bonus, links:vv.links, gc:isGc(c), own:own };
     });
     var extrasIn = X.rows.filter(function(r){ return r.f.extra; }).length;
@@ -1824,6 +1826,8 @@ function protectedNames(X){ return engineSet(X); }
 // A Fix never offers one as a cut, and the swap menu never calls cutting one an upgrade.
 function engineSet(X){
   var s = {}, K = gCtx(X);
+  // Cards he marked Keep are never offered as a cut, by anything (Tom picked C, 2026-10-20).
+  Object.keys(S.keep || {}).forEach(function(k){ s[k] = 'keep'; s[front(k)] = 'keep'; });
   comboList().forEach(function(o){ o.cards.forEach(function(n){ s[lc(n)] = 'combo'; s[front(n)] = 'combo'; }); });
   X.rows.forEach(function(r){
     if(r.cmd || r.basic || r.missing || s[lc(r.n)]) return;
@@ -1873,7 +1877,7 @@ E.guideFix = function(key){
   try{
     var X = ctx(); if(!X.ok) return withNote([], X.why);
     var F = FIXERS[key]; if(!F) return withNote([], 'No automatic fix for this one.');
-    var K = gCtx(X), G = gTotals(X, K), cset = comboNameSet(), prot = protectedNames(X), t = {};
+    var K = gCtx(X), G = gTotals(X, K), cset = comboNameSet(), prot = protectedNames(X), t = {}, TN = tasteNo();
     var gl = E.guides(), me = gl.filter(function(x){ return x.key === key; })[0] || {};
     // Which side of a split plan to cut, which group is over, which hate card.
     if(key === 'toomuch') t.side = (G.T.keep || 0) <= (G.T.sac || 0) ? 'keep' : 'sac';
@@ -1897,7 +1901,7 @@ E.guideFix = function(key){
     } else cuts.sort(function(a, z){ return val(a) - val(z); });
     var pool = candidatePool(X).map(function(c){ var r = mkRow(c); return { c:c, r:r, b:gBits(r, K) }; })
       .filter(function(a){ return F.add(a.b, a.c, K, t) && (!F.maxMv || (a.c.mv || 0) <= F.maxMv); })
-      .map(function(a){ a.v = valueOf(a.c, X, false).v + (F.prefer ? F.prefer(a.b) : 0) + (ownedIn(a.c.n) ? 0.05 : 0); return a; })
+      .map(function(a){ a.v = valueOf(a.c, X, false).v + (F.prefer ? F.prefer(a.b) : 0) + (ownedIn(a.c.n) ? 0.05 : 0) - (TN[lc(a.c.n)] ? 0.15 : 0); return a; })
       .sort(function(a, z){ return z.v - a.v; });
     if(F.sameJob) pool.forEach(function(a){ a.need = function(o){ var j = jobFor(o);
       if(F.stapleJob){ var sj = SJOB[(stapleOf(a.c.n) || {}).staple ? stapleOf(a.c.n).staple.job : ''] || ''; return sj === 'lands' ? !!o.f.land : sj === j || (sj && o.jobs[sj]); }
@@ -1956,6 +1960,7 @@ var RAISE_JOB = { draw:'draw', selection:'draw', tutor:'tutor', ramp:'ramp', che
   removal:'removal', instantShare:'removal', counterspells:'removal', wipes:'wipes', protection:'protection',
   finishers:'wincon', winTurn:'wincon', lands:'lands', colours:'lands' };
 var RAISE_WORD = { draw:'Card draw', tutor:'A tutor', ramp:'Ramp', removal:'Removal', wipes:'A board wipe', protection:'Protection', wincon:'A finisher', lands:'A land' };
+function tasteNo(){ try{ return typeof window.tasteRejected === 'function' ? window.tasteRejected() : {}; }catch(e){ return {}; } }
 function pillarRaw(p){
   var sw = 0, s = 0;
   ((p && p.parts) || []).forEach(function(x){ if(x.weight > 0){ sw += x.weight; s += x.weight * x.value; } });
@@ -1969,11 +1974,11 @@ E.raiseFix = function(pk){
       .sort(function(a, b){ return (b.weight * (1 - b.value)) - (a.weight * (1 - a.value)); });
     var jobs = uniq(gaps.map(function(p){ return RAISE_JOB[p.key]; }));
     if(!jobs.length) return withNote([], 'No swap can raise this one: what it is short of is not a job a card fills.');
-    var tb = bk(), cset = comboNameSet(), prot = protectedNames(X);
+    var tb = bk(), cset = comboNameSet(), prot = protectedNames(X), TN = tasteNo();
     var jobOf = function(c, f){ for(var i = 0; i < jobs.length; i++) if(doesJob(jobs[i], c, f)) return jobs[i]; return ''; };
     var adds = candidatePool(X).map(function(c){ var f = feats(c); return { c:c, f:f, job:jobOf(c, f) }; })
       .filter(function(a){ return a.job && !(tb <= 3 && (a.f.mld || (a.c.roles && a.c.roles.mld))) && !(tb <= 3 && nearBad(a.c.n, tb)); })
-      .map(function(a){ a.v = valueOf(a.c, X, false).v + (ownedIn(a.c.n) ? 0.05 : 0); return a; })
+      .map(function(a){ a.v = valueOf(a.c, X, false).v + (ownedIn(a.c.n) ? 0.05 : 0) - (TN[lc(a.c.n)] ? 0.15 : 0); return a; })
       .sort(function(a, z){ return z.v - a.v; }).slice(0, 12);
     var cuts = X.rows.filter(function(r){
       return !r.cmd && !r.basic && !r.must && !r.missing && !r.f.land && !prot[lc(r.n)] && !prot[front(r.n)] &&
