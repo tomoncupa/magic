@@ -223,7 +223,8 @@ var DOCTRINE = [
   '6. Winning. Count real ways to close the game and how they survive one removal spell or counterspell. Combos: name every piece, what must be in play first and how fragile they are. Fit the bracket: its expected game length, the Game Changer list and count given below, and the combo rules.',
   '7. The table. It is a four-player game: threat assessment, not becoming the archenemy too early, what the table will answer, what to play around.',
   '8. Swaps. Each one names the job, the card out and why it is the right cut in this deck, the card in and what it really does (read its rules text below), and the cost: curve, colours, synergy lost. Never cut combo pieces, engine pieces or cards he marked Keep unless he asks. Prefer cards from his side deck. Weigh each swap against the whole deck, never on its own.',
-  '9. Truth. Read the rules text given; never go from memory for card text, rulings, Game Changers or legality. Use the app\'s numbers. If you are not sure, say so in a few words rather than guess.'
+  '9. Truth. Read the rules text given; never go from memory for card text, rulings, Game Changers or legality. Use the app\'s numbers. If you are not sure, say so in a few words rather than guess.',
+  '10. One-colour decks need no colour fixing: never suggest Commander\'s Sphere, Command Tower, Chromatic Lantern, any-colour lands or other fixing in a deck of one colour.'
 ].join('\n');
 window.PRO_DOCTRINE = DOCTRINE;
 var ASK = { busy:'', err:'', draft:'', paste:'', stage:'' };

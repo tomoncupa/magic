@@ -5,6 +5,9 @@
 <title>Brewing Station</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#080B10">
+<!-- The window and tab icon: the desktop shortcut's own picture (desktop/brewing.ico); with none, Edge drew a blurry globe (Tom, 2026-10-21: "fix the pixelly symbol"). -->
+<link rel="icon" type="image/png" sizes="256x256" href="icon-256.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -5828,6 +5831,7 @@ function onDeckClick(e){
   var cm = t.closest('[data-catmenu]'); if(cm){ catMenu(cm, cm.getAttribute('data-catmenu')); return; }
   var cd = t.closest('[data-card]'); if(cd){ openCardSheet(cd.getAttribute('data-card'), { board:cd.getAttribute('data-board') || '' }); return; }
   if(t.closest('[data-msync]')){ moxSend(); return; }
+  if(t.closest('[data-mkeep]')){ moxKeepMine(); return; }
   if(t.matches && t.matches('[data-mauto]')){ lsSet('brew.moxauto', t.checked ? '1' : '0'); moxAutoSoon(); return; }
   var ml = t.closest('[data-moxlink]'); if(ml){ linkMox(ml.getAttribute('data-moxlink') || ''); return; }
   var cp = t.closest('[data-copy-board]'); if(cp){ var b = cp.getAttribute('data-copy-board'), Bh = S.boards || {};
@@ -5927,7 +5931,9 @@ function drawDeckSide(){
 // One of his Moxfield decks with this deck's commander that no deck here is linked to yet: offered with one tap.
 function moxMatch(){
   if(!S.cmd || !FEED.data) return null;
-  return FEED.data.decks.filter(function(d){ var c = (d.commanders || [])[0]; return c && (sameName(S.cmd.n, c.n) || sameName(c.n, S.cmd.n)) && !rowForMox(d.id); })[0] || null;
+  var same = FEED.data.decks.filter(function(d){ var c = (d.commanders || [])[0]; return c && (sameName(S.cmd.n, c.n) || sameName(c.n, S.cmd.n)); });
+  // One no deck here links to first; else one another copy here links to (linking moves it here, Tom 2026-10-21).
+  return same.filter(function(d){ return !rowForMox(d.id); })[0] || same.filter(function(d){ var r = rowForMox(d.id); return r && r.id !== CUR; })[0] || null;
 }
 async function linkMox(id){
   var v = id ? 'moxfield.com/decks/' + id : await askText({ title:'Link to a Moxfield deck', label:'The deck\'s address on Moxfield', value:'', yes:'Link' });
@@ -5940,14 +5946,34 @@ async function linkMox(id){
   if(!j){ toast(LOCAL ? 'Moxfield did not answer for that deck. Check the address, then try again.' : 'This copy can only read your public Moxfield decks. Link it from the Brewing Station app on your PC.', { kind:'bad', ms:9000 }); return; }
   var mc = (j.commanders || [])[0];
   if(mc && S.cmd && !sameName(S.cmd.n, mc.n) && !sameName(mc.n, S.cmd.n)){ toast('That Moxfield deck\'s commander is <b>' + esc(mc.n) + '</b>, not ' + esc(S.cmd.n) + '. Nothing was linked.', { kind:'bad', ms:9000 }); return; }
-  var was = { mox:S.mox, prints:S.prints, pool:S.pool };
+  // Another deck here already linked to it (a copy brought in from Moxfield): the link moves here, that copy's side
+  // deck and Considering cards this deck lacks join this one, and the copy is deleted (Undo puts it back). His list
+  // here stays as it is, the printings come from Moxfield, and the sync then makes Moxfield match this list.
+  var other = rowForMox(L.id), otherRaw = '', otherAt = -1;
+  if(other && other.id !== CUR){
+    var od = deckOf(other.id), sideN = 0;
+    var have = {}; S.deck.concat((S.boards || {}).side || [], (S.boards || {}).maybe || []).forEach(function(x){ have[moxKey(x.n)] = 1; });
+    ['side', 'maybe'].forEach(function(b){ ((od && od.boards && od.boards[b]) || []).forEach(function(x){ if(!have[moxKey(x.n)]) sideN++; }); });
+    var go = await ask({ title:'Move the link here', q:'<b>' + esc(j.name || deckTitle(other)) + '</b> is already here as another deck. Link this deck to it instead?',
+      note:'This deck keeps its list, its categories and everything you set here, and takes your Moxfield art. The other copy is deleted' + (sideN ? '; its ' + sideN + ' side deck and Considering card' + (sideN > 1 ? 's' : '') + ' that this deck lacks join this one' : '') + '. You can undo.', yes:'Link here' });
+    if(!go) return;
+    S.boards = S.boards || { side:[], maybe:[] };
+    ['side', 'maybe'].forEach(function(b){ S.boards[b] = S.boards[b] || [];
+      ((od && od.boards && od.boards[b]) || []).forEach(function(x){ if(!have[moxKey(x.n)]){ S.boards[b].push({ n:x.n, q:x.q || 1 }); have[moxKey(x.n)] = 1; } }); });
+    otherRaw = lsGet('forge.deck.' + other.id); var list = shelf(); otherAt = list.map(function(r){ return r.id; }).indexOf(other.id);
+    lsDel('forge.deck.' + other.id); putShelf(list.filter(function(r){ return r.id !== other.id; }));
+  }
+  var was = { mox:S.mox, prints:S.prints, pool:S.pool, boards:otherRaw ? JSON.parse(JSON.stringify(S.boards)) : null };
   var list = function(a){ return (a || []).map(function(x){ return { n:x.n, q:x.q || 1 }; }); };
   S.mox = { id:L.id, name:j.name || '', url:'https://moxfield.com/decks/' + L.id, updated:j.updated || '',
     snap:{ cmd:(j.commanders || []).map(function(c){ return { n:c.n, q:1 }; }), main:list(j.main), side:list(j.side), maybe:list(j.maybe) } };
   S.prints = printsOf(j);
   S.pool = null; BASIC_CARDS = {};   // the pictures load again with his printings, basics too
   save(); render();
-  toast('Linked to <b>' + esc(j.name || 'your Moxfield deck') + '</b>. Pictures use your Moxfield printings now; the Moxfield panel shows where the two lists differ.', { ms:9000, undo:function(){ S.mox = was.mox; S.prints = was.prints; S.pool = was.pool; save(); render(); } });
+  toast('Linked to <b>' + esc(j.name || 'your Moxfield deck') + '</b>' + (otherRaw ? ', and the other copy deleted' : '') + '. Pictures use your Moxfield printings now; the Moxfield panel shows where the two lists differ.', { ms:9000, undo:function(){
+    S.mox = was.mox; S.prints = was.prints; S.pool = was.pool;
+    if(otherRaw){ lsSet('forge.deck.' + other.id, otherRaw); var l = shelf().filter(function(r){ return r.id !== other.id; }); l.splice(Math.max(0, otherAt), 0, other); putShelf(l); }
+    save(); render(); } });
 }
 /* ---------- Sync to Moxfield (Tom, 2026-10-21: "automake the sync to moxfield", picked A) ----------
    Brewing Station is his deck editor; Moxfield is where he picks the art and builds the wishlist. The moves that
@@ -5979,6 +6005,21 @@ function moxOps(){
   return { ops:ops, cmd:D.cmd.add.length + D.cmd.remove.length, base:snap };
 }
 function countArr(l){ var m = {}; (l || []).forEach(function(x){ var k = String(x.n).toLowerCase(); (m[k] = m[k] || { n:x.n, q:0 }).q += x.q || 1; }); return Object.keys(m).map(function(k){ return m[k]; }); }
+// Moxfield changed since the copy kept here, but this list is the newer one (Tom, 2026-10-21: "Big clex on brewing
+// station is the updated list"): Moxfield's current list becomes the base, so the sync makes Moxfield match this
+// deck exactly, cards added there included. Printings are untouched.
+function moxKeepMine(){
+  var fd = S.mox && feedDeck(S.mox.id); if(!fd) return;
+  var was = { snap:S.mox.snap, updated:S.mox.updated };
+  var list = function(a){ return (a || []).map(function(x){ return { n:x.n, q:x.q || 1 }; }); };
+  S.mox.snap = { cmd:(fd.commanders || []).map(function(c){ return { n:c.n, q:1 }; }), main:list(fd.main), side:list(fd.side), maybe:list(fd.maybe) };
+  S.mox.updated = fd.updated || S.mox.updated;
+  save();
+  var y = moxSyncState(), queued = !!(y && y.state === 'waiting'); if(queued) moxSend();   // the waiting job is replaced by the full one
+  drawDeckSide();
+  var n = moxOps().ops.length;
+  toast(n ? n + ' change' + (n > 1 ? 's' : '') + ' make Moxfield match this deck' + (queued ? '; sent to GRAB.' : moxAuto() ? '; they go on their own in 20 seconds.' : '. Press Send to Moxfield.') : 'Moxfield already matches this deck.', { ms:8000, undo:function(){ S.mox.snap = was.snap; S.mox.updated = was.updated; save(); drawDeckSide(); } });
+}
 function moxAuto(){ return lsGet('brew.moxauto') !== '0'; }
 function moxSyncState(){ return (S.mox && S.mox.sync) || null; }
 async function moxSend(){
@@ -6003,6 +6044,7 @@ function moxPoll(){
     try{
       var j = await (await fetch('/api/moxsync/status?id=' + encodeURIComponent(S.mox.id), { cache:'no-store' })).json();
       var job = j.job, y2 = moxSyncState(); if(!y2 || S !== mine) return;
+      var was = y2.state + '|' + (y2.grab > 90 || y2.grab < 0);
       y2.grab = j.seen ? Math.round(j.now - j.seen) : -1;
       if(job && job.id === y2.id){
         y2.state = job.state;
@@ -6011,7 +6053,8 @@ function moxPoll(){
         if(job.state === 'done'){ S.mox.snap = y2.sent; if(job.result && job.result.updated && !(job.result.results || []).some(function(r){ return r.theirs; })) S.mox.updated = job.result.updated; y2.doneAt = Date.now(); y2.res = job.result; delete y2.sent; save({ quiet:true }); toast('Moxfield is up to date: ' + y2.n + ' change' + (y2.n > 1 ? 's' : '') + ' made.'); }
         if(job.state === 'failed'){ y2.err = (job.result && job.result.err) || 'GRAB could not make the changes on Moxfield.'; y2.res = job.result; save({ quiet:true }); }
       } else if(!job){ y2.state = 'lost'; }
-      if(APP.view === 'deck' && S.page === 'deck') drawDeckSide();
+      // Drawn again only when what it says changed, so a press in the panel is never eaten by a redraw.
+      if(was !== y2.state + '|' + (y2.grab > 90 || y2.grab < 0) && APP.view === 'deck' && S.page === 'deck') drawDeckSide();
     }catch(e){}
     moxPoll();
   }, 4000);
@@ -6045,7 +6088,7 @@ function moxPanelHtml(){
         : S.src === 'paste' ? '<p class="bs-panel-note" style="margin-bottom:var(--s3)">Imported from a pasted list.</p>' : '') +
       '<p class="bs-panel-note" style="margin-bottom:var(--s3)">Already on Moxfield? Link it, and the pictures use the printings you picked there.</p>' +
       '<p class="bs-panel-note">This deck is not linked to a Moxfield deck of yours. Copy it, then on Moxfield: New Deck, under Existing Deck List pick Paste in List and paste it. Pick the commander in the form\'s own commander box.</p>' +
-      '<div class="bs-stack" style="--gap:var(--s2);margin-top:var(--s4)">' + (moxMatch() ? '<button class="bs-btn bs-primary bs-block" type="button" data-moxlink="' + esc(moxMatch().id) + '">' + ico('import', 'bs-i16') + 'Link to ' + esc(moxMatch().name) + '</button>' : '') +
+      '<div class="bs-stack" style="--gap:var(--s2);margin-top:var(--s4)">' + (moxMatch() ? '<button class="bs-btn bs-primary bs-block" type="button" data-moxlink="' + esc(moxMatch().id) + '">' + ico('import', 'bs-i16') + 'Link to ' + esc(moxMatch().name) + (rowForMox(moxMatch().id) ? ' (moves it from your other copy)' : '') + '</button>' : '') +
       '<button class="bs-btn' + (moxMatch() ? '' : ' bs-primary') + ' bs-block" type="button" data-moxlink="">' + ico('import', 'bs-i16') + (moxMatch() ? 'Link to another Moxfield deck' : 'Link to a Moxfield deck') + '</button>' + nowBtnHtml() + '<button class="bs-btn bs-block" type="button" data-copy-board="all">' + ico('copy', 'bs-i16') + 'Copy for a new Moxfield deck or another site</button>' +
       (fr ? '<a class="bs-btn bs-quiet bs-block" href="' + esc(fr.url) + '" target="_blank" rel="noopener">' + ico('ext', 'bs-i16') + 'Open the original</a>' : '') +
       '<a class="bs-btn bs-quiet bs-block" href="https://moxfield.com/decks/new" target="_blank" rel="noopener">' + ico('ext', 'bs-i16') + 'Start a new deck on Moxfield</a></div></section>';
@@ -6055,7 +6098,8 @@ function moxPanelHtml(){
     (gone ? '<span class="bs-badge bs-warn" style="margin-left:auto">Not on Moxfield now</span>' : D.count ? '<span class="bs-badge bs-gold" style="margin-left:auto"><span class="bs-num">' + D.count + '</span>&nbsp;change' + (D.count > 1 ? 's' : '') + '</span>' : '<span class="bs-badge bs-good" style="margin-left:auto">Matches</span>') + '</div>';
   if(gone) h += '<div class="bs-callout bs-warn">' + ico('warn') +
     '<p><b>Your Moxfield deck list no longer shows this deck.</b> It was made unlisted, or deleted. Your copy here is kept. If it is unlisted, the Bulk Edit texts below still work. If you deleted it, use Copy for a new Moxfield deck.</p></div>';
-  if(newer) h += '<div class="bs-callout bs-warn" style="margin-bottom:var(--s4)">' + ico('warn') + '<div class="sh-err"><p><b>Moxfield has a newer version.</b> Changed there ' + ago(Date.parse(fd.updated)) + '.</p><button class="bs-btn bs-sm" type="button" id="moxNewer">' + ico('refresh', 'bs-i16') + 'Bring it in</button></div></div>';
+  if(newer) h += '<div class="bs-callout bs-warn" style="margin-bottom:var(--s4)">' + ico('warn') + '<div class="sh-err"><p><b>Moxfield has a newer version.</b> Changed there ' + ago(Date.parse(fd.updated)) + '.</p><div class="bs-acts"><button class="bs-btn bs-sm" type="button" id="moxNewer">' + ico('refresh', 'bs-i16') + 'Bring it in</button>' +
+      (LOCAL ? '<button class="bs-btn bs-sm" type="button" data-mkeep>' + ico('import', 'bs-i16') + 'Keep mine, send it to Moxfield</button>' : '') + '</div></div></div>';
   // Moxfield's deck list cannot tell an unlisted deck from a deleted one, so a deck missing from it
   // always keeps its Bulk Edit texts.
   var goneSure = false;

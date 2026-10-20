@@ -1035,12 +1035,24 @@ function synergyLike(c, f){
   if(/\bCreature\b/.test(c.type || '')) return !(f.ramp && f.mana && !f.fin);
   return !(f.ramp || f.drawW >= 1 || f.removal || f.wipe || f.protection);
 }
+// Colour fixing does nothing in a one-colour deck (Tom, 2026-10-21: "stop recommending command sphere in a mono
+// color deck"): lands whose point is making any colour, and rocks of 3 or more whose mana is any colour. A cheap
+// rock such as Arcane Signet is still a rock, so it stays.
+var FIXTXT = /add (?:one mana|two mana|three mana|x mana)? ?of any (?:one )?colou?r|any colou?r in your commander's colou?r identity|any colou?r that a land|any type that a land|lands you control (?:tap|are) [^.]*any colou?r|add one mana of any of [^.]*colou?rs/;
+function fixOnly(c){
+  var o = tx(c);
+  if(!FIXTXT.test(o)) return false;
+  if(isLand(c)) return true;
+  return (c.mv || 0) >= 3 && /(?:Artifact|Enchantment)/.test(c.type || '') && !/Creature/.test(c.type || '');
+}
+E.fixOnly = function(c){ try{ return fixOnly(c); }catch(e){ return false; } };
 function candidatePool(X){
   var p = S.pool || [], seen = {};
   p.forEach(function(c){ seen[lc(c.n)] = 1; });
   // Staples (staples.json) that are not on this commander's EDHREC page join the pool.
   var extra = STAP.cards.filter(function(c){ return !seen[lc(c.n)]; });
-  return p.concat(extra).filter(function(c){ return !inX(X, c.n) && okAdd(c) && !rejected(c.n); });
+  var mono = (S.ci || []).length <= 1;
+  return p.concat(extra).filter(function(c){ return !inX(X, c.n) && okAdd(c) && !rejected(c.n) && !(mono && fixOnly(c)); });
 }
 /* ---------- staples: build/staples.json, curated from the sources it names ----------
    Loaded once; the cards come from Scryfall through the page's card cache (sfCollection).
