@@ -3488,9 +3488,29 @@ function feed(force){
   })();
   FEED.p = p.then(function(x){
     FEED.data = x.j; FEED.src = x.src; FEED.at = Date.now(); FEED.err = ''; FEED.busy = false; FEED.tried = true; drawMoxChip();
+    liveFill();
     return x.j;
   }, function(e){ FEED.err = e.message; FEED.busy = false; FEED.tried = true; FEED.p = null; drawMoxChip(); throw e; });
   return FEED.p;
+}
+/* Moxfield's deck search leaves out some of his public decks (1. BIG CLEX' was public, changed 18 Oct, and missing,
+   so it showed "Not on Moxfield now"; Tom, 2026-10-21: "why did my big clex deck get unlinked"). On the PC, a linked
+   deck the search skips is read by its id, and counts as on Moxfield when Moxfield says it is public or unlisted.
+   It joins the list with byId set, so its newer versions and printings come through like any other. */
+var LIVEQ = {};
+async function liveFill(){
+  if(!LOCAL || !FEED.data) return;
+  var need = shelf().filter(function(r){ return r.mox && r.mox.id && !feedDeck(r.mox.id) && !LIVEQ[r.mox.id]; });
+  var added = 0;
+  for(var i = 0; i < need.length; i++){
+    var id = need[i].mox.id; LIVEQ[id] = 1;
+    try{
+      var r = await fetch('/api/moxfield/deck?id=' + encodeURIComponent(id), { cache:'no-store' });
+      var j = r.ok ? await r.json() : null;
+      if(j && Array.isArray(j.main) && (!j.vis || j.vis === 'public' || j.vis === 'unlisted') && FEED.data && !feedDeck(id)){ j.byId = true; FEED.data.decks.push(j); added++; }
+    }catch(e){}
+  }
+  if(added){ if(APP.view === 'decks') drawDecks(); else if(typeof redrawForFeed === 'function') redrawForFeed(); }
 }
 // The printing he picked on Moxfield for each card (moxKey -> Scryfall id), so every picture in the deck
 // is his art, not EDHREC's or Scryfall's default (Tom, 2026-10-19: "Its not pulling the specific Card art
@@ -4254,11 +4274,39 @@ function onDecksClick(e){
 function progressTo(key){
   return function(t){ var el = document.querySelector('[data-prog="' + key + '"]'); if(el) el.innerHTML = progHtml(t); };
 }
+/* Decks here that are not linked to Moxfield, with this commander. Opening a Moxfield deck when one exists asks
+   first (Tom, 2026-10-21: "why did I lose my categories?" — opening 1. JIN GITAXIAS from Decks made a second deck
+   beside the Jin-Gitaxias deck he built here, and his categories stayed in the first). */
+function deckOf(id){ try{ return JSON.parse(lsGet('forge.deck.' + id) || 'null'); }catch(e){ return null; } }
+function sameCmdUnlinked(cmdName){
+  return shelf().filter(function(r){ if(r.mox) return false; var d = deckOf(r.id); return d && d.cmd && (sameName(d.cmd.n, cmdName) || sameName(cmdName, d.cmd.n)); });
+}
+function askLinkOrNew(fd, row){
+  return new Promise(function(res){
+    var done = false, d = deckOf(row.id), n = d && d.cats && d.cats.list ? d.cats.list.length : 0;
+    bsSheet({ title:'You have this deck here already', size:'center',
+      body:'<p class="bs-sheet-q">Link your ' + esc(shortName(fd.commanders[0].n)) + ' deck here to <b>' + esc(fd.name) + '</b> on Moxfield?</p>' +
+        '<p class="bs-soft" style="margin:0">Linking keeps your list' + (n ? ', your ' + n + ' categories' : '') + ' and everything else you set here, and brings in your Moxfield card art. Bringing it in as a new deck makes a second copy with Moxfield\'s list.</p>',
+      actions:[{ label:'Bring in as a new deck', kind:'quiet', fn:function(){ done = true; res('new'); } },
+               { label:'Link my deck', kind:'primary', fn:function(){ done = true; res('link'); } }],
+      onClose:function(){ if(!done) res(''); } });
+  });
+}
 async function openFromMox(id, page){
   if(IMPORT.busy){ toast('Wait for <b>' + esc(IMPORT.name) + '</b> to finish coming in.'); return; }
   var fd = feedDeck(id); if(!fd) return;
   var row = rowForMox(id);
   if(row){ navDeck(row.id, page); return; }
+  var mine = fd.commanders && fd.commanders[0] ? sameCmdUnlinked(fd.commanders[0].n)[0] : null;
+  if(mine){
+    var pick = await askLinkOrNew(fd, mine);
+    if(!pick) return;
+    if(pick === 'link'){
+      navDeck(mine.id, 'deck');
+      var tries = 0, t = setInterval(function(){ if(++tries > 60){ clearInterval(t); return; } if(CUR === mine.id && S.cmd){ clearInterval(t); linkMox(id); } }, 250);
+      return;
+    }
+  }
   if(APP.view === 'decks') drawDecks();
   try{
     var nid = await importFromMox(fd, progressTo(id));
@@ -5062,6 +5110,15 @@ function catSet(n, cat){
 }
 function catSnap(){ return JSON.stringify(cats()); }
 function catUndo(snap){ return function(){ S.cats = JSON.parse(snap); save(); catRedraw(); }; }
+// His categories, pins, extra tags, box places and Keep marks from another deck with the same commander.
+function catsFrom(id){
+  var d = deckOf(id); if(!d || !d.cats) return;
+  var snap = catSnap(), keep0 = S.keep ? Object.assign({}, S.keep) : null;
+  S.cats = JSON.parse(JSON.stringify(d.cats));
+  if(d.keep){ S.keep = Object.assign({}, S.keep || {}, d.keep); }
+  save(); drawDeckPage();
+  toast('Brought ' + S.cats.list.length + ' categories across.', { undo:function(){ S.cats = JSON.parse(snap); S.keep = keep0; save(); drawDeckPage(); } });
+}
 function catRedraw(){ if(APP.view === 'deck' && S.page === 'deck') drawDeckPage(); if(CS && !CS.closed) drawCardSheet(); }
 function catMove(n, cat){
   if(catOf(n) === cat) return;
@@ -5589,6 +5646,13 @@ function drawDeckPage(){
     (lv.g === 'cat' ? '<button class="bs-btn bs-sm bs-primary" type="button" data-catnew>' + ico('plus', 'bs-i16') + 'New category</button>' : '') +
     '</div></div>' + fltBar() + (shown >= 0 ? '<p class="pg-fine bs-flt-n">' + (shown ? shown + (shown === 1 ? ' card' : ' cards') + ' in the 99 match.' : 'No card in the 99 matches.') + '</p>' : '');
   var isCat = lv.g === 'cat', touch = phone();
+  // A deck with no categories, when another deck here with the same commander has some: bring them across.
+  if(!cats().list.length){
+    var cfrom = shelf().filter(function(r){ if(r.id === CUR) return false; var d = deckOf(r.id); return d && d.cmd && sameName(d.cmd.n, S.cmd.n) && d.cats && d.cats.list && d.cats.list.length; })[0];
+    if(cfrom){ var cd = deckOf(cfrom.id);
+      h += '<div class="bs-callout">' + ico('info') + '<div class="sh-err"><p><b>Your other ' + esc(shortName(S.cmd.n)) + ' deck</b> (' + esc(deckTitle(cfrom)) + ') has ' + cd.cats.list.length + ' categories. This one has none.</p>' +
+        '<button class="bs-btn bs-sm bs-primary" type="button" data-catsfrom="' + esc(cfrom.id) + '">Bring my categories here</button></div></div>'; }
+  }
   if(isCat && !cats().list.length) h += '<div class="bs-callout">' + ico('info') + '<p><b>Make your own categories.</b> Press New category, then ' +
     (touch ? 'tap a card and pick its category.' : 'drag cards into it, or tap a card and pick its category.') + ' Categories you make on Moxfield come in when you bring the deck in.</p></div>';
   var cnt2 = function(g){ return g.items.reduce(function(s, it){ return s + (it.echo ? 0 : it.q); }, 0); };
@@ -5621,7 +5685,9 @@ function drawDeckPage(){
     outGs.map(function(g){ return esc(g.t) + ' ' + cnt2(g); }).join(', ') + '</span></div>' + drawGroups(outGs) + '</section>';
   h += '</div><aside class="bs-side bs-sticky" id="deckSide"></aside></div>';
   main.innerHTML = h;
-  main.onclick = function(e){ if(fltClick(e)) return; if(e.target.closest && e.target.closest('[data-trimopen]')){ window.openTrim(); return; } onDeckClick(e); };
+  main.onclick = function(e){ if(fltClick(e)) return; if(e.target.closest && e.target.closest('[data-trimopen]')){ window.openTrim(); return; }
+    var cf = e.target.closest && e.target.closest('[data-catsfrom]'); if(cf){ catsFrom(cf.getAttribute('data-catsfrom')); return; }
+    onDeckClick(e); };
   main.oninput = fltInput;
   main.onkeydown = function(e){ if((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role=button][data-card]')){ e.preventDefault(); e.target.click(); } };
   catDrag(!touch, onBoard);

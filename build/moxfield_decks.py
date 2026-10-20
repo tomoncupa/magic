@@ -122,7 +122,7 @@ def slim_deck(d):
     bracket = d.get("userBracket") or d.get("bracket") or d.get("autoBracket") or None
     out = {"id": pid, "name": d.get("name") or "",
            "url": "https://moxfield.com/decks/" + pid,
-           "updated": d.get("lastUpdatedAtUtc"), "format": d.get("format"),
+           "updated": d.get("lastUpdatedAtUtc"), "format": d.get("format"), "vis": d.get("visibility"),
            "ci": list(d.get("colorIdentity") or []), "bracket": bracket}
     for key, board in BOARDS:
         out[key] = slim_board(d, board)
