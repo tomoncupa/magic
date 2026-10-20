@@ -534,15 +534,17 @@ E.combos = function(){
     // req: how many more cards "of a kind" Spellbook's combo also needs (such as "a creature with
     // persist"). The deck may not have one, so those are kept apart (cond) and never count as a combo
     // in the deck, or as one card away.
-    var inDeck = [], near = [], cond = [];
+    // Two cards away too (Tom, 2026-10-21: "the combos Im 1 or 2 cards away from"): at least one piece in the deck.
+    var inDeck = [], near = [], near2 = [], cond = [];
     data.v.forEach(function(v){
-      var pcs = v[0], miss = -1, nm = 0;
-      for(var j = 0; j < pcs.length; j++){ if(!inIdx[pcs[j]]){ nm++; if(nm > 1) return; miss = pcs[j]; } }
+      var pcs = v[0], miss = -1, miss2 = -1, nm = 0;
+      for(var j = 0; j < pcs.length; j++){ if(!inIdx[pcs[j]]){ nm++; if(nm > 2) return; if(nm === 1) miss = pcs[j]; else miss2 = pcs[j]; } }
       if(nm && pcs.length < 2) return;   // a one-card "combo" is not one card away from anything
+      if(nm === 2 && pcs.length < 3) return;   // two missing of two: nothing of it is in the deck
       var o = { cards:pcs.map(function(x){ return names[x]; }), result:v[4], bracketTag:v[1], tag:tagName(v[1]), mvNeeded:v[2], inf:!!v[3],
         id:v[5], req:v[6] || 0, pop:v[7] || 0, url:'https://commanderspellbook.com/combo/' + v[5] + '/' };
       if(o.req){ if(!nm) cond.push(o); return; }
-      if(!nm) inDeck.push(o); else { o.missing = names[miss]; near.push(o); }
+      if(!nm) inDeck.push(o); else if(nm === 1){ o.missing = names[miss]; near.push(o); } else { o.missing2 = [names[miss], names[miss2]]; near2.push(o); }
     });
     cond.sort(function(a, b){ return b.pop - a.pop; });
     res.cond = cond;
@@ -553,7 +555,8 @@ E.combos = function(){
     });
     near.sort(function(a, b){ return b.pop - a.pop; });
     // The missing piece must be legal, in colours, out already and not refused.
-    var want = uniq(near.slice(0, 400).map(function(o){ return o.missing; })).slice(0, 160);
+    near2.sort(function(a, b){ return b.pop - a.pop; });
+    var want = uniq(near.slice(0, 600).map(function(o){ return o.missing; }).concat(near2.slice(0, 500).reduce(function(l, o){ return l.concat(o.missing2); }, []))).slice(0, 450);
     var got = {}, ask = [];
     want.forEach(function(n){ var c = pcard(n); if(c) got[lc(n)] = c; else ask.push({ n:n }); });
     if(ask.length){
@@ -562,13 +565,22 @@ E.combos = function(){
     }
     var per = {}, keep = [];
     near.forEach(function(o){
-      if(keep.length >= 30) return;
+      if(keep.length >= 150) return;
       var c = got[lc(o.missing)];
       if(!c || !okAdd(c)) return;
-      if((per[o.missing] = (per[o.missing] || 0) + 1) > 3) return;
+      if((per[o.missing] = (per[o.missing] || 0) + 1) > 6) return;
       o.c = c; o.breaks = breaksAt(o, bk()); keep.push(o);
     });
-    res.inDeck = inDeck; res.near = keep;
+    var per2 = {}, keep2 = [];
+    near2.forEach(function(o){
+      if(keep2.length >= 150) return;
+      var a = got[lc(o.missing2[0])], b = got[lc(o.missing2[1])];
+      if(!a || !b || !okAdd(a) || !okAdd(b)) return;
+      var pk = o.missing2.slice().sort().join('|');
+      if((per2[pk] = (per2[pk] || 0) + 1) > 2) return;
+      o.c2 = [a, b]; o.breaks = breaksAt(o, bk()); keep2.push(o);
+    });
+    res.inDeck = inDeck; res.near = keep; res.near2 = keep2;
     res.nearAll = near.map(function(o){ return { cards:o.cards, missing:o.missing, result:o.result, inf:o.inf, mvNeeded:o.mvNeeded, id:o.id }; });
     if(!inDeck.length && !res.note) res.note = 'Commander Spellbook lists no combo made only of cards in this deck.';
     CB.res = res; CB.key = key;

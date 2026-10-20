@@ -749,6 +749,67 @@ function manaHtml(rows, landRows, ci, cb){
   return H;
 }
 function uniqArr(a){ return a.filter(function(v, i){ return a.indexOf(v) === i; }); }
+/* ---------- Claude's benchmark (Tom, 2026-10-21: borrowed from DeckCheck's Threat Index) ----------
+   Claude answers twelve fixed questions with a grade S to F, a reason and the cards behind it; code turns the
+   grades into points (S 8, A 7, B 6, C 4, D 2, F 0, out of 96). Fixed questions and fixed sums keep the score
+   steady between runs; Claude only judges. Kept per deck in S.bench with the deck it graded. PC only. */
+var BENCH_Q = [
+  ['speed', 'Speed', 'How early it can really threaten to win against a table that interacts. S turn 4 or sooner, A 5 to 6, B 7 to 8, C 9 to 10, D 11 or later, F no real way to win.'],
+  ['consistency', 'Consistency', 'How often it plays out its plan: tutors, draw, selection, redundancy of key pieces.'],
+  ['mana', 'Mana', 'Land count for the curve, early ramp, colour sources against the pips, fast mana.'],
+  ['engine', 'Engine', 'How much value the commander and the main engines make each turn once running.'],
+  ['cards', 'Card advantage', 'Repeatable draw and card advantage, not one-shots.'],
+  ['wincons', 'Ways to win', 'How many real ways to close the game, and how they survive one answer.'],
+  ['resilience', 'Resilience', 'How it recovers from a board wipe, the commander removed, or its engine answered.'],
+  ['removal', 'Targeted interaction', 'Cheap, flexible answers to creatures, artifacts, enchantments and planeswalkers.'],
+  ['mass', 'Board control', 'Board wipes and resets that suit its own plan.'],
+  ['stack', 'Stack and protection', 'Counterspells, protection for the commander and engine, instant-speed play.'],
+  ['synergy', 'Cohesion', 'How tightly the 99 work together toward the plan, and how few cards do nothing for it.'],
+  ['threat', 'Threat to the table', 'How hard three good opponents must work to stop it.']
+];
+var BENCH_PTS = { S:8, A:7, B:6, C:4, D:2, F:0 }, BENCH = { busy:'', err:'' };
+function benchPrompt(){
+  var L = ['You are grading Tom\'s Commander deck on twelve fixed benchmarks for his app, Brewing Station.',
+    'Grade each benchmark S, A, B, C, D or F against all Commander decks (S is the top tournament level, C an average decent deck, F missing entirely), not against its bracket.',
+    'For each, give one plain sentence why (under 25 words) and up to 5 cards from the deck behind the grade, exact names.',
+    'Answer with JSON only, no other text: [{"k":"speed","g":"B","why":"...","cards":["..."]}, ...] in this order, all twelve.', '', '=== THE BENCHMARKS ==='];
+  BENCH_Q.forEach(function(q){ L.push(q[0] + ': ' + q[1] + '. ' + q[2]); });
+  L.push('', typeof window.askDeckPage === 'function' ? window.askDeckPage() : '');
+  return L.join('\n');
+}
+function benchRun(){
+  var mine = curId(), D = S, e = E(), key = e.key ? e.key() : '';
+  BENCH.busy = mine; BENCH.err = ''; redraw();
+  fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:benchPrompt() }) })
+    .then(function(r){ return r.json(); }).then(function(j){
+      if(j.error) throw new Error(j.error);
+      var t = String(j.text || ''), a = t.indexOf('['), z = t.lastIndexOf(']'), v = JSON.parse(t.slice(a, z + 1)), by = {};
+      (Array.isArray(v) ? v : []).forEach(function(x){ if(x && x.k && BENCH_PTS[String(x.g).toUpperCase()] != null) by[x.k] = { g:String(x.g).toUpperCase(), why:String(x.why || ''), cards:(x.cards || []).slice(0, 5).map(String) }; });
+      var items = BENCH_Q.map(function(q){ return Object.assign({ k:q[0] }, by[q[0]] || { g:'', why:'No grade came back.', cards:[] }); });
+      if(items.filter(function(x){ return x.g; }).length < 10) throw new Error('Claude graded only some of the twelve');
+      if(S !== D) return;   // he opened another deck meanwhile
+      S.bench = { at:Date.now(), key:key, items:items }; save({ quiet:true });
+    }).catch(function(err){ BENCH.err = 'Claude could not grade the deck: ' + (err && err.message || 'no answer') + '.'; })
+    .then(function(){ BENCH.busy = ''; var y = window.pageYOffset || 0; redraw(); keepScroll(y); });
+}
+function benchHtml(ctx){
+  var e = E(), B = S.bench, busy = BENCH.busy === curId(), can = typeof window.askCanDirect === 'function' && window.askCanDirect();
+  var pts = B ? B.items.reduce(function(s, x){ return s + (BENCH_PTS[x.g] || 0); }, 0) : 0;
+  var H = '<section class="bs-panel pg-bench"><div class="bs-panel-head"><h3 class="bs-panel-title">Claude\'s benchmark</h3>' +
+    (B ? '<div class="bs-score pg-right"><b>' + pts + '</b><span>/96</span></div>' : '') + '</div>' +
+    '<p class="bs-panel-note pg-mb">Claude grades twelve fixed questions S to F against all Commander decks; the score is the grades added up (S 8, A 7, B 6, C 4, D 2, F 0).</p>';
+  if(BENCH.err) H += '<p class="pg-fine bs-neg">' + h(BENCH.err) + '</p>';
+  if(B){
+    if(e.key && B.key !== e.key()) H += '<p class="pg-fine">The deck changed since this grade (' + h(dateStr(new Date(B.at).toISOString())) + ').</p>';
+    H += '<div class="pg-bench-l">' + B.items.map(function(x){ var q = BENCH_Q.filter(function(z){ return z[0] === x.k; })[0] || [x.k, x.k];
+      return '<div class="pg-bench-r"><span class="pg-grade pg-g' + h(x.g || 'x') + '">' + h(x.g || '–') + '</span><div><p class="pg-bench-k">' + h(q[1]) + '</p><p class="pg-bench-w">' + h(x.why) + '</p>' +
+        (x.cards.length ? '<p class="pg-fine">' + x.cards.map(function(n){ return link(n); }).join(', ') + '</p>' : '') + '</div></div>'; }).join('') + '</div>';
+  }
+  H += '<div class="bs-acts pg-mt">' + (can
+    ? '<button class="bs-btn bs-sm' + (B ? '' : ' bs-primary') + '" type="button"' + (busy ? ' disabled' : ctx.act(function(){ benchRun(); })) + '>' + (busy ? 'Grading…' : B ? 'Grade again' : 'Grade this deck') + '</button>' + (busy ? '<span class="pg-fine">Claude is reading the deck. This takes a minute or two.</span>' : '')
+    : '<p class="pg-fine">Grading runs in the Brewing Station app on your PC.</p>') + '</div></section>';
+  return H;
+}
 function drawAnalysis(ctx, st){
   var e = E(), el = ctx.el, b = bk(), br = BR(b);
   var cb = combosNow(ctx);
@@ -770,6 +831,7 @@ function drawAnalysis(ctx, st){
   else if(!cb) H += '<div class="pg-note-line">' + loadingLine('Checking Commander Spellbook for combos; the scores update when it answers') + '</div>';
   H += '<div class="pg-pillars">' + PILLARS.map(function(d){ return pillarCard(ctx, d, P && P[d[0]]); }).join('') + '</div>';
   if(ready) H += deckScoreHtml();
+  if(ready) H += benchHtml(ctx);
 
   // ---- mana curve
   var curve = [0, 0, 0, 0, 0, 0, 0, 0], mvs = 0;
@@ -1054,7 +1116,7 @@ function drawSynergy(ctx, st){
 
   // ---- one card away
   H += '<section class="bs-section">' + sectionHead('One card away', cb ? cb.near.length : null) +
-    '<p class="pg-legend">You already run every piece but one. The missing card is legal and in your colours.</p>';
+    '<p class="pg-legend">You already run every piece but one. The missing card is legal and in your colours.' + (cb && cb.near.length >= 150 ? ' The 150 most played are shown.' : '') + '</p>';
   if(!cb) H += skelTiles(4, 150);
   else if(!cb.near.length) H += '<p class="pg-fine">No combo is one card away for this deck.</p>';
   else {
@@ -1071,6 +1133,29 @@ function drawSynergy(ctx, st){
           '<div class="bs-acts pg-mt">' + addButtons(ctx, c, 'Completes a combo: ' + o.cards.join(' + ') + ' (' + o.result + ').') + spellbook(o) + '</div>' +
         '</div></article>';
     }).join('') + '</div>' + showAll(ctx, 'near', near.length, nmax);
+  }
+  H += '</section>';
+
+  // ---- two cards away
+  var near2 = cb ? (cb.near2 || []).filter(function(o){ var s2 = deckSet(); return !isIn(s2, o.missing2[0]) && !isIn(s2, o.missing2[1]); }) : [];
+  H += '<section class="bs-section">' + sectionHead('Two cards away', cb ? near2.length : null) +
+    '<p class="pg-legend">You run at least one piece. Both missing cards are legal and in your colours.' + (cb && (cb.near2 || []).length >= 150 ? ' The 150 most played are shown.' : '') + '</p>';
+  if(!cb) H += skelTiles(4, 150);
+  else if(!near2.length) H += '<p class="pg-fine">No combo is two cards away for this deck.</p>';
+  else {
+    var nmax2 = 9;
+    H += '<div class="bs-grid' + (isAll('near2') ? ' pg-all' : '') + '" style="--grid-min:380px" data-more="near2">' + near2.map(function(o, i){
+      var others = o.cards.filter(function(n){ return lc(n) !== lc(o.missing2[0]) && lc(n) !== lc(o.missing2[1]); });
+      return '<article class="bs-panel pg-near pg-near2' + (!isAll('near2') && i >= nmax2 ? ' pg-x' : '') + '">' +
+        '<div class="pg-near-pic pg-near-pic2">' + o.c2.map(function(c){ return tile(remember(c) || c, {}); }).join('') + '</div>' +
+        '<div class="pg-near-body">' +
+          '<p class="pg-near-add"><span class="bs-label">Missing pieces</span><b>' + link(o.missing2[0]) + '</b> and <b>' + link(o.missing2[1]) + '</b></p>' +
+          '<p class="pg-combo-res">' + h(plain(o.result)) + '</p>' +
+          '<p class="pg-fine">With ' + others.map(function(n){ return '<button class="pg-inline" type="button" data-pg-card="' + h(n) + '">' + h(n) + '</button>'; }).join(' and ') + ', already in the deck.</p>' +
+          (o.breaks ? '<div class="pg-badges"><span class="bs-badge bs-bad">Too strong for bracket ' + b + '</span></div>' : '') +
+          '<div class="bs-acts pg-mt">' + spellbook(o) + '</div>' +
+        '</div></article>';
+    }).join('') + '</div>' + showAll(ctx, 'near2', near2.length, nmax2);
   }
   H += '</section>';
   el.innerHTML = wrap(H);
