@@ -2062,6 +2062,7 @@ function roundPrompt(job){
   var L = ['You are helping Tom build a Magic: The Gathering Commander deck one job at a time. He plays at a kitchen table with friends.', ''];
   L = L.concat(tableLines());
   L.push('Game Changers in the deck now: ' + draftGcs() + '.');
+  if((S.gcNames || []).length) L.push('The current official Game Changer list (your memory of it is out of date; cards not on it are not Game Changers): ' + S.gcNames.join('; ') + '.');
   L.push('', 'Picked so far, ' + S.deck.length + ' of ' + deckSlots() + ':');
   L = L.concat(S.deck.length ? deckByJob() : ['(nothing yet)']);
   L.push('', 'This round\'s job: ' + ROLE_NAMES[job] + '. ' + JOB_DEF[job] + ' ' + open + ' slot' + (open > 1 ? 's' : '') + ' open.');
@@ -2659,6 +2660,7 @@ function claudePrompt(){
   L.push('You are reviewing a Magic: The Gathering Commander deck for Tom, who plays it at a kitchen table with friends.', '');
   L.push('Commander: ' + S.cmd.n + (S.partner ? ' + ' + S.partner.n : '') + '. Colour identity: ' + (S.ci.join('') || 'colourless') + '.');
   L.push('Bracket ' + S.bracket + ' (' + B.name + '): ' + B.desc + ' Game Changer limit: ' + (lim === Infinity ? 'none' : lim) + '.');
+  if((S.gcNames || []).length) L.push('The current official Game Changer list (your memory of it is out of date; cards not on it are not Game Changers): ' + S.gcNames.join('; ') + '.');
   L = L.concat(budgetLines());
   L.push('Strategy: ' + th + '.' + (S.companion ? ' Companion: ' + S.companion + '.' : ''));
   var cons = considering().map(function(x){ return x.c.n; });

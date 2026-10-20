@@ -221,6 +221,12 @@ function deckSheet(){
   L.push('Bracket: ' + b + (BR.name ? ' (' + BR.name + ')' : '') + '. Game Changer limit: ' + (gcLimit() === Infinity ? 'none' : gcLimit()) + '.');
   var th = typeof themeLabel === 'function' ? themeLabel() : ''; if(th && th !== 'No theme') L.push('Theme: ' + th);
   L.push('Cards: ' + (S.deck.length + (S.partner ? 2 : 1)));
+  // The Game Changers as Wizards lists them now (Scryfall, read live), not as Claude remembers them: its memory
+  // still had Urza, Lord High Artificer and Mana Drain on Jin-Gitaxias (Tom, 2026-10-20: "how is it mistaking a card for a game changer??").
+  var gcIn = [S.cmd, S.partner].filter(Boolean).concat(S.deck).filter(function(d, i, a){ return !d.basic && a.findIndex(function(x){ return x.n === d.n; }) === i; })
+    .filter(function(d){ var c = poolCard(d.n) || d; return typeof isGC === 'function' ? isGC(c) : !!c.gc; }).map(function(d){ return d.n; });
+  L.push('Game Changers in this deck: ' + (gcIn.length ? gcIn.join('; ') : 'none') + ' (' + gcIn.length + ' of ' + (gcLimit() === Infinity ? 'no limit' : gcLimit()) + '). This is the complete count, checked against the current official list; do not count any other card as a Game Changer.');
+  if((S.gcNames || []).length) L.push('The current official Game Changer list (cards not on it are not Game Changers, even if they used to be): ' + S.gcNames.join('; '));
   var by = {};
   S.deck.forEach(function(d){ var g = typeGroup(d); (by[g] = by[g] || {}); by[g][d.n] = (by[g][d.n] || 0) + 1; });
   TYPE_GROUPS.forEach(function(g){
@@ -307,6 +313,7 @@ function askPrompt(q){
   L.push('You are a Magic: The Gathering Commander deckbuilding expert. Tom is asking about one of his decks in his deck app, Brewing Station.');
   L.push('Answer his question about the deck below. Plain English, direct, under 250 words unless he asks for more. No em dashes. No tables. Use exact English card names.');
   L.push('Write every card name in double square brackets, like [[Sol Ring]], so his app can show the card.');
+  L.push('Game Changers and bracket rules: use only the Game Changer list and count given below. Your memory of the list is out of date.');
   L.push('If you recommend changing cards, end the answer with one line per change in exactly this form, and nothing after them:');
   L.push('SWAP: <card in the deck> -> <card to put in>', 'CUT: <card in the deck>', 'ADD: <card>');
   L.push('A card going in must be legal in Commander and inside the colour identity. Prefer cards from his side deck when they do the job, since he owns them.');
