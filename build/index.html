@@ -5827,6 +5827,8 @@ function onDeckClick(e){
   if(t.closest('[data-catnew]')){ catNew(); return; }
   var cm = t.closest('[data-catmenu]'); if(cm){ catMenu(cm, cm.getAttribute('data-catmenu')); return; }
   var cd = t.closest('[data-card]'); if(cd){ openCardSheet(cd.getAttribute('data-card'), { board:cd.getAttribute('data-board') || '' }); return; }
+  if(t.closest('[data-msync]')){ moxSend(); return; }
+  if(t.matches && t.matches('[data-mauto]')){ lsSet('brew.moxauto', t.checked ? '1' : '0'); moxAutoSoon(); return; }
   var ml = t.closest('[data-moxlink]'); if(ml){ linkMox(ml.getAttribute('data-moxlink') || ''); return; }
   var cp = t.closest('[data-copy-board]'); if(cp){ var b = cp.getAttribute('data-copy-board'), Bh = S.boards || {};
     var heads = ['Commander', 'Deck'].concat(S.companion ? ['Companion'] : [], (Bh.side || []).length ? ['Sideboard'] : [], (Bh.maybe || []).length ? ['Maybeboard (Considering)'] : []);
@@ -5864,6 +5866,8 @@ function deckStats(){
 var PRIMED = { k:'', p:'' };
 function drawDeckSide(){
   var box = $('deckSide'); if(!box || !S.pool) return;
+  // The Moxfield sync: watch a job already sent, and send changes on their own 20 s after the last one.
+  if(S.mox){ var ys = moxSyncState(); if(ys && (ys.state === 'waiting' || ys.state === 'working') && !MSY.poll) moxPoll(); else moxAutoSoon(); }
   var st = deckStats(), php = st.usd != null ? phpOf(st.usd) : '';
   if(st.usd != null && !php && window.ENGINE) ENGINE.rate().then(function(r){ if(r && $('deckSide')) drawDeckSide(); });
   var gcs = S.deck.filter(function(d){ return d.gc; }).length, lim = gcLimit();
@@ -5945,6 +5949,94 @@ async function linkMox(id){
   save(); render();
   toast('Linked to <b>' + esc(j.name || 'your Moxfield deck') + '</b>. Pictures use your Moxfield printings now; the Moxfield panel shows where the two lists differ.', { ms:9000, undo:function(){ S.mox = was.mox; S.prints = was.prints; S.pool = was.pool; save(); render(); } });
 }
+/* ---------- Sync to Moxfield (Tom, 2026-10-21: "automake the sync to moxfield", picked A) ----------
+   Brewing Station is his deck editor; Moxfield is where he picks the art and builds the wishlist. The moves that
+   make Moxfield's list match this one (adds, removes, moves between boards; never printings) go to the PC server's
+   mailbox, and GRAB in his Chrome makes them on Moxfield as him. Sent on its own 20 s after the last change (Auto,
+   per device, on unless he turns it off) or with Send now. On success the Moxfield copy kept here becomes the list
+   that was sent, so the panel shows no changes. The commander is never changed. */
+var MSY = { t:0, poll:0 };
+function moxOps(){
+  // Three lists: base (Moxfield as last read here, S.mox.snap), ours (this deck now), and Moxfield live, which GRAB
+  // reads before each change. Each op says the card, the board, what base had and what this deck wants, so GRAB
+  // makes only the changes made here: it skips what Moxfield already has and never removes a card added there.
+  var snap = S.mox.snap || {}, now = nowLists(), BRD = { main:'mainboard', side:'sideboard', maybe:'maybeboard' }, ops = [];
+  var key = function(n){ return String(n).toLowerCase().split(' // ')[0]; };
+  var M = {};
+  ['main', 'side', 'maybe'].forEach(function(b){
+    countArr(snap[b]).forEach(function(x){ var m = M[key(x.n)] = M[key(x.n)] || { n:x.n, base:{}, want:{} }; m.base[b] = (m.base[b] || 0) + x.q; });
+    countArr(now[b]).forEach(function(x){ var m = M[key(x.n)] = M[key(x.n)] || { n:x.n, base:{}, want:{} }; m.want[b] = (m.want[b] || 0) + x.q; if(!m.base.hasOwnProperty(b) && m.n !== x.n) m.n = x.n; });
+  });
+  Object.keys(M).forEach(function(k){
+    var m = M[k], ch = ['main', 'side', 'maybe'].filter(function(b){ return (m.base[b] || 0) !== (m.want[b] || 0); });
+    if(!ch.length) return;
+    var down = ch.filter(function(b){ return (m.want[b] || 0) < (m.base[b] || 0); }), up = ch.filter(function(b){ return (m.want[b] || 0) > (m.base[b] || 0); });
+    // Left one board for another: a move, so Moxfield keeps its printing.
+    if(down.length === 1 && up.length === 1) ops.push({ kind:'move', name:m.n, from:BRD[down[0]], to:BRD[up[0]], fromBase:m.base[down[0]] || 0, fromWant:m.want[down[0]] || 0, toBase:m.base[up[0]] || 0, toWant:m.want[up[0]] || 0 });
+    else ch.forEach(function(b){ ops.push({ kind:'set', name:m.n, board:BRD[b], base:m.base[b] || 0, want:m.want[b] || 0 }); });
+  });
+  var D = moxDiff();
+  return { ops:ops, cmd:D.cmd.add.length + D.cmd.remove.length, base:snap };
+}
+function countArr(l){ var m = {}; (l || []).forEach(function(x){ var k = String(x.n).toLowerCase(); (m[k] = m[k] || { n:x.n, q:0 }).q += x.q || 1; }); return Object.keys(m).map(function(k){ return m[k]; }); }
+function moxAuto(){ return lsGet('brew.moxauto') !== '0'; }
+function moxSyncState(){ return (S.mox && S.mox.sync) || null; }
+async function moxSend(){
+  if(!LOCAL || !S.mox) return;
+  var o = moxOps(); if(!o.ops.length) return;
+  var sent = JSON.parse(JSON.stringify(nowLists())), mine = S;
+  try{
+    var r = await fetch('/api/moxsync/queue', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ publicId:S.mox.id, ops:o.ops }) });
+    var j = await r.json(); if(!r.ok || j.error) throw new Error(j.error || 'the PC server answered ' + r.status);
+    if(S !== mine) return;
+    S.mox.sync = { id:j.id, at:Date.now(), state:'waiting', n:o.ops.length, sent:sent, cmd:o.cmd };
+    save({ quiet:true }); drawDeckSide(); moxPoll();
+  }catch(e){ toast('Could not queue the Moxfield sync: ' + esc(e.message), { kind:'bad' }); }
+}
+// Watches the job while this deck is open: done updates the Moxfield copy kept here.
+function moxPoll(){
+  clearTimeout(MSY.poll);
+  var y = moxSyncState(); if(!y || (y.state !== 'waiting' && y.state !== 'working') || !LOCAL){ MSY.poll = 0; return; }
+  var mine = S;
+  MSY.poll = setTimeout(async function(){
+    if(S !== mine) return;
+    try{
+      var j = await (await fetch('/api/moxsync/status?id=' + encodeURIComponent(S.mox.id), { cache:'no-store' })).json();
+      var job = j.job, y2 = moxSyncState(); if(!y2 || S !== mine) return;
+      y2.grab = j.seen ? Math.round(j.now - j.seen) : -1;
+      if(job && job.id === y2.id){
+        y2.state = job.state;
+        // Moxfield's copy kept here becomes what was sent. Its date moves on only when Moxfield had no changes of its
+        // own, so changes made there still show as a newer version to bring in.
+        if(job.state === 'done'){ S.mox.snap = y2.sent; if(job.result && job.result.updated && !(job.result.results || []).some(function(r){ return r.theirs; })) S.mox.updated = job.result.updated; y2.doneAt = Date.now(); y2.res = job.result; delete y2.sent; save({ quiet:true }); toast('Moxfield is up to date: ' + y2.n + ' change' + (y2.n > 1 ? 's' : '') + ' made.'); }
+        if(job.state === 'failed'){ y2.err = (job.result && job.result.err) || 'GRAB could not make the changes on Moxfield.'; y2.res = job.result; save({ quiet:true }); }
+      } else if(!job){ y2.state = 'lost'; }
+      if(APP.view === 'deck' && S.page === 'deck') drawDeckSide();
+    }catch(e){}
+    moxPoll();
+  }, 4000);
+}
+// After any change on a linked deck: send on its own 20 s after the last one.
+function moxAutoSoon(){
+  clearTimeout(MSY.t);
+  if(!LOCAL || !S.mox || !moxAuto() || goneFromMox(S.mox.id)) return;
+  var y = moxSyncState(); if(y && (y.state === 'waiting' || y.state === 'working')) return;
+  if(!moxOps().ops.length) return;
+  var mine = S; MSY.t = setTimeout(function(){ if(S === mine) moxSend(); }, 20000);
+}
+function moxSyncHtml(D){
+  if(!LOCAL) return '<p class="bs-panel-note pg-mt">Sync to Moxfield runs in the Brewing Station app on your PC.</p>';
+  var y = moxSyncState(), busy = y && (y.state === 'waiting' || y.state === 'working'), h = '<div class="bs-msync">';
+  if(busy) h += '<p class="bs-panel-note"><b>' + (y.state === 'working' ? 'Making ' : 'Sending ') + y.n + ' change' + (y.n > 1 ? 's' : '') + ' on Moxfield…</b>' +
+    (y.grab != null && (y.grab < 0 || y.grab > 90) ? ' GRAB in Chrome has not checked in' + (y.grab > 0 ? ' for ' + Math.round(y.grab / 60) + ' min' : '') + ': open Chrome and it picks this up within a minute.' : '') + '</p>';
+  else if(y && y.state === 'failed') h += '<p class="bs-panel-note bs-neg">' + esc(y.err || 'The sync failed.') + '</p>';
+  else if(y && y.state === 'done' && !D.count) h += '<p class="bs-panel-note">Sent to Moxfield ' + ago(y.doneAt || y.at) + '.' + (y.cmd ? ' Commander changes are not sent: change the commander on Moxfield.' : '') + '</p>';
+  var nOps = D.count ? moxOps().ops.length : 0;
+  if(nOps && !busy) h += '<button class="bs-btn bs-primary bs-block" type="button" data-msync>' + ico('import', 'bs-i16') + 'Send ' + nOps + ' change' + (nOps > 1 ? 's' : '') + ' to Moxfield now</button>';
+  h += '<label class="bs-check pg-mt"><input type="checkbox" data-mauto' + (moxAuto() ? ' checked' : '') + '> Send changes on their own</label>' +
+    '<p class="bs-panel-note">Adds, removes and moves cards between boards on Moxfield through GRAB in Chrome. Your art and wishlist there are never touched.</p></div>';
+  return h;
+}
 function moxPanelHtml(){
   if(!S.mox){
     var fr = S.from && S.from.url ? S.from : null;
@@ -5977,6 +6069,7 @@ function moxPanelHtml(){
         x.remove.map(function(a){ return '<li class="bs-rm"><span>' + cardLink(a.n, null, { solo:true }) + '</span><small>' + (a.q > 1 ? a.q : '') + '</small><span class="bs-sr">remove</span></li>'; }).join('') + '</ul>';
     });
   } else h += '<p class="bs-panel-note">Brewing Station and Moxfield have the same list' + (S.mox.updated ? ' (Moxfield version of ' + dateStr(S.mox.updated) + ')' : '') + '.</p>';
+  if(!gone) h += moxSyncHtml(D);
   // Moxfield's Bulk Edit shows one board at a time, and its Main Deck tab holds the 99 without the
   // commander (Tom checked: "Main Deck (99)"). So one text per tab, no headings, no commander line.
   var snap = S.mox.snap || {}, empt = [];
@@ -5985,15 +6078,15 @@ function moxPanelHtml(){
   if(goneSure) h += '<div class="bs-stack" style="--gap:var(--s2);margin-top:var(--s4)">' +
     '<button class="bs-btn bs-primary bs-block" type="button" data-copy-board="all">' + ico('copy', 'bs-i16') + 'Copy for a new Moxfield deck or another site</button>' +
     '<a class="bs-btn bs-sm bs-quiet" href="https://moxfield.com/decks/new" target="_blank" rel="noopener">' + ico('ext', 'bs-i16') + 'Start a new deck on Moxfield</a></div></section>';
-  else h += '<div class="bs-stack" style="--gap:var(--s2);margin-top:var(--s4)">' + nowBtnHtml() +
+  else h += '<details class="bs-more pg-mt"><summary>Change Moxfield by hand</summary><div class="bs-stack" style="--gap:var(--s2);margin-top:var(--s3)">' + nowBtnHtml() +
     '<div class="bs-acts" style="gap:var(--s3)"><button class="bs-btn bs-sm bs-primary" type="button" data-copy-board="deck">' + ico('copy', 'bs-i16') + 'Copy the Main Deck</button>' +
       ((B.side || []).length ? '<button class="bs-btn bs-sm" type="button" data-copy-board="side">' + ico('copy', 'bs-i16') + 'Copy the Sideboard</button>' : '') +
       ((B.maybe || []).length ? '<button class="bs-btn bs-sm" type="button" data-copy-board="maybe">' + ico('copy', 'bs-i16') + 'Copy Considering</button>' : '') + '</div>' +
     '<p class="sh-sub">On Moxfield, open the deck and press Bulk Edit. Pick the Main Deck tab, select all the text in the box and paste over it. For the side deck, pick the Sideboard tab and do the same. Then press Save.</p>' +
     '<p class="sh-sub">The Main Deck copy is the 99 without the commander, the same as that tab.</p>' +
     empt.map(function(t){ return '<p class="sh-sub">' + t + '</p>'; }).join('') +
-    '<button class="bs-btn bs-sm bs-quiet" type="button" data-copy-board="all">' + ico('copy', 'bs-i16') + 'Copy for a new Moxfield deck or another site</button>' +
-    '<a class="bs-btn bs-sm bs-quiet" href="' + esc(S.mox.url) + '" target="_blank" rel="noopener">' + ico('ext', 'bs-i16') + 'Open on Moxfield</a></div></section>';
+    '<button class="bs-btn bs-sm bs-quiet" type="button" data-copy-board="all">' + ico('copy', 'bs-i16') + 'Copy for a new Moxfield deck or another site</button></div></details>' +
+    '<a class="bs-btn bs-sm bs-quiet pg-mt" href="' + esc(S.mox.url) + '" target="_blank" rel="noopener">' + ico('ext', 'bs-i16') + 'Open on Moxfield</a></section>';
   return h;
 }
 /* ---------- every card name is a card (round 3, part A) ---------- */

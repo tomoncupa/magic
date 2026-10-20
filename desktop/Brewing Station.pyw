@@ -192,6 +192,55 @@ def moxfield_deck(pid, fresh=False):
         return text
 
 
+# Moxfield sync mailbox (Tom, 2026-10-21: "automake the sync to moxfield", picked A). Brewing Station (in Edge) queues
+# one job per deck: the card moves that make Moxfield match. GRAB, the extension in his Chrome where he is signed in
+# to Moxfield, asks for the next job every half minute, makes the moves in a Moxfield tab and reports back. Only
+# adds, removes and moves between boards: his printings and wishlist on Moxfield are never touched.
+DECK_ID_OK = re.compile(r"[A-Za-z0-9_-]{5,40}")
+MOXQ = {"jobs": [], "seen": 0.0}
+MOXQ_LOCK = threading.Lock()
+
+
+def moxq_put(job):
+    with MOXQ_LOCK:
+        # The newest list of moves for a deck replaces one still waiting; one being made is left to finish.
+        MOXQ["jobs"] = [j for j in MOXQ["jobs"] if not (j["publicId"] == job["publicId"] and j["state"] == "waiting")]
+        job.update({"id": "%d%04d" % (time.time() * 1000, len(MOXQ["jobs"])), "state": "waiting", "at": time.time()})
+        MOXQ["jobs"].append(job)
+        MOXQ["jobs"] = MOXQ["jobs"][-40:]
+        return job["id"]
+
+
+def moxq_next():
+    with MOXQ_LOCK:
+        MOXQ["seen"] = time.time()
+        for j in MOXQ["jobs"]:
+            # A job GRAB took but never finished (Chrome closed) is offered again after 3 minutes.
+            if j["state"] == "waiting" or (j["state"] == "working" and time.time() - j.get("took", 0) > 180):
+                j["state"], j["took"] = "working", time.time()
+                return {k: j.get(k) for k in ("id", "publicId", "ops", "dry")}
+        return None
+
+
+def moxq_done(data):
+    with MOXQ_LOCK:
+        for j in MOXQ["jobs"]:
+            if j["id"] == str(data.get("id")):
+                j["state"] = "done" if data.get("ok") else "failed"
+                j["result"] = {k: data.get(k) for k in ("ok", "err", "results", "updated", "version", "plan", "dry")}
+                j["ended"] = time.time()
+                return True
+        return False
+
+
+def moxq_status(public_id):
+    with MOXQ_LOCK:
+        mine = [j for j in MOXQ["jobs"] if j["publicId"] == public_id]
+        last = mine[-1] if mine else None
+        return {"seen": MOXQ["seen"], "now": time.time(),
+                "job": {k: last.get(k) for k in ("id", "state", "at", "ended", "result", "count")} if last else None}
+
+
 def store_read():
     """{"exists": bool, "keys": {key: text}}. A broken file falls back to the newest daily copy."""
     for path in [STORE] + sorted(glob.glob(STORE[:-5] + "-*.json"), reverse=True):
@@ -244,6 +293,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         origin = self.headers.get("Origin") or ""
         ok_host = host in ("127.0.0.1", "localhost")
         ok_origin = not origin or origin in (f"http://127.0.0.1:{PORT}", f"http://localhost:{PORT}")
+        # GRAB, his Chrome extension, fetches the Moxfield sync jobs; no web page can send a chrome-extension Origin.
+        grab = origin.startswith("chrome-extension://") and self.route().startswith("/api/moxsync/") and self.headers.get("X-Grab") == "1"
+        if grab:
+            return ok_host
         # Other sites' <img>/<script> tags send no Origin, but browsers mark them cross-site.
         fetch_site = self.headers.get("Sec-Fetch-Site") or ""
         if self.route().startswith("/api/") and fetch_site not in ("", "same-origin", "none"):
@@ -273,10 +326,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         global last_hit
-        last_hit = time.time()
+        path = self.route()
+        if path != "/api/moxsync/next":   # GRAB asking every half minute must not keep the server up forever
+            last_hit = time.time()
         if not self.local_only():
             return
-        path = self.route()
+        if path == "/api/moxsync/next":
+            return self.send_json({"job": moxq_next()})
+        if path == "/api/moxsync/status":
+            q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+            return self.send_json(moxq_status((q.get("id") or [""])[0]))
         if path == "/api/claude/status":
             return self.send_json(claude_status())
         if path == "/api/store":
@@ -322,6 +381,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             size = int(self.headers.get("Content-Length") or 0)
             data = json.loads(self.rfile.read(size) or b"{}")
             path = self.route()
+            if path == "/api/moxsync/queue":
+                ops = data.get("ops")
+                if not isinstance(ops, list) or not DECK_ID_OK.fullmatch(str(data.get("publicId") or "")):
+                    raise RuntimeError("Nothing to send to Moxfield.")
+                return self.send_json({"id": moxq_put({"publicId": str(data["publicId"]), "ops": ops[:300], "count": len(ops), "dry": bool(data.get("dry"))})})
+            if path == "/api/moxsync/done":
+                return self.send_json({"ok": moxq_done(data)})
             if path == "/api/store":
                 sets, dels = data.get("set") or {}, data.get("del") or []
                 if not isinstance(sets, dict) or not isinstance(dels, list):
