@@ -1112,7 +1112,7 @@ E.upgrades = function(opts){
     // so an upgrade never takes it out; only a combo the target bracket forbids is fair game (Downgrades).
     var keep = {};
     comboList().forEach(function(o){ if(breaksAt(o, tb)) return; o.cards.forEach(function(n){ keep[lc(n)] = 1; keep[front(n)] = 1; }); });
-    Object.keys(S.keep || {}).forEach(function(k){ keep[k] = 1; keep[front(k)] = 1; });
+    Object.keys(pinsNow()).forEach(function(k){ keep[k] = 1; keep[front(k)] = 1; });
     var outs = X.rows.filter(function(r){ return !r.cmd && !r.basic && !r.must && !r.missing && !keep[lc(r.n)] && !keep[front(r.n)]; })
       .map(function(r){ var vv = valueOf(r.c, X, true, cset); return { r:r, v:vv.v, links:vv.links, job:jobFor(r) }; })
       .sort(function(a, b){ return a.v - b.v; });
@@ -1881,12 +1881,13 @@ function planMap(X){
   return { plans:plans, cards:cards, pairs:pairs, stale:P.key !== E.key() };   // saved with E.key(), the 99's fingerprint
 }
 E.planMap = function(){ try{ return planMap(ctx()); }catch(e){ return null; } };
+function pinsNow(){ try{ return typeof window.pinnedKeys === 'function' ? window.pinnedKeys() : (S.keep || {}); }catch(e){ return S.keep || {}; } }
 function engineSet(X){
   var s = {}, K = gCtx(X);
   // Claude's plan map names the deck's engines: never offered as cuts either.
   var PMe = planMap(X); if(PMe) Object.keys(PMe.cards).forEach(function(n){ if(PMe.cards[n].part === 'engine' && !s[lc(n)]){ s[lc(n)] = 'plan'; s[front(n)] = 'plan'; } });
-  // Cards he marked Keep are never offered as a cut, by anything (Tom picked C, 2026-10-20).
-  Object.keys(S.keep || {}).forEach(function(k){ s[k] = 'keep'; s[front(k)] = 'keep'; });
+  // Cards he pinned are never offered as a cut, by anything (Keep, 2026-10-20; one mark with Pin since 2026-10-21).
+  Object.keys(pinsNow()).forEach(function(k){ s[k] = 'keep'; s[front(k)] = 'keep'; });
   comboList().forEach(function(o){ o.cards.forEach(function(n){ s[lc(n)] = 'combo'; s[front(n)] = 'combo'; }); });
   X.rows.forEach(function(r){
     if(r.cmd || r.basic || r.missing || s[lc(r.n)]) return;
@@ -2153,7 +2154,7 @@ E.trim = function(){
       o.score = { from:base.raw, to:sc ? sc.raw : base.raw };
       o.cuts = o.cuts.map(function(c){ return c.n; });
     });
-    return withNote(opts, opts.length ? '' : 'There are not enough cards that can go: the rest are commanders, must-includes, kept cards or combo and engine pieces.');
+    return withNote(opts, opts.length ? '' : 'There are not enough cards that can go: the rest are commanders, must-includes, pinned cards or combo and engine pieces.');
   }catch(e){ return withNote([], 'Could not work out the cuts: ' + e.message); }
 };
 

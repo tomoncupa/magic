@@ -222,7 +222,7 @@ var DOCTRINE = [
   '5. Card flow. Repeatable draw and engines beat one-shot draw. Tutors are only as good as their targets: name them.',
   '6. Winning. Count real ways to close the game and how they survive one removal spell or counterspell. Combos: name every piece, what must be in play first and how fragile they are. Fit the bracket: its expected game length, the Game Changer list and count given below, and the combo rules.',
   '7. The table. It is a four-player game: threat assessment, not becoming the archenemy too early, what the table will answer, what to play around.',
-  '8. Swaps. Each one names the job, the card out and why it is the right cut in this deck, the card in and what it really does (read its rules text below), and the cost: curve, colours, synergy lost. Never cut combo pieces, engine pieces or cards he marked Keep unless he asks. Prefer cards from his side deck. Weigh each swap against the whole deck, never on its own.',
+  '8. Swaps. Each one names the job, the card out and why it is the right cut in this deck, the card in and what it really does (read its rules text below), and the cost: curve, colours, synergy lost. Never cut combo pieces, engine pieces or cards he pinned unless he asks. Prefer cards from his side deck. Weigh each swap against the whole deck, never on its own.',
   '9. Truth. Read the rules text given; never go from memory for card text, rulings, Game Changers or legality. Use the app\'s numbers. If you are not sure, say so in a few words rather than guess.',
   '10. One-colour decks need no colour fixing: never suggest Commander\'s Sphere, Command Tower, Chromatic Lantern, any-colour lands or other fixing in a deck of one colour.'
 ].join('\n');
@@ -369,8 +369,8 @@ function askPrompt(q){
   if(an.length){ L.push('', '=== WHAT THE APP MEASURED (its own numbers; use them, and say so when you disagree) ==='); an.forEach(function(x){ L.push(x); }); }
   var ed = edhLines();
   if(ed.length){ L.push('', '=== EDHREC AND COMMANDER SPELLBOOK ==='); ed.forEach(function(x){ L.push(x); }); }
-  var kp = Object.keys(S.keep || {}).map(function(k){ var d = S.deck.filter(function(x){ return x.n.toLowerCase() === k; })[0]; return d ? d.n : ''; }).filter(Boolean);
-  if(kp.length) L.push('', 'Cards he marked Keep, never suggest cutting them: ' + kp.join('; '));
+  var kp = S.deck.filter(function(d, i, a){ return !d.basic && a.findIndex(function(x){ return x.n === d.n; }) === i && typeof isKept === 'function' && isKept(d.n); }).map(function(d){ return d.n; });
+  if(kp.length) L.push('', 'Cards he pinned, never suggest cutting them: ' + kp.join('; '));
   var tl = typeof tasteLines === 'function' ? tasteLines() : [];
   if(tl.length){ L.push('', '=== HIS PAST CHOICES ACROSS HIS DECKS (learn his taste from these; do not suggest what he keeps turning down) ==='); tl.forEach(function(x){ L.push(x); }); }
   var cl = catLines();
@@ -463,7 +463,7 @@ function moveScore(m){
   if(MVS[key]) return MVS[key];
   var a = E.score(), b = E.scoreWith([{ out:outD ? outD.n : null, inn:inn }]);
   if(!a || !b) return null;
-  return (MVS[key] = { from:a.raw, to:b.raw, d:b.raw - a.raw, kept:!!(outD && S.keep && S.keep[outD.n.toLowerCase()]), out:outD ? outD.n : '' });
+  return (MVS[key] = { from:a.raw, to:b.raw, d:b.raw - a.raw, kept:!!(outD && typeof isKept === 'function' && isKept(outD.n)), out:outD ? outD.n : '' });
 }
 function moveScoreHtml(m, done){
   if(done) return '';
@@ -471,7 +471,7 @@ function moveScoreHtml(m, done){
   if(r.wait) return '<span class="mn-move-s pg-fine">Working out the deck score…</span>';
   var E = window.ENGINE, cls = r.d >= 0.03 ? 'bs-pos' : r.d <= -0.03 ? 'bs-neg' : 'pg-fine';
   return '<span class="mn-move-s ' + cls + '">Deck score <b class="bs-num">' + E.scorePair(r.from, r.to) + '</b>' + (r.d <= -0.03 ? ', lowers it' : '') + '</span>' +
-    (r.kept ? '<span class="mn-move-s bs-neg">You marked ' + esc(r.out) + ' Keep</span>' : '');
+    (r.kept ? '<span class="mn-move-s bs-neg">You pinned ' + esc(r.out) + '</span>' : '');
 }
 // Each change Claude suggests: its cards as names with their hover, and its own button beside them.
 function moveHtml(m, i, done){

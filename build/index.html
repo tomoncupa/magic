@@ -5029,21 +5029,28 @@ function itemBadges(it){
 }
 // A row or tile's extra classes (and the shaded copy's mark), left inside the class attribute's open quote: shaded copy, pinned.
 function itCls(it){
-  var a = (it.echo ? ' bs-echo' : '') + (it.pin ? ' bs-pin' : ''), at = it.echo ? ' data-echo="1"' : '';
+  var a = (it.echo ? ' bs-echo' : '') + (it.pin || (it.board === 'main' && !it.basic && !it.echo && isKept(it.n)) ? ' bs-pin' : ''), at = it.echo ? ' data-echo="1"' : '';
   return at ? a + '"' + at.slice(0, -1) : a;
 }
-// Keep: a card he never wants offered as a cut (S.keep, card name lower case -> 1).
-function isKept(n){ return !!(S.keep && S.keep[String(n).toLowerCase()]); }
+/* Pin (Tom, 2026-10-21: "Pin is just the same as keep"): one mark. A pinned card is never offered as a cut, wears
+   the gold outline everywhere, and in My categories sits at the top of the category it was pinned in. S.keep holds
+   pins made outside a category (card name lower case -> 1); S.cats.pin the ones made in a category. */
+function isKept(n){ var k = String(n).toLowerCase(); if(S.keep && S.keep[k]) return true; var P = (S.cats && S.cats.pin) || {}, m = moxKey(n);
+  return Object.keys(P).some(function(c){ return (P[c] || []).indexOf(m) >= 0; }); }
+window.pinnedKeys = function(){ var o = Object.assign({}, S.keep || {}), P = (S.cats && S.cats.pin) || {}; Object.keys(P).forEach(function(c){ (P[c] || []).forEach(function(k){ o[k] = 1; }); }); return o; };
+function unpinAll(n){ var k = String(n).toLowerCase(), m = moxKey(n); if(S.keep) delete S.keep[k]; var P = (S.cats && S.cats.pin) || {};
+  Object.keys(P).forEach(function(c){ P[c] = (P[c] || []).filter(function(x){ return x !== m; }); if(!P[c].length) delete P[c]; }); }
 function toggleKeep(n){
-  var k = String(n).toLowerCase(), was = S.keep ? Object.assign({}, S.keep) : null;
-  S.keep = S.keep || {}; if(S.keep[k]) delete S.keep[k]; else S.keep[k] = 1;
-  var on = !!S.keep[k]; save();
+  var k = String(n).toLowerCase(), was = S.keep ? Object.assign({}, S.keep) : null, wasPins = S.cats && S.cats.pin ? JSON.stringify(S.cats.pin) : null;
+  var on = !isKept(n);
+  if(on){ S.keep = S.keep || {}; S.keep[k] = 1; } else unpinAll(n);
+  save();
   if(APP.view === 'deck' && S.page === 'deck') drawDeckPage(); else if(typeof render === 'function') render();
   if(CS && !CS.closed) drawCardSheet();
-  toast('<b>' + esc(n) + '</b> ' + (on ? 'is kept: it is never offered as a cut.' : 'is no longer kept.'), { undo:function(){ S.keep = was; save(); if(APP.view === 'deck' && S.page === 'deck') drawDeckPage(); else if(typeof render === 'function') render(); if(CS && !CS.closed) drawCardSheet(); } });
+  toast('<b>' + esc(n) + '</b> ' + (on ? 'is pinned: it is never offered as a cut.' : 'is unpinned.'), { undo:function(){ S.keep = was; if(S.cats && wasPins) S.cats.pin = JSON.parse(wasPins); save(); if(APP.view === 'deck' && S.page === 'deck') drawDeckPage(); else if(typeof render === 'function') render(); if(CS && !CS.closed) drawCardSheet(); } });
 }
-function keepMark(it){ return it.board === 'main' && !it.basic && isKept(it.n) ? '<span class="bs-keepmark" role="img" aria-label="Kept">' + ico('lock', 'bs-i16') + '</span>' : ''; }
-function pinMark(it){ return it.pin ? '<span class="bs-pinmark" role="img" aria-label="Pinned to the top">' + ico('pin', 'bs-i16') + '</span>' : ''; }
+function keepMark(){ return ''; }   // the pin mark shows it now (pinMark)
+function pinMark(it){ return it.pin || (it.board === 'main' && !it.basic && !it.echo && isKept(it.n)) ? '<span class="bs-pinmark" role="img" aria-label="Pinned to the top">' + ico('pin', 'bs-i16') + '</span>' : ''; }
 function crowHtml(it){
   var c = it.c || {}, n = it.n;
   // A small copy of the art leads every row, as on the other tabs (Tom, 2026-10-18); the mana value
@@ -5087,6 +5094,7 @@ function catPin(cat, n){
   var C = cats(), k = moxKey(n), l = (C.pin[cat] || []).filter(function(x){ return x !== k; }), on = catPinned(cat, n) < 0, snap = catSnap();
   if(on) l.unshift(k);
   if(l.length) C.pin[cat] = l; else delete C.pin[cat];
+  if(!on && S.keep) delete S.keep[String(n).toLowerCase()];   // unpinned is unpinned everywhere
   save(); catRedraw();
   toast('<b>' + esc(n) + '</b> ' + (on ? 'is pinned to the top of ' : 'is no longer pinned in ') + esc(cat) + '.', { undo:catUndo(snap) });
 }
@@ -5751,8 +5759,8 @@ function cardMenuItems(n, board, cat){
       items.push({ label:'Move to the side deck', icon:'side', fn:act('toside') });
       if(!w.maybe) items.push({ label:'Move to Considering', icon:'side', fn:act('tomaybe') });
       if(cats().list.length) items.push({ label:'Pick its category', icon:'pencil', fn:open() });
-      items.push({ label:isKept(c.n) ? 'Stop keeping' : 'Keep: never offer it as a cut', icon:'lock', fn:function(){ toggleKeep(dn); } });
-      if(cat) items.push({ label:catPinned(cat, c.n) < 0 ? 'Pin to the top of ' + cat : 'Unpin from ' + cat, icon:'pin', fn:function(){ catPin(cat, c.n); } });
+      if(!cat) items.push({ label:isKept(c.n) ? 'Unpin' : 'Pin: never offer it as a cut', icon:'pin', fn:function(){ toggleKeep(dn); } });
+      if(cat) items.push({ label:catPinned(cat, c.n) < 0 ? 'Pin to the top of ' + cat : 'Unpin', icon:'pin', fn:function(){ if(catPinned(cat, c.n) < 0) catPin(cat, c.n); else toggleKeep(c.n); } });
     } else if(here === 'side' || here === 'maybe'){
       var cb = function(){ return function(){ var cc = csCard(n) || c; if(!poolCard(cc.n) && S.pool && cc.type) inPool(Object.assign({}, cc));
         var r = applyChange(null, cc, here === 'side' ? 'From your side deck.' : 'From Considering.', { from:here }); if(r === true) toast(changeToast(), { undo:undoTop() }); else toast(esc(r), { kind:'bad' }); }; };
@@ -6391,8 +6399,9 @@ function drawCardSheet(){
       (fix ? '<button class="bs-chip" type="button" data-cs-job="">Let Brewing Station decide</button>' : '') + '</div></div>';
   }
   if(w.main && !isBasicName(c.n)){
-    var kp = isKept(c.n);
-    h += '<div><p class="bs-label" style="margin:0 0 var(--s2)">Keep</p><div class="bs-chips"><button class="bs-chip' + (kp ? ' on' : '') + '" type="button" aria-pressed="' + kp + '" data-cs-keep>' + ico('lock', 'bs-i16') + 'Never offer it as a cut</button></div></div>';
+    // One Pin block: in a category the chips pin it to the top of that category; with none, one chip pins it.
+    var kp = isKept(c.n), homeC = catOf(c.n);
+    if(!homeC) h += '<div><p class="bs-label" style="margin:0 0 var(--s2)">Pin <span class="bs-muted">(never offered as a cut)</span></p><div class="bs-chips"><button class="bs-chip' + (kp ? ' on' : '') + '" type="button" aria-pressed="' + kp + '" data-cs-keep>' + ico('pin', 'bs-i16') + (kp ? 'Pinned' : 'Pin it') + '</button></div></div>';
   }
   if(w.main){
     var CL = cats().list, home = catOf(c.n), al = catAlso(c.n);
@@ -6402,7 +6411,7 @@ function drawCardSheet(){
       '<button class="bs-chip pg-chipmore" type="button" data-cs-catnew>' + ico('plus', 'bs-i16') + 'New category</button></div></div>';
     if(home && CL.length > 1) h += '<div><p class="bs-label" style="margin:0 0 var(--s2)">Also counts as <span class="bs-muted">(it stays under ' + esc(home) + ')</span></p><div class="bs-chips" role="group" aria-label="Also counts as">' +
       CL.filter(function(t){ return t !== home; }).map(function(t){ var on = al.indexOf(t) >= 0; return '<button class="bs-chip' + (on ? ' on' : '') + '" type="button" aria-pressed="' + on + '" data-cs-also="' + esc(t) + '">' + esc(t) + '</button>'; }).join('') + '</div></div>';
-    if(home) h += '<div><p class="bs-label" style="margin:0 0 var(--s2)">Pinned to the top of</p><div class="bs-chips" role="group" aria-label="Pinned to the top of">' +
+    if(home) h += '<div><p class="bs-label" style="margin:0 0 var(--s2)">Pin to the top of <span class="bs-muted">(never offered as a cut)</span></p><div class="bs-chips" role="group" aria-label="Pinned to the top of">' +
       [home].concat(al).map(function(t){ var on = catPinned(t, c.n) >= 0; return '<button class="bs-chip' + (on ? ' on' : '') + '" type="button" aria-pressed="' + on + '" data-cs-pin="' + esc(t) + '">' + ico('pin', 'bs-i16') + esc(t) + '</button>'; }).join('') + '</div></div>';
   }
   var links = [];
@@ -6706,7 +6715,7 @@ function swmCalc(r, M){
   var capped = r.vk === 'up' && !outD.basic && ((r.breaks.length && !r.completes.length) || r.eng === 'commander' || r.eng === 'needs' || r.eng === 'keep');
   if(capped) r.vk = 'even';
   r.vw = { up:'Upgrade', even:'Even trade', down:'Downgrade', no:'Cannot go in' }[r.vk];
-  r.vwhy = r.no ? '' : capped ? (r.eng === 'keep' ? 'better for the deck score, but you marked ' + shortName(outD.n) + ' Keep' : r.eng === 'commander' ? 'better for the deck score, but ' + shortName(outD.n) + ' works with ' + shortName(S.cmd.n) + '’s own ability' : r.eng === 'needs' ? 'better for the deck score, but ' + shortName(outD.n) + ' is built round ' + shortName(S.cmd.n) : 'better for the deck score, but it breaks a combo in the deck') : r.sd ? swmScoreWhy(r, parts, li, lo, dmv, M) : swmDecider(r, parts, li, lo, dmv, M);
+  r.vwhy = r.no ? '' : capped ? (r.eng === 'keep' ? 'better for the deck score, but you pinned ' + shortName(outD.n) : r.eng === 'commander' ? 'better for the deck score, but ' + shortName(outD.n) + ' works with ' + shortName(S.cmd.n) + '’s own ability' : r.eng === 'needs' ? 'better for the deck score, but ' + shortName(outD.n) + ' is built round ' + shortName(S.cmd.n) : 'better for the deck score, but it breaks a combo in the deck') : r.sd ? swmScoreWhy(r, parts, li, lo, dmv, M) : swmDecider(r, parts, li, lo, dmv, M);
   r.mv = r.card.mv || 0; r.inc = swmInc(r.card); r.syn = swmSyn(r.card);
   r.gc = !isBasicName(r.card.n) && rawGC(r.card);
   r.why = r.no || swmWhy(r, M);
