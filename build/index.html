@@ -3728,7 +3728,9 @@ function ensurePool(onStep){
     return S.pool;
   })();
   POOLP = rec;
-  rec.p.then(null, function(){ if(POOLP === rec) POOLP = null; });
+  // A finished load is never handed out again: once S.pool is cleared to load afresh (linking a deck to Moxfield),
+  // a resolved POOLP sent drawDeckPage and ensurePool round each other forever (2026-10-21).
+  rec.p.then(function(){ if(POOLP === rec) POOLP = null; }, function(){ if(POOLP === rec) POOLP = null; });
   return rec.p;
 }
 // The Build steps' own "reloading" line, with a Retry when the network fails.
@@ -5753,6 +5755,7 @@ function onDeckClick(e){
   if(t.closest('[data-catnew]')){ catNew(); return; }
   var cm = t.closest('[data-catmenu]'); if(cm){ catMenu(cm, cm.getAttribute('data-catmenu')); return; }
   var cd = t.closest('[data-card]'); if(cd){ openCardSheet(cd.getAttribute('data-card'), { board:cd.getAttribute('data-board') || '' }); return; }
+  var ml = t.closest('[data-moxlink]'); if(ml){ linkMox(ml.getAttribute('data-moxlink') || ''); return; }
   var cp = t.closest('[data-copy-board]'); if(cp){ var b = cp.getAttribute('data-copy-board'), Bh = S.boards || {};
     var heads = ['Commander', 'Deck'].concat(S.companion ? ['Companion'] : [], (Bh.side || []).length ? ['Sideboard'] : [], (Bh.maybe || []).length ? ['Maybeboard (Considering)'] : []);
     copy(moxPaste(b), { all:'Copied the whole deck with ' + heads.slice(0, -1).join(', ') + ' and ' + heads[heads.length - 1] + ' headings, for a new Moxfield deck or another site.',
@@ -5842,14 +5845,44 @@ function drawDeckSide(){
   if(st.usd != null) h += '<p class="bs-pricefoot">Whole deck: about ' + (php || '$' + Math.round(st.usd).toLocaleString('en-US')) + ' at Scryfall prices (estimate' + (st.unpriced ? ', ' + st.unpriced + ' card' + (st.unpriced === 1 ? '' : 's') + ' without a price' : '') + ').</p>';
   box.innerHTML = h;
 }
+/* A deck made here, or brought in from a list, linked to his own Moxfield deck afterwards (Tom, 2026-10-21:
+   "how do I have it pull the printings I selected on moxfield", on a Jin-Gitaxias deck built here). The list
+   here stays as it is; the link brings his printings and the Moxfield panel then shows where the two differ. */
+// One of his Moxfield decks with this deck's commander that no deck here is linked to yet: offered with one tap.
+function moxMatch(){
+  if(!S.cmd || !FEED.data) return null;
+  return FEED.data.decks.filter(function(d){ var c = (d.commanders || [])[0]; return c && (sameName(S.cmd.n, c.n) || sameName(c.n, S.cmd.n)) && !rowForMox(d.id); })[0] || null;
+}
+async function linkMox(id){
+  var v = id ? 'moxfield.com/decks/' + id : await askText({ title:'Link to a Moxfield deck', label:'The deck\'s address on Moxfield', value:'', yes:'Link' });
+  if(!v) return;
+  var L = parseDeckLink(v);
+  if(!L || L.site !== 'moxfield'){ toast('That is not a Moxfield deck address. It looks like moxfield.com/decks/abc123.', { kind:'bad' }); return; }
+  var j = null;
+  if(LOCAL){ try{ var r = await fetch('/api/moxfield/deck?id=' + encodeURIComponent(L.id), { cache:'no-store' }); var x = await r.json(); if(r.ok && x && Array.isArray(x.main)) j = x; }catch(e){} }
+  if(!j) j = feedDeck(L.id);
+  if(!j){ toast(LOCAL ? 'Moxfield did not answer for that deck. Check the address, then try again.' : 'This copy can only read your public Moxfield decks. Link it from the Brewing Station app on your PC.', { kind:'bad', ms:9000 }); return; }
+  var mc = (j.commanders || [])[0];
+  if(mc && S.cmd && !sameName(S.cmd.n, mc.n) && !sameName(mc.n, S.cmd.n)){ toast('That Moxfield deck\'s commander is <b>' + esc(mc.n) + '</b>, not ' + esc(S.cmd.n) + '. Nothing was linked.', { kind:'bad', ms:9000 }); return; }
+  var was = { mox:S.mox, prints:S.prints, pool:S.pool };
+  var list = function(a){ return (a || []).map(function(x){ return { n:x.n, q:x.q || 1 }; }); };
+  S.mox = { id:L.id, name:j.name || '', url:'https://moxfield.com/decks/' + L.id, updated:j.updated || '',
+    snap:{ cmd:(j.commanders || []).map(function(c){ return { n:c.n, q:1 }; }), main:list(j.main), side:list(j.side), maybe:list(j.maybe) } };
+  S.prints = printsOf(j);
+  S.pool = null; BASIC_CARDS = {};   // the pictures load again with his printings, basics too
+  save(); render();
+  toast('Linked to <b>' + esc(j.name || 'your Moxfield deck') + '</b>. Pictures use your Moxfield printings now; the Moxfield panel shows where the two lists differ.', { ms:9000, undo:function(){ S.mox = was.mox; S.prints = was.prints; S.pool = was.pool; save(); render(); } });
+}
 function moxPanelHtml(){
   if(!S.mox){
     var fr = S.from && S.from.url ? S.from : null;
     return '<section class="bs-panel"><div class="bs-panel-head"><h3 class="bs-panel-title">Moxfield</h3></div>' +
       (fr ? '<p class="bs-panel-note" style="margin-bottom:var(--s3)">Imported from ' + (fr.author ? esc(fr.author) + '\'s deck' : 'a deck') + ' on Moxfield. Changes you make here do not go back to it.</p>'
         : S.src === 'paste' ? '<p class="bs-panel-note" style="margin-bottom:var(--s3)">Imported from a pasted list.</p>' : '') +
+      '<p class="bs-panel-note" style="margin-bottom:var(--s3)">Already on Moxfield? Link it, and the pictures use the printings you picked there.</p>' +
       '<p class="bs-panel-note">This deck is not linked to a Moxfield deck of yours. Copy it, then on Moxfield: New Deck, under Existing Deck List pick Paste in List and paste it. Pick the commander in the form\'s own commander box.</p>' +
-      '<div class="bs-stack" style="--gap:var(--s2);margin-top:var(--s4)">' + nowBtnHtml() + '<button class="bs-btn bs-primary bs-block" type="button" data-copy-board="all">' + ico('copy', 'bs-i16') + 'Copy for a new Moxfield deck or another site</button>' +
+      '<div class="bs-stack" style="--gap:var(--s2);margin-top:var(--s4)">' + (moxMatch() ? '<button class="bs-btn bs-primary bs-block" type="button" data-moxlink="' + esc(moxMatch().id) + '">' + ico('import', 'bs-i16') + 'Link to ' + esc(moxMatch().name) + '</button>' : '') +
+      '<button class="bs-btn' + (moxMatch() ? '' : ' bs-primary') + ' bs-block" type="button" data-moxlink="">' + ico('import', 'bs-i16') + (moxMatch() ? 'Link to another Moxfield deck' : 'Link to a Moxfield deck') + '</button>' + nowBtnHtml() + '<button class="bs-btn bs-block" type="button" data-copy-board="all">' + ico('copy', 'bs-i16') + 'Copy for a new Moxfield deck or another site</button>' +
       (fr ? '<a class="bs-btn bs-quiet bs-block" href="' + esc(fr.url) + '" target="_blank" rel="noopener">' + ico('ext', 'bs-i16') + 'Open the original</a>' : '') +
       '<a class="bs-btn bs-quiet bs-block" href="https://moxfield.com/decks/new" target="_blank" rel="noopener">' + ico('ext', 'bs-i16') + 'Start a new deck on Moxfield</a></div></section>';
   }
