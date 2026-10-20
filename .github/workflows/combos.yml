@@ -15,8 +15,9 @@ jobs:
       - run: pip install ijson
       - run: curl -sSfL -o /tmp/variants.json https://json.commanderspellbook.com/variants.json
       - run: python build/slim_combos.py /tmp/variants.json build/combos.json build/steps
+      - run: curl -sSfL -A 'Mozilla/5.0' -o /tmp/salt.json https://json.edhrec.com/pages/top/salt-1.json && python build/slim_salt.py /tmp/salt.json build/salt.json || echo 'salt list not refreshed'
       - run: |
           git config user.name "combo-bot"
           git config user.email "combo-bot@users.noreply.github.com"
-          git add build/combos.json build/steps
+          git add build/combos.json build/steps build/salt.json
           git diff --cached --quiet || (git commit -m "Refresh combo list" && git pull --rebase origin "$GITHUB_REF_NAME" && git push origin "HEAD:$GITHUB_REF_NAME")

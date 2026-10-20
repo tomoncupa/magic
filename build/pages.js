@@ -497,11 +497,11 @@ function pillarCard(ctx, def, p){
    one call per list, on the PC only, kept for the visit by deck and list. A swap Claude says breaks the plan
    stays on the list, last and faded, with its reason; nothing is hidden. */
 var CHK = {};
-function claudeChecks(res, purpose){
+function claudeChecks(res, purpose, done){
   if(!res.length || typeof window.askDeckPage !== 'function' || !window.askCanDirect || !window.askCanDirect()) return null;
   var e = E(), key = (e.key ? e.key() : '') + '|' + res.map(function(p){ return p.out + '>' + p.inn.n; }).join(',');
-  var c = CHK[key]; if(c) return c;
-  c = CHK[key] = { busy:true, v:null };
+  var c = CHK[key]; if(c){ if(done){ if(c.busy) (c.cbs = c.cbs || []).push(done); } return c; }
+  c = CHK[key] = { busy:true, v:null, cbs:done ? [done] : [] };
   var L = ['You are a Magic: The Gathering Commander deckbuilding expert checking swaps a rules engine suggested for Tom\'s deck in his app, Brewing Station.',
     'The engine counts jobs and scores; it does not understand the deck\'s plan. Judge each swap against the whole deck: what the card going out does in this deck\'s plan, his categories, combos, and what the card coming in really does (read the rules text).',
     'Purpose of these swaps: ' + purpose + '.',
@@ -515,7 +515,7 @@ function claudeChecks(res, purpose){
       var v = JSON.parse(t.slice(a, b + 1)); c.v = {};
       (Array.isArray(v) ? v : []).forEach(function(x){ if(x && typeof x.i === 'number') c.v[x.i] = { ok:x.ok !== false, why:String(x.why || '') }; });
     }).catch(function(err){ c.err = 'Claude could not check these: ' + (err && err.message || 'no answer') + '.'; })
-    .then(function(){ c.busy = false; var y = window.pageYOffset || 0; redraw(); keepScroll(y); });
+    .then(function(){ c.busy = false; (c.cbs || []).forEach(function(f){ try{ f(c); }catch(e){} }); c.cbs = []; var y = window.pageYOffset || 0; redraw(); keepScroll(y); });
   return c;
 }
 // The rows in Claude's order: the ones it backs first, the ones it says break the plan last.
@@ -745,7 +745,7 @@ function manaHtml(rows, landRows, ci, cb){
   if(mc.length) L.push('<b>Combos that make mana</b>: ' + mc.slice(0, 4).map(function(o){ return h(o.cards.join(' + ')) + ' (' + h(plain(o.result)) + ') ' + (o.id ? comboBtn(o.id) : ''); }).join('; ') + (mc.length > 4 ? '; and ' + (mc.length - 4) + ' more on the Synergy page' : '') + '.');
   var gap = cols.filter(function(k){ return needAll && Math.abs(need[k] / needAll - makes(k) / allSrc) >= 0.15; });
   if(cols.length > 1 && gap.length) L.push(gap.map(function(k){ return COLN[k] + ' is ' + pct(need[k] / needAll) + ' of what your spells ask for and ' + pct(makes(k) / allSrc) + ' of your sources make it.'; }).join(' '));
-  H += '<div class="pg-mnotes">' + L.map(function(s){ return '<p>' + s + '</p>'; }).join('') + '</div></section>';
+  H += '<div class="pg-mnotes">' + L.map(function(s){ return '<p>' + s + '</p>'; }).join('') + '</div>' + (MTCTX ? manaTuneHtml(MTCTX) : '') + '</section>';
   return H;
 }
 function uniqArr(a){ return a.filter(function(v, i){ return a.indexOf(v) === i; }); }
@@ -792,6 +792,77 @@ function benchRun(){
     }).catch(function(err){ BENCH.err = 'Claude could not grade the deck: ' + (err && err.message || 'no answer') + '.'; })
     .then(function(){ BENCH.busy = ''; var y = window.pageYOffset || 0; redraw(); keepScroll(y); });
 }
+/* Salt, Brewing Station's take on Commander Salt (engine E.salt). Worked out once per deck picture. */
+var SALTV = { key:'', v:null, p:null };
+function saltHtml(ctx){
+  var e = E(), key = e.key ? e.key() : '';
+  if(SALTV.key !== key && !SALTV.p){ SALTV.p = e.salt().then(function(v){ SALTV.key = key; SALTV.v = v; SALTV.p = null; var y = window.pageYOffset || 0; redraw(); keepScroll(y); }, function(){ SALTV.p = null; }); }
+  var v = SALTV.key === key ? SALTV.v : null;
+  var H = '<section class="bs-panel pg-salt"><div class="bs-panel-head"><h3 class="bs-panel-title">Salt</h3>' + (v && v.level ? '<div class="bs-score pg-right"><b>' + one(v.level) + '</b><span>/10</span></div>' : '') + '</div>' +
+    '<p class="bs-panel-note pg-mb">How the table will feel playing against it, rated the way Commander Salt does: the cards\' salt from EDHREC\'s player votes, how threatening it looks, its combos and its synergy. Commander Salt\'s own weights are not public, so the level is the average of the four.</p>';
+  if(!v) return H + loadingLine('Reading EDHREC\'s salt ratings') + '</section>';
+  if(v.note) return H + '<p class="pg-fine">' + h(v.note) + '</p></section>';
+  H += '<div class="pg-dscore-parts">' + v.parts.map(function(p){ return '<div class="pg-dscore-p"><div class="pg-dscore-top"><span class="bs-label">' + h(p.label) + '</span><b class="bs-num">' + one(p.score) + '</b></div>' + meter(p.score, p.label) + '<p class="pg-fine">' + h(p.line) + '</p></div>'; }).join('') + '</div>';
+  if(v.cards.length) H += '<p class="bs-label pg-alsohead">Saltiest cards in the deck</p><ul class="pg-salt-l">' + v.cards.slice(0, isAll('salt') ? v.cards.length : 10).map(function(c){ return '<li><span>' + link(c.n) + '</span><b class="bs-num">' + c.s.toFixed(2) + '</b></li>'; }).join('') + '</ul>' + showAll(ctx, 'salt', v.cards.length, 10);
+  return H + '<p class="bs-panel-note pg-mt">Card salt is 0 to 4: the average of players\' votes on EDHREC' + (v.at ? ', list of ' + h(dateStr(v.at)) : '') + '.</p></section>';
+}
+// Mana tune: worked out when its fold is opened (data-pg-fix draws the page again once).
+function manaTuneHtml(ctx){
+  var key = 'manatune', open = !!state().open[key];
+  var body = '';
+  if(open){
+    var e = E(), res = safe(function(){ return e.manaTune(); }, []), I = res.info || {};
+    body += '<p class="pg-fine">' + (I.lands != null ? I.lands + ' lands against a target of ' + I.want + '. ' : '') + (I.short && I.short.length ? 'Spells ask for more ' + I.short.map(function(k){ return COLN[k]; }).join(' and ') + ' than the lands make. ' : '') + (I.tapped && I.tapped.length ? I.tapped.length + ' land' + (I.tapped.length > 1 ? 's enter' : ' enters') + ' tapped.' : '') + '</p>';
+    if(!res.length) body += '<p class="pg-fine pg-gfix-none">' + h(res.note || 'Nothing to change.') + '</p>';
+    else {
+      var chk = claudeChecks(res, 'fix the mana base');
+      body += (chk && chk.err ? '<p class="pg-fine">' + h(chk.err) + '</p>' : '') + '<div class="pg-gfix">' + checkedOrder(res, chk).map(function(x){
+        var p = x.p, inn = p.inn;
+        return '<div class="pg-gfix-row' + (x.ok === false ? ' pg-gfix-no' : '') + '"><div class="pg-gfix-pair">' + link(p.out) + ' <span class="pg-gfix-arr" aria-hidden="true">&rarr;</span> ' + (inn.basic ? h(inn.n) : link(inn.n)) + '</div>' +
+          '<p class="pg-gfix-why">' + h(p.why) + '<br><span class="bs-pos">Deck score <b class="bs-num">' + e.scorePair(p.score.from, p.score.to) + '</b></span>' + checkLine(chk, x.i) + '</p>' +
+          '<button class="bs-btn bs-sm bs-primary" type="button"' + ctx.act(function(){ change(p.out, inn, 'Mana tune.', 'Swapped <b>' + h(p.out) + '</b> for <b>' + h(inn.n) + '</b>.'); }) + ' aria-label="Swap ' + h(p.out) + ' out for ' + h(inn.n) + '">' + ico('swap', 'bs-i16') + 'Swap</button></div>';
+      }).join('') + '</div>';
+    }
+  }
+  return '<details class="bs-more" data-pg-open="' + key + '" data-pg-fix' + (open ? ' open' : '') + '><summary>Mana tune: lands to swap</summary><div class="bs-more-body">' + body + '</div></details>';
+}
+// Trim to 100: three packages of cuts, each judged as a whole, opened from the Deck tab (window.openTrim).
+window.openTrim = function(){
+  var e = E(); if(!e || !e.trim) return;
+  var res = safe(function(){ return e.trim(); }, []);
+  var over = S.deck.length + (S.partner ? 2 : 1) - 100;
+  var h0 = bsSheet({ title:'Trim to 100', body:function(b){
+    b.innerHTML = '<div id="trimBody"></div>';
+    function draw(chk){
+      var b = document.getElementById('trimBody'); if(!b) return;
+      if(!res.length){ b.innerHTML = '<p class="sh-sub">' + h(res.note || 'Nothing to cut.') + '</p>'; return; }
+      b.innerHTML = '<p class="sh-sub">' + over + ' card' + (over > 1 ? 's' : '') + ' too many. Three ways to cut back to 100, each scored as a whole; the cards that leave go to your side deck.</p>' +
+        (chk && chk.busy ? '<p class="sh-sub">Claude is checking these against your deck…</p>' : chk && chk.err ? '<p class="sh-sub">' + h(chk.err) + '</p>' : '') +
+        '<div class="pg-trim">' + res.map(function(o, i){
+          var v = chk && chk.v && chk.v[i];
+          return '<section class="bs-panel pg-trim-o' + (v && v.ok === false ? ' pg-gfix-no' : '') + '"><div class="bs-panel-head"><h3 class="bs-panel-title">' + h(o.label) + '</h3><span class="bs-count pg-right">Deck score <b class="bs-num">' + e.scorePair(o.score.from, o.score.to) + '</b></span></div>' +
+            '<p class="pg-fine">' + h(o.why) + '</p>' + (v ? '<p class="' + (v.ok ? 'bs-pos' : 'bs-neg') + '">Claude: ' + h(v.why) + '</p>' : '') +
+            '<p>' + o.cuts.map(function(n){ return '<button class="pg-inline" type="button" data-pg-card="' + h(n) + '">' + h(n) + '</button>'; }).join(', ') + '</p>' +
+            '<div class="bs-acts"><button class="bs-btn bs-sm bs-primary" type="button" data-trim="' + i + '">' + ico('cut', 'bs-i16') + 'Make these ' + o.cuts.length + ' cuts</button></div></section>';
+        }).join('') + '</div>';
+    }
+    var fake = res.map(function(o){ return { out:o.cuts.join('; '), inn:{ n:'nothing (cut to 100)' } }; });
+    var chk = null, tries = 0;
+    draw(null);
+    // Whether Claude is signed in may not be known yet when the sheet opens: ask again for a few seconds.
+    var t = setInterval(function(){
+      if(!document.getElementById('trimBody') || chk || ++tries > 8){ clearInterval(t); return; }
+      chk = claudeChecks(fake, 'cut the deck back to 100; each line is a whole package of cuts, judge which packages keep the plan intact', function(c){ draw(c); });
+      if(chk){ clearInterval(t); draw(chk); }
+    }, 600);
+    b.onclick = function(ev){
+      var cb = ev.target.closest('[data-pg-card]'); if(cb){ openCard(cb.getAttribute('data-pg-card')); return; }
+      var tb = ev.target.closest('[data-trim]'); if(!tb) return;
+      var o = res[+tb.getAttribute('data-trim')]; h0.close();
+      changeAll(o.cuts.map(function(n){ return { out:n, inn:null }; }), 'Trim to 100: ' + o.label.toLowerCase() + '.');
+    };
+  }, actions:[{ label:'Close', kind:'quiet' }] });
+};
 function benchHtml(ctx){
   var e = E(), B = S.bench, busy = BENCH.busy === curId(), can = typeof window.askCanDirect === 'function' && window.askCanDirect();
   var pts = B ? B.items.reduce(function(s, x){ return s + (BENCH_PTS[x.g] || 0); }, 0) : 0;
@@ -810,7 +881,9 @@ function benchHtml(ctx){
     : '<p class="pg-fine">Grading runs in the Brewing Station app on your PC.</p>') + '</div></section>';
   return H;
 }
+var MTCTX = null;   // the Analysis page's ctx, for the Mana tune fold inside manaHtml
 function drawAnalysis(ctx, st){
+  MTCTX = ctx;
   var e = E(), el = ctx.el, b = bk(), br = BR(b);
   var cb = combosNow(ctx);
   var P = e.pillars();
@@ -832,6 +905,7 @@ function drawAnalysis(ctx, st){
   H += '<div class="pg-pillars">' + PILLARS.map(function(d){ return pillarCard(ctx, d, P && P[d[0]]); }).join('') + '</div>';
   if(ready) H += deckScoreHtml();
   if(ready) H += benchHtml(ctx);
+  if(ready) H += saltHtml(ctx);
 
   // ---- mana curve
   var curve = [0, 0, 0, 0, 0, 0, 0, 0], mvs = 0;

@@ -5567,7 +5567,8 @@ function drawDeckPage(){
       return g.items.length > 0;
     });
   }
-  var cnt = total === 100 ? '<span class="bs-count">100 cards</span>' : '<span class="bs-badge bs-warn">' + total + ' cards, ' + (total < 100 ? (100 - total) + ' short' : (total - 100) + ' too many') + '</span>';
+  var cnt = total === 100 ? '<span class="bs-count">100 cards</span>' : '<span class="bs-badge bs-warn">' + total + ' cards, ' + (total < 100 ? (100 - total) + ' short' : (total - 100) + ' too many') + '</span>' +
+    (total > 100 && typeof window.openTrim === 'function' ? '<button class="bs-btn bs-sm bs-primary" type="button" data-trimopen>' + ico('cut', 'bs-i16') + 'Trim to 100</button>' : '');
   var h = '<div class="bs-cols"><div class="bs-main">';
   if(S.importMissing && S.importMissing.length) h += '<div class="bs-callout bs-bad">' + ico('warn') + '<p><b>Scryfall did not know ' + S.importMissing.length + ' card' + (S.importMissing.length > 1 ? 's' : '') + ' from the list,</b> so they are left out: ' + esc(S.importMissing.join(', ')) + '. ' +
     (S.mox ? 'Check the spelling on Moxfield, then bring it in again.' : 'Import the list again with the names fixed.') + '</p></div>';
@@ -5617,7 +5618,7 @@ function drawDeckPage(){
     outGs.map(function(g){ return esc(g.t) + ' ' + cnt2(g); }).join(', ') + '</span></div>' + drawGroups(outGs) + '</section>';
   h += '</div><aside class="bs-side bs-sticky" id="deckSide"></aside></div>';
   main.innerHTML = h;
-  main.onclick = function(e){ if(fltClick(e)) return; onDeckClick(e); };
+  main.onclick = function(e){ if(fltClick(e)) return; if(e.target.closest && e.target.closest('[data-trimopen]')){ window.openTrim(); return; } onDeckClick(e); };
   main.oninput = fltInput;
   main.onkeydown = function(e){ if((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role=button][data-card]')){ e.preventDefault(); e.target.click(); } };
   catDrag(!touch, onBoard);

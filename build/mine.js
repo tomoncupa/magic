@@ -227,7 +227,9 @@ var DOCTRINE = [
 ].join('\n');
 window.PRO_DOCTRINE = DOCTRINE;
 var ASK = { busy:'', err:'', draft:'', paste:'', stage:'' };
-var KEEP = 3, ANSWER_CAP = 1200, NEW_SINCE = '2025-09-01';
+// Memory (Tom, 2026-10-21: "increase the memory of brewing station"): the last 10 questions and answers in full
+// (up to 4000 characters each), every older question of the conversation as one line, 100 kept per deck.
+var KEEP = 10, ANSWER_CAP = 4000, NEW_SINCE = '2025-09-01';
 
 function thread(){ S.ask = S.ask || { msgs:[] }; return S.ask.msgs; }
 function deckSheet(){
@@ -331,6 +333,8 @@ function edhLines(){
     .sort(function(a, b){ return edhOf(b).inc - edhOf(a).inc; }).slice(0, 30);
   if(miss.length) L.push('Most played cards for this commander that the deck does not run: ' + miss.map(function(c){ var e = edhOf(c); return c.n + ' ' + pc(e.inc) + (e.syn != null ? ', synergy ' + (e.syn >= 0 ? '+' : '') + pc(e.syn) : '') + (side[c.n.toLowerCase()] ? ', in his side deck' : '') + (typeof isGC === 'function' && isGC(c) ? ', Game Changer' : ''); }).join('; '));
   if((ASK.near || []).length) L.push('Combos one card away (Commander Spellbook): ' + ASK.near.join('; '));
+  var E = window.ENGINE;
+  if(E && E.saltOf){ var sl = []; S.deck.forEach(function(d){ var v = E.saltOf(d.n); if(v >= 1 && sl.indexOf(d.n + ' ' + v) < 0) sl.push(d.n + ' ' + v); }); if(sl.length) L.push('EDHREC salt (0 to 4, how unhappy the card makes opponents), cards at 1 or more: ' + sl.join('; ')); }
   return L;
 }
 // The 99 as names, one per copy, kept on each question so the next one can say what changed in between.
@@ -366,7 +370,8 @@ function askPrompt(q){
   var cl = catLines();
   if(cl.length) L.push('', '=== HIS OWN CATEGORIES (how he groups the deck; use his names when you talk about a group) ==='); cl.forEach(function(x){ L.push(x); });
   if((ASK.cmb || []).length) L.push('', '=== COMBOS IN THE DECK (Commander Spellbook) ===', ASK.cmb.join('\n'));
-  var t = thread().filter(function(m){ return m.a; }).slice(-KEEP);
+  var all = thread().filter(function(m){ return m.a; }), t = all.slice(-KEEP), older = all.slice(0, Math.max(0, all.length - KEEP));
+  if(older.length){ L.push('', '=== EARLIER QUESTIONS IN THIS CONVERSATION (' + older.length + ', questions only) ==='); older.forEach(function(m){ L.push('- ' + String(m.q).replace(/\s+/g, ' ').slice(0, 200)); }); }
   var last = t.length ? t[t.length - 1] : null;
   if(last && last.deck){
     var df = deckDiff(last.deck);
@@ -526,7 +531,7 @@ function drawAsk(el){
 }
 async function askSend(q){
   q = String(q || '').trim(); if(!q || ASK.busy) return;
-  var T = thread(); T.push({ q:q, a:'', at:Date.now(), deck:deckNames() }); if(T.length > 30) T.splice(0, T.length - 30);
+  var T = thread(); T.push({ q:q, a:'', at:Date.now(), deck:deckNames() }); if(T.length > 100) T.splice(0, T.length - 100);
   ASK.draft = ''; ASK.err = '';
   save({ quiet:true });
   if(!canDirect()){ comboLines(); render(); return; }   // the copy / paste box shows under the question
@@ -534,6 +539,7 @@ async function askSend(q){
   // The prompt leaves out the question being asked, so it is not counted twice.
   ASK.busy = mine; render();
   await comboLines();
+  try{ if(window.ENGINE && ENGINE.loadSalt) await ENGINE.loadSalt(); }catch(e){}
   if(CUR !== mine || S !== D){ ASK.busy = ''; askRedraw(); return; }
   T.pop(); var prompt = askPrompt(q); T.push(msg);
   try{

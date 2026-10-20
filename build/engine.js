@@ -2023,6 +2023,173 @@ E.raiseFix = function(pk){
     return withNote(chosen, chosen.length ? '' : 'Every swap found for this raises it but lowers the deck as a whole, so none is offered.');
   }catch(e){ return withNote([], 'Could not work out swaps: ' + e.message); }
 };
+/* ============ ENGINE.trim: three ways back to 100 (Tom, 2026-10-21: "I want 3 options for cuts, since cards
+   dont exist on their own") ============
+   Each option is a whole package of cuts, scored together on the whole deck. Never a commander, a must-include,
+   a card he marked Keep, a combo piece or an engine piece. The three differ on purpose: the best deck score,
+   keeping every job near its target (cut from the jobs with the most to spare), and a lower curve. */
+E.trim = function(){
+  try{
+    var X = ctx(); if(!X.ok) return withNote([], X.why);
+    var total = S.deck.length + (S.partner ? 2 : 1), n = total - 100;
+    if(n <= 0) return withNote([], 'The deck is not over 100.');
+    var prot = protectedNames(X), base = E.score(); if(!base) return withNote([], 'The deck score is not ready yet.');
+    var cand = X.rows.filter(function(r){ return !r.cmd && !r.must && !r.missing && !prot[lc(r.n)] && !prot[front(r.n)]; });
+    // One copy of each card (a basic can be cut once per option).
+    var seen = {}; cand = cand.filter(function(r){ if(seen[r.n]) return false; seen[r.n] = 1; return true; });
+    var one = cand.map(function(r){ var sc = E.scoreWith([{ out:r.n }]); return { r:r, n:r.n, v:sc ? sc.raw : 0, job:jobFor(r), mv:(r.c && r.c.mv) || 0, land:!!r.f.land }; })
+      .sort(function(a, b){ return b.v - a.v; });
+    var lands = X.rows.filter(function(r){ return r.f.land; }).reduce(function(t, r){ return t + (r.q || 1); }, 0), P = E.pillars(), lp = (((P.efficiency || {}).parts) || []).filter(function(p){ return p.key === 'lands'; })[0];
+    var landWant = lp && typeof lp.want === 'number' ? lp.want : 36;
+    // Cards each job has over its target, from the build plan (quotas) when there is one.
+    var Q = S.quotas || {}, jobN = {};
+    X.rows.forEach(function(r){ var j = jobFor(r); jobN[j] = (jobN[j] || 0) + (r.q || 1); });
+    var spare = function(j){ return (jobN[j] || 0) - (j === 'lands' ? landWant : Q[j] != null ? Q[j] : 0); };
+    function pick(order, limitLands){
+      var out = [], landsCut = 0;
+      for(var i = 0; i < order.length && out.length < n; i++){
+        var c = order[i];
+        if(c.land && limitLands && lands - landsCut - 1 < landWant) continue;
+        out.push(c); if(c.land) landsCut++;
+      }
+      return out;
+    }
+    var opts = [];
+    opts.push({ k:'score', label:'Best for the deck score', why:'The cuts the deck score misses least, taken together.', cuts:pick(one, true) });
+    var byJob = one.slice().sort(function(a, b){ return spare(b.job) - spare(a.job) || b.v - a.v; });
+    var jobOpt = [], used = {};
+    for(var g = 0; g < n; g++){
+      var c = byJob.filter(function(x){ return !used[x.n] && !(x.land && lands - jobOpt.filter(function(y){ return y.land; }).length - 1 < landWant); })
+        .sort(function(a, b){ return spare(b.job) - spare(a.job) || b.v - a.v; })[0];
+      if(!c) break; used[c.n] = 1; jobOpt.push(c); jobN[c.job]--;
+    }
+    opts.push({ k:'jobs', label:'Keep every job covered', why:'Cuts from the jobs that have the most cards over their target, so ramp, draw and answers stay at strength.', cuts:jobOpt });
+    var curve = one.slice(0, Math.max(n * 3, 12)).filter(function(x){ return !x.land; }).sort(function(a, b){ return b.mv - a.mv || b.v - a.v; });
+    opts.push({ k:'curve', label:'Lower the curve', why:'The most expensive of the cards the deck can spare, so it plays out faster.', cuts:curve.slice(0, n) });
+    var sig = {};
+    opts = opts.filter(function(o){ if(o.cuts.length < n) return false; var k2 = o.cuts.map(function(c){ return c.n; }).sort().join('|'); if(sig[k2]) return false; sig[k2] = 1; return true; });
+    opts.forEach(function(o){
+      var sc = E.scoreWith(o.cuts.map(function(c){ return { out:c.n }; }));
+      o.score = { from:base.raw, to:sc ? sc.raw : base.raw };
+      o.cuts = o.cuts.map(function(c){ return c.n; });
+    });
+    return withNote(opts, opts.length ? '' : 'There are not enough cards that can go: the rest are commanders, must-includes, kept cards or combo and engine pieces.');
+  }catch(e){ return withNote([], 'Could not work out the cuts: ' + e.message); }
+};
+
+/* ============ ENGINE.manaTune: the mana base, land by land (Tom said yes 2026-10-21, borrowed from DeckCheck) ============
+   Land count against the target, colours the spells ask for against what the lands make, and lands that enter
+   tapped. Swaps: a land in for the weakest spell when short of lands, a spell in for the weakest land when over,
+   and land for land to fix colours or speed. Each scored alone on the whole deck; none that lowers it. */
+E.manaTune = function(){
+  try{
+    var X = ctx(); if(!X.ok) return withNote([], X.why);
+    var P = E.pillars(), lp = (((P.efficiency || {}).parts) || []).filter(function(p){ return p.key === 'lands'; })[0];
+    var lands = X.rows.filter(function(r){ return r.f.land; }), landN = lands.reduce(function(t, r){ return t + (r.q || 1); }, 0), want = lp && typeof lp.want === 'number' ? lp.want : 36, delta = want - landN;
+    var ci = S.ci || [], need = {}, make = {}, nNeed = 0;
+    ci.forEach(function(k){ need[k] = 0; make[k] = 0; });
+    X.rows.forEach(function(r){ if(r.f.land || !r.c) return; (String(r.c.cost || '').match(/\{([WUBRG])\}/g) || []).forEach(function(m){ var k = m[1]; if(need[k] != null){ need[k] += r.q || 1; nNeed += r.q || 1; } }); });
+    var nMake = 0; lands.forEach(function(r){ (r.c.prod || []).forEach(function(k){ if(make[k] != null){ make[k] += r.q || 1; nMake += r.q || 1; } }); });
+    var share = function(m, k, t){ return t ? m[k] / t : 0; };
+    var short = ci.filter(function(k){ return share(need, k, nNeed) - share(make, k, nMake) >= 0.08; });
+    var over = ci.filter(function(k){ return share(make, k, nMake) - share(need, k, nNeed) >= 0.08; });
+    var tapped = function(c){ var o = tx(c); return /enters(?: the battlefield)? tapped/.test(o) && !/unless|if you control|you may pay/.test(o); };
+    var prot = protectedNames(X), cset = comboNameSet(), TN = tasteNo();
+    var val = function(c, inside){ return valueOf(c, X, inside, cset).v; };
+    // Never past the Game Changer limit (Serra's Sanctum came up on a deck at 3 of 3, 2026-10-21).
+    var gcRoom = Math.max(0, gcLim() - X.gcs.length), pool = candidatePool(X).filter(function(c){ return gcRoom > 0 || !isGc(c); });
+    var landIn = pool.filter(function(c){ return isLand(c) && !isBasicN(c.n); }).map(function(c){
+      var prod = c.prod || [], fix = short.filter(function(k){ return prod.indexOf(k) >= 0; }).length;
+      return { c:c, v:val(c, false) + fix * 0.15 + (tapped(c) ? -0.1 : 0.05) - (TN[lc(c.n)] ? 0.15 : 0), fix:fix, tap:tapped(c) };
+    }).filter(function(a){ return (a.c.prod || []).some(function(k){ return ci.indexOf(k) >= 0; }); }).sort(function(a, b){ return b.v - a.v; });
+    short.forEach(function(k){ var bn = BASICS[k]; if(bn) landIn.push({ c:{ n:bn, type:'Basic Land — ' + bn, o:'', cost:'', mv:0, ci:[], prod:[k], legal:'legal', kw:[], basic:true, stats:{} }, v:-1, fix:1, tap:false }); });
+    var landOut = lands.filter(function(r){ return !r.cmd && !r.must && !prot[lc(r.n)] && !prot[front(r.n)]; }).map(function(r){
+      // A land that makes only colourless mana is a utility land picked on purpose (Darksteel Citadel, Reliquary Tower): never 'only colours you have plenty of'.
+      var prod = r.c.prod || [], col = prod.filter(function(k){ return ci.indexOf(k) >= 0; }), onlyOver = col.length > 0 && col.every(function(k){ return over.indexOf(k) >= 0; });
+      return { r:r, v:val(r.c, true) - (tapped(r.c) ? 0.2 : 0) - (onlyOver ? 0.15 : 0) - (!prod.length ? 0.05 : 0), tap:tapped(r.c), onlyOver:onlyOver };
+    }).sort(function(a, b){ return a.v - b.v; });
+    // A land comes in for a spell that does no main job, never for removal, ramp, a tutor or a finisher (Reanimate and
+    // Deadly Rollick came up on Myrkul).
+    var mainJob = function(r){ return ['ramp', 'removal', 'wipes', 'protection', 'tutor', 'wincon', 'draw'].some(function(j){ return r.jobs[j] || jobFor(r) === j; }); };
+    var spellOut = X.rows.filter(function(r){ return !r.f.land && !r.cmd && !r.must && !r.basic && !r.missing && !prot[lc(r.n)] && !prot[front(r.n)] && !mainJob(r); })
+      .sort(function(a, b){ var w = function(r){ return val(r.c, true) - ((r.c.mv || 0) >= 6 ? 0.15 : 0); }; return w(a) - w(b); });   // a land in: expensive spells go first
+    var spellIn = pool.filter(function(c){ return !isLand(c); }).sort(function(a, b){ return val(b, false) - val(a, false); });
+    var pairs = [], usedO = {}, usedI = {};
+    function add(out, inn, why){ if(!out || !inn || usedO[out] || usedI[inn.n]) return; usedO[out] = 1; usedI[inn.n] = 1; pairs.push({ out:out, inn:inn, why:why }); }
+    if(delta > 0) for(var i = 0; i < Math.min(delta, 3); i++){ var L = landIn.filter(function(a){ return !usedI[a.c.n]; })[0], so = spellOut.filter(function(r){ return !usedO[r.n]; })[0];
+      if(L && so) add(so.n, L.c, 'A land in: ' + landN + ' lands against a target of ' + want + '. ' + so.n + ' is the spell the deck leans on least.'); }
+    if(delta < 0) for(var j = 0; j < Math.min(-delta, 3); j++){ var lo = landOut.filter(function(a){ return !usedO[a.r.n]; })[0], si = spellIn.filter(function(c){ return !usedI[c.n]; })[0];
+      if(lo && si) add(lo.r.n, si, 'A spell in: ' + landN + ' lands against a target of ' + want + '. ' + lo.r.n + ' is the land doing least' + (lo.tap ? ' and enters tapped' : '') + '.'); }
+    landOut.filter(function(a){ return a.tap || a.onlyOver; }).slice(0, 4).forEach(function(a){
+      var L2 = landIn.filter(function(x){ return !usedI[x.c.n] && !x.tap && (short.length ? x.fix > 0 : true); })[0];
+      if(L2) add(a.r.n, L2.c, (a.tap ? a.r.n + ' enters tapped' : a.r.n + ' makes only colours you have plenty of') + (L2.fix ? '; ' + L2.c.n + ' makes ' + short.map(function(k){ return COLW[k] || k; }).join(' and ') + ', which the spells ask for more than the lands make.' : '; ' + L2.c.n + ' enters untapped.'));
+    });
+    var base = E.score(), keep = [];
+    pairs.forEach(function(p){ var sc = E.scoreWith([{ out:p.out, inn:p.inn }]); if(!sc || !base) return; if(sc.raw < base.raw - 0.005) return; p.score = { from:base.raw, to:sc.raw }; keep.push(p); });
+    var res = withNote(keep.slice(0, 6), keep.length ? '' : 'The mana base holds up: no land swap found makes the deck better.');
+    res.info = { lands:landN, want:want, short:short, over:over, tapped:landOut.filter(function(a){ return a.tap; }).map(function(a){ return a.r.n; }) };
+    return res;
+  }catch(e){ return withNote([], 'Could not tune the mana: ' + e.message); }
+};
+var COLW = { W:'white', U:'blue', B:'black', R:'red', G:'green' };
+
+/* ============ ENGINE.salt: Brewing Station's take on Commander Salt (Tom, 2026-10-21: "copy commander salt") ============
+   Commander Salt rates a deck on Saltiness (EDHREC's per-card salt, players' 0 to 4 votes on how unhappy a card
+   makes them), Threats (how dangerous it looks to the table), Combo (how much it takes to assemble its combos) and
+   Synergy, then a level 1 to 10. Their weights are not public, so each part here is out of 10 and the level is the
+   average. Salt per card comes from build/salt.json, slimmed nightly from EDHREC's list. */
+var SALT = { data:null, p:null };
+E.loadSalt = function(){
+  if(SALT.data) return Promise.resolve(SALT.data);
+  if(!SALT.p) SALT.p = fetch('salt.json').then(function(r){ return r.ok ? r.json() : null; }).then(function(j){ SALT.data = (j && j.s) || {}; SALT.at = j && j.at; return SALT.data; }, function(){ SALT.p = null; return {}; });
+  return SALT.p;
+};
+function saltOf(n){ var d = SALT.data || {}; return d[n] != null ? d[n] : d[String(n).split(' // ')[0]] != null ? d[String(n).split(' // ')[0]] : 0; }
+E.saltOf = function(n){ return saltOf(n); };
+function saltScore(cards){ if(!cards.length) return 0; var tot = cards.reduce(function(t, c){ return t + c.s; }, 0), avg = tot / cards.length, top = cards.slice(0, 10).reduce(function(t, c){ return t + c.s; }, 0);
+  return clamp((avg - 0.2) / 0.08, 0, 10) / 2 + clamp(top / 2.5, 0, 10) / 2; }
+var THREAT = [
+  ['stax', 'locks the table', /(?:players|opponents|each opponent|your opponents|each player) can't|can't (?:cast|untap|search)|costs? \{\d+\} more|don't untap|doesn't untap|skips? (?:their|his or her) (?:untap|draw)|spells? (?:your opponents|opponents|players) cast cost/],
+  ['counter', 'counters spells', /\bcounter target\b/],
+  ['draw', 'draws every turn', null],
+  ['lands', 'pulls several lands', /search your library for (?:up to )?(?:two|three|x|any number of)[^.]*lands?|you may play (?:an )?additional lands?/],
+  ['turns', 'takes extra turns', /take an extra turn/],
+  ['mld', 'destroys lands', /destroy all lands|each player sacrifices [^.]*lands|destroy each land/]
+];
+E.salt = async function(){
+  try{
+    var X = ctx(); if(!X.ok) return { note:X.why };
+    await E.loadSalt();
+    var rows = X.rows.filter(function(r){ return !r.missing; }), cards = [], total = 0, seen = {};
+    rows.forEach(function(r){ if(seen[r.n]) return; seen[r.n] = 1; var v = saltOf(r.n); if(v){ cards.push({ n:r.n, s:v, cmd:!!r.cmd }); total += v; } });
+    cards.sort(function(a, b){ return b.s - a.s; });
+    var th = {}, thN = 0;
+    rows.forEach(function(r){
+      if(r.basic) return;
+      var o = tx(r.c), t = r.c.type || '', perm = !/\b(?:Instant|Sorcery)\b/.test(t);
+      THREAT.forEach(function(k){
+        var hit = k[0] === 'draw' ? perm && /\bdraws? (?:a|an|one|two|three|x|that many|\w+) cards?\b|\bdraw cards? equal/.test(o) && /\bwhenever\b|\bat the beginning of\b|\{t\}[^.]*:/.test(o) : k[0] === 'mld' ? (feats(r.c).mld || k[2].test(o)) : k[2].test(o);
+        if(hit){ (th[k[0]] = th[k[0]] || []).push(r.n); thN++; }
+      });
+    });
+    var cb = await E.combos(), list = (cb && cb.inDeck) || [];
+    var wins = list.filter(function(o){ return o.inf || /win the game|infinite|each opponent loses/i.test(o.result || ''); });
+    var best = wins.reduce(function(m, o){ return Math.min(m, o.mv || 99); }, 99);
+    var combo = wins.length ? Math.min(10, Math.max(1, 12 - best) + Math.min(2, (wins.length - 1) * 0.5)) : 0;
+    var sc = E.score(), syn = sc ? (sc.parts.filter(function(p){ return p.label === 'Synergy'; })[0] || {}).score || 0 : 0;
+    var parts = [
+      // Half the average salt of the rated cards, half the ten saltiest: a sum alone put every deck of his at 10
+      // (totals 37 to 60, 2026-10-21). Average 0.2 is 0 and 1.0 is 10; the top ten at 25 is 10.
+      { k:'salt', label:'Saltiness', score:saltScore(cards), line:'Rated cards average ' + (cards.length ? (total / cards.length).toFixed(2) : '0') + ' salt (0 to 4); the ten saltiest add up to ' + r1(cards.slice(0, 10).reduce(function(t, c){ return t + c.s; }, 0)) + '; ' + r1(total) + ' in all across ' + cards.length + ' cards.' },
+      { k:'threat', label:'Threats', score:Math.min(10, thN * 0.4), line:thN + ' threat signals: ' + THREAT.filter(function(k){ return th[k[0]]; }).map(function(k){ return th[k[0]].length + ' ' + k[1]; }).join(', ') + '.' },
+      { k:'combo', label:'Combo', score:combo, line:wins.length ? wins.length + ' winning or infinite combo' + (wins.length > 1 ? 's' : '') + ' in the deck; the cheapest needs ' + best + ' mana in all.' : 'No winning or infinite combo in the deck.' },
+      { k:'syn', label:'Synergy', score:syn, line:'The deck score\'s synergy part.' }
+    ];
+    parts.forEach(function(p){ p.score = r1(p.score); });
+    var level = Math.max(1, r1(parts.reduce(function(s2, p){ return s2 + p.score; }, 0) / parts.length));
+    return { level:level, parts:parts, total:r1(total), cards:cards, threats:th, at:SALT.at || '' };
+  }catch(e){ return { note:'Could not work out the salt: ' + e.message }; }
+};
 // The old name, for pages that still ask for traps.
 E.traps = E.guides;
 

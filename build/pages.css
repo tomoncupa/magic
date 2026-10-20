@@ -373,3 +373,6 @@
 .pg-gB{color:var(--ink)}
 .pg-gC{color:var(--warn)}
 .pg-gD,.pg-gF{color:var(--danger)}
+.pg-salt-l{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:2px var(--s5)}
+.pg-salt-l li{display:flex;align-items:center;justify-content:space-between;gap:var(--s3);min-height:var(--tap);border-bottom:1px solid var(--line)}
+.pg-trim{display:grid;gap:var(--s4)}
