@@ -5564,12 +5564,14 @@ function drawDeckPage(){
     if(cnt2(g) || !isCat) return '';
     return '<p class="bs-catdrop">' + (g.none ? 'Every card has a category.' + (touch ? '' : ' Drop a card here to take it out of its category.') : touch ? 'Tap a card and pick ' + esc(g.t) + '.' : 'Drag cards here, or tap a card and pick ' + esc(g.t) + '.') + '</p>';
   }
+  // In My categories a box of more than 15 cards scrolls inside itself (Tom, 2026-10-20: "let anything longer than 15 be a scroll").
+  function rows(g){ var h = g.items.map(crowHtml).join(''); return isCat && g.items.length > 15 ? '<div class="bs-boxscroll">' + h + '</div>' : h; }
   function drawGroups(gs, board){
     if(!gs.length) return '';
     if(board) return '<div class="bs-board" data-bview="' + esc(lv.g) + '" style="--cw:' + BOARD.cw + 'px">' + gs.map(function(g){
-      return '<div class="bs-clist" data-box="' + esc(boxKey(g)) + '"' + zone(g) + '>' + head(g, true) + g.items.map(crowHtml).join('') + empty(g) + '</div>'; }).join('') + '</div>';
+      return '<div class="bs-clist" data-box="' + esc(boxKey(g)) + '"' + zone(g) + '>' + head(g, true) + rows(g) + empty(g) + '</div>'; }).join('') + '</div>';
     if(lv.p) return '<div class="sh-pics">' + gs.map(function(g){ return '<section' + zone(g) + '>' + head(g) + '<div class="bs-cgrid" style="--card-min:140px">' + g.items.map(ctileHtml).join('') + '</div>' + empty(g) + '</section>'; }).join('') + '</div>';
-    return '<div class="bs-flow" style="--cw:300px">' + gs.map(function(g){ return '<div class="bs-clist"' + zone(g) + '>' + head(g) + g.items.map(crowHtml).join('') + empty(g) + '</div>'; }).join('') + '</div>';
+    return '<div class="bs-flow" style="--cw:300px">' + gs.map(function(g){ return '<div class="bs-clist"' + zone(g) + '>' + head(g) + rows(g) + empty(g) + '</div>'; }).join('') + '</div>';
   }
   var inGs = groups.filter(function(g){ return !g.board; }), outGs = groups.filter(function(g){ return g.board; });
   h += drawGroups(inGs, onBoard) + '</section>';

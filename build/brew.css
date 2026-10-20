@@ -930,3 +930,4 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{border-color:var
 .bs-flt-panel{display:flex;flex-direction:column;gap:var(--s3);padding:var(--s4);border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg2)}
 .bs-flt-row{display:flex;flex-direction:column;gap:var(--s1)}
 .bs-flt-n{margin:0 0 var(--s3)}
+.bs-boxscroll{display:flex;flex-direction:column;max-height:calc(15 * var(--tap, 44px));overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
