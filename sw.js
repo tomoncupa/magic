@@ -1,7 +1,7 @@
 // Offline support. The app shell is cached up front; card pictures are cached
 // as they are seen. A shop with no wifi can still deal a game, though the two
 // devices will not sync until there is a connection again.
-const SHELL = 'ktm-shell-v25';
+const SHELL = 'ktm-shell-v26';
 const CARDS = 'ktm-cards-v2';
 // Libraries from the CDN, such as the Sealed helper's card-name reader. Their
 // addresses carry a version, so a cached copy never goes stale.
@@ -26,6 +26,8 @@ self.addEventListener('fetch', e => {
 
   // Sync must never be served from a cache.
   if (url.hostname.endsWith('firebasedatabase.app')) return;
+  // Nor Brewing Station's PC server (its decks, Claude, Moxfield reads).
+  if (url.origin === self.location.origin && url.pathname.indexOf('/api/') >= 0) return;
 
   // Card pictures never change once published, so cache them for good.
   // An image from another domain comes back "opaque" with status 0, so res.ok
@@ -37,10 +39,14 @@ self.addEventListener('fetch', e => {
       caches.open(CARDS).then(c =>
         c.match(e.request).then(hit => {
           if (hit && !(e.request.mode === 'cors' && hit.type === 'opaque')) return hit;
-          return fetch(e.request).then(res => {
-            try { c.put(e.request, res.clone()); } catch (err) { /* over quota */ }
-            return res;
-          });
+          // Scryfall sends Access-Control-Allow-Origin: *, so a picture is fetched as a plain copy: an opaque one
+          // counts as several megabytes against the storage quota, and Brewing Station keeps hundreds.
+          return fetch(e.request.url, { mode: 'cors', credentials: 'omit' })
+            .catch(() => fetch(e.request))
+            .then(res => {
+              try { c.put(e.request.url, res.clone()); } catch (err) { /* over quota */ }
+              return res;
+            });
         })
       )
     );

@@ -417,10 +417,10 @@ function idb(){
   return IDB.p;
 }
 function fresh1(e){ return !!e && Date.now() - e.t < DAY; }
-// Kept 90 days (Tom, 2026-10-18: "save data, so it doesnt have to pull from scryfall everytime").
-// Cards, EDHREC pages and searches older than a day are still used at once (cacheEntry), and
-// fetched again quietly once the deck is open (refreshLater), so prices and bans stay current.
-var KEEP = 90 * DAY;
+// Kept for good (Tom, 2026-10-18: "save data, so it doesnt have to pull from scryfall everytime"; 2026-10-21:
+// "just save it forever"). Cards, EDHREC pages and searches older than a day are still used at once
+// (cacheEntry), and fetched again quietly once the deck is open (refreshLater), so prices and bans stay current.
+var KEEP = Infinity;
 function keep1(e){ return !!e && Date.now() - e.t < KEEP; }
 // Every read asked for in the same moment goes to IndexedDB as one transaction.
 function getEntry(k){
@@ -1330,10 +1330,11 @@ async function loadPool(onStep){
   (bd.side || []).concat(bd.maybe || []).forEach(function(x){ var k = x.n.toLowerCase(); if(!isBasicName(x.n) && !m[k]) m[k] = { n:x.n, stats:{} }; });
   // His Moxfield printing beats the one EDHREC names, for every card he has one for. A deck his public list
   // doesn't show (unlisted, like Myrkul) has no feed copy, so on the PC its printings are read live once.
-  if(!s.prints && s.mox && LOCAL && !feedDeck(s.mox.id)){
+  // An unlisted deck is read live, at most every 10 minutes, so a new printing picked there shows on the next open.
+  if(s.mox && LOCAL && !feedDeck(s.mox.id) && (!s.prints || !s.printsRead || Date.now() - s.printsRead > 600000)){
     try{
       var pj = await (await fetch('/api/moxfield/deck?id=' + encodeURIComponent(s.mox.id), { cache:'no-store' })).json();
-      if(pj && Array.isArray(pj.main)){ s.prints = printsOf(pj); if(s === S) save(); }
+      if(pj && Array.isArray(pj.main)){ s.prints = printsOf(pj); s.printsAt = pj.updated || ''; s.printsRead = Date.now(); if(s === S) save({ quiet:true }); }
     }catch(e){}   // Moxfield or the desktop server not answering: EDHREC's art this time, asked again next open
     alive();
   }
@@ -3501,8 +3502,10 @@ function printsOf(X){
   });
   return p;
 }
+// His printings follow Moxfield (Tom, 2026-10-21: "how does the import printings from moxfield work"): when the
+// Moxfield deck was saved since they were last read, they are read again. The list here is not touched.
 function deckPrints(s){
-  if(!s.prints && s.mox){ var fd = feedDeck(s.mox.id); if(fd) s.prints = printsOf(fd); }
+  if(s.mox){ var fd = feedDeck(s.mox.id); if(fd && (!s.prints || (fd.updated && fd.updated !== s.printsAt))){ s.prints = printsOf(fd); s.printsAt = fd.updated || ''; } }
   return s.prints || {};
 }
 function feedDeck(id){ return FEED.data && FEED.data.decks.filter(function(d){ return d.id === id; })[0] || null; }
@@ -6977,5 +6980,13 @@ if(document.readyState === 'loading') document.addEventListener('DOMContentLoade
 <script src="engine.js"></script>
 <script src="pages.js"></script>
 <script src="mine.js"></script>
+<script>
+// Card pictures kept for good (Tom, 2026-10-21: "Im tired of importing scryfall images, just save it forever"):
+// the Magic site's service worker (../sw.js) keeps every cards.scryfall.io picture once seen. Brewing Station
+// opens straight to this page (the PC app never visits the home page), so it registers it here too, and asks
+// the browser not to clear the store when space runs low.
+if('serviceWorker' in navigator) navigator.serviceWorker.register('../sw.js').catch(function(){});
+try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}
+</script>
 </body>
 </html>
