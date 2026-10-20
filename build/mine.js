@@ -255,6 +255,30 @@ async function comboLines(){
   }catch(e){ ASK.cmb = ASK.cmb || []; }
   return ASK.cmb;
 }
+// His own categories (Tom, 2026-10-20: "Let brewing station see my personal categories"): each with its
+// cards, then the ones that also count there.
+function catLines(){
+  if(typeof cats !== 'function' || !cats().list.length) return [];
+  var home = {}, also = {}, none = [];
+  S.deck.forEach(function(d){
+    if(d.basic) return;
+    var h = catOf(d.n); if(h) (home[h] = home[h] || []).push(d.n); else if(none.indexOf(d.n) < 0) none.push(d.n);
+    catAlso(d.n).forEach(function(t){ (also[t] = also[t] || []).push(d.n); });
+  });
+  var L = cats().list.map(function(t){
+    return t + ': ' + ((home[t] || []).join('; ') || 'nothing yet') + ((also[t] || []).length ? '. Also counts here: ' + also[t].join('; ') : '');
+  });
+  if(none.length) L.push('No category yet: ' + none.join('; '));
+  return L;
+}
+// The 99 as names, one per copy, kept on each question so the next one can say what changed in between.
+function deckNames(){ return S.deck.map(function(d){ return d.n; }).sort(); }
+function deckDiff(was){
+  var c = {}; was.forEach(function(n){ c[n] = (c[n] || 0) - 1; }); deckNames().forEach(function(n){ c[n] = (c[n] || 0) + 1; });
+  var ins = [], outs = [];
+  Object.keys(c).forEach(function(n){ for(var i = 0; i < Math.abs(c[n]); i++) (c[n] > 0 ? ins : outs).push(n); });
+  return { ins:ins, outs:outs };
+}
 function askPrompt(q){
   var L = [];
   L.push('You are a Magic: The Gathering Commander deckbuilding expert. Tom is asking about one of his decks in his deck app, Brewing Station.');
@@ -264,9 +288,19 @@ function askPrompt(q){
   L.push('SWAP: <card in the deck> -> <card to put in>', 'CUT: <card in the deck>', 'ADD: <card>');
   L.push('A card going in must be legal in Commander and inside the colour identity. Prefer cards from his side deck when they do the job, since he owns them.');
   L.push('When you mention a combo, detail it: the pieces, what must be in play first, each step as a numbered list, and what it gets you. For a combo listed below, follow its Commander Spellbook steps.');
+  L.push('Tom changes the deck between questions. THE DECK below is the deck as it is right now; earlier answers were about the deck as it was then. Never apologise for or correct an earlier answer because the deck changed, and never say a card count was wrong. When a change matters to the question, say it in one plain line ("Since then you added X").');
   L.push('', '=== THE DECK ===', deckSheet());
+  var cl = catLines();
+  if(cl.length) L.push('', '=== HIS OWN CATEGORIES (how he groups the deck; use his names when you talk about a group) ==='); cl.forEach(function(x){ L.push(x); });
   if((ASK.cmb || []).length) L.push('', '=== COMBOS IN THE DECK (Commander Spellbook) ===', ASK.cmb.join('\n'));
   var t = thread().filter(function(m){ return m.a; }).slice(-KEEP);
+  var last = t.length ? t[t.length - 1] : null;
+  if(last && last.deck){
+    var df = deckDiff(last.deck);
+    L.push('', '=== CHANGED SINCE YOUR LAST ANSWER ===', df.ins.length || df.outs.length
+      ? (df.ins.length ? 'In: ' + df.ins.join('; ') + '. ' : '') + (df.outs.length ? 'Out: ' + df.outs.join('; ') + '.' : '')
+      : 'Nothing in the 99.');
+  }
   if(t.length){
     L.push('', '=== EARLIER IN THIS CONVERSATION (last ' + t.length + ') ===');
     t.forEach(function(m){ L.push('Tom: ' + m.q, 'You: ' + (m.a.length > ANSWER_CAP ? m.a.slice(0, ANSWER_CAP) + ' [...]' : m.a), ''); });
@@ -380,7 +414,7 @@ function drawAsk(el){
 }
 async function askSend(q){
   q = String(q || '').trim(); if(!q || ASK.busy) return;
-  var T = thread(); T.push({ q:q, a:'', at:Date.now() }); if(T.length > 30) T.splice(0, T.length - 30);
+  var T = thread(); T.push({ q:q, a:'', at:Date.now(), deck:deckNames() }); if(T.length > 30) T.splice(0, T.length - 30);
   ASK.draft = ''; ASK.err = '';
   save({ quiet:true });
   if(!canDirect()){ comboLines(); render(); return; }   // the copy / paste box shows under the question
