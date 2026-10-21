@@ -1503,7 +1503,21 @@ function swapWhy(t){
     .replace(/Works with (\d+) of your cards, against (\d+)\./g, 'Works with $1 of your cards (the card it replaces: $2).');
   return s || o;
 }
-function gainWord(g){ return g >= 0.6 ? 'Big upgrade' : g >= 0.3 ? 'Clear upgrade' : 'Small upgrade'; }
+// The badge reads the deck score's change (ENGINE.scoreDelta): about 0.03 is the smallest that counts.
+function gainWord(p){ var d = p.sd ? p.sd.d : 0; return p.pw && d < 0.03 ? 'More power' : d >= 0.1 ? 'Big upgrade' : d >= 0.05 ? 'Clear upgrade' : 'Small upgrade'; }
+// Upgrades and downgrades judge every swap against the whole deck, which takes a moment: the page
+// shows a loading line, works the list out just after, and draws again.
+var SWQ = {};
+function swapsNow(ctx, kind, opts, wait){
+  var e = E(), got = e.swapsReady(kind, opts);
+  if(got) return got;
+  var k = kind + (opts.bracket || '');
+  if(!SWQ[k]){
+    SWQ[k] = 1;
+    setTimeout(function(){ safe(function(){ return kind === 'up' ? e.upgrades(opts) : e.downgrades(opts); }, []); delete SWQ[k]; again(ctx); }, wait || 60);
+  }
+  return null;
+}
 function swapPic(c, n, out){
   remember(c);
   var img = c && (c.img || c.sm);
@@ -1513,7 +1527,7 @@ function swapPic(c, n, out){
 }
 function swapCard(ctx, p, kind, target){
   var oc = p.outCard || cardFor(p.out), ic = p.inn;
-  var badge = kind === 'up' ? '<span class="bs-badge bs-gold">' + gainWord(p.gain) + '</span>'
+  var badge = kind === 'up' ? '<span class="bs-badge bs-gold">' + gainWord(p) + '</span>'
     : (p.pri > 0 ? '<span class="bs-badge bs-warn">Needed for bracket ' + target + '</span>' : '<span class="bs-badge">Weaker card</span>');
   var why = (kind === 'up' ? 'Upgrade' : 'Power down to bracket ' + target) + ': ' + p.why;
   return '<article class="bs-swap">' +
@@ -1549,14 +1563,15 @@ function drawIdeas(ctx, st){
   combosNow(ctx);
   if(!(s.up >= cur && s.up <= Math.min(5, cur + 1))) s.up = cur;
   if(!(s.down >= 1 && s.down < cur)) s.down = Math.max(1, cur - 1);
-  var ups = safe(function(){ return e.upgrades({ bracket:s.up }); }, []);
-  var downs = cur > 1 ? safe(function(){ return e.downgrades({ bracket:s.down }); }, []) : [];
+  // The list on show is worked out first, the other tab's just after.
+  var ups = swapsNow(ctx, 'up', { bracket:s.up }, s.tab === 'up' ? 60 : 400);
+  var downs = cur > 1 ? swapsNow(ctx, 'down', { bracket:s.down }, s.tab === 'down' ? 60 : 400) : [];
   var intr = interestingNow(ctx), set = deckSet();
   var ilist = intr ? intr.list.filter(function(x){ return !isIn(set, x.n); }) : null;
   rateThen(ctx);
 
-  var H = head('Upgrades and downgrades', 'Each pair takes a card out and puts one in that does the same job. Open any card to see it; every swap can be undone.');
-  var tabs = [['up', 'Upgrades', ups.length], ['down', 'Downgrades', cur > 1 ? downs.length : 0], ['int', 'Interesting<span class="bs-nosm"> cards</span>', ilist ? ilist.length : null]];
+  var H = head('Upgrades and downgrades', 'Each pair swaps a card for one that does the same job, best for the deck score first. Every swap can be undone.');
+  var tabs = [['up', 'Upgrades', ups ? ups.length : null], ['down', 'Downgrades', cur > 1 ? (downs ? downs.length : null) : 0], ['int', 'Interesting<span class="bs-nosm"> cards</span>', ilist ? ilist.length : null]];
   H += '<div class="pg-tabsrow"><div class="bs-seg bs-block pg-seg3" role="group" aria-label="Show">' + tabs.map(function(t){
     var on = s.tab === t[0];
     return '<button class="' + (on ? 'on' : '') + '" type="button" aria-pressed="' + on + '"' + ctx.act(function(){ if(s.tab !== t[0]){ s.tab = t[0]; redraw(); } }) + '><span>' + t[1] + '</span>' +
@@ -1569,9 +1584,10 @@ function drawIdeas(ctx, st){
           [cur, cur + 1].map(function(v){ var on = s.up === v; return '<button class="' + (on ? 'on' : '') + '" type="button" aria-pressed="' + on + '"' + ctx.act(function(){ if(s.up !== v){ s.up = v; redraw(); } }) + '>' + (v === cur ? 'Stay at ' + v : 'Push to ' + v) + '</button>'; }).join('') +
         '</div></div><p class="pg-legend pg-ctl-grow">' + (s.up > cur ? 'Pushing to bracket ' + s.up + ' (' + h(BR(s.up).name) + ') also allows ' + (BR(s.up).gc === Infinity ? 'any number of Game Changers' : BR(s.up).gc + ' Game Changers') + ', fast mana and tutors that find anything.' : 'Better cards for the same jobs, within bracket ' + cur + ' rules.') + '</p>'
       : '<p class="pg-legend">Bracket 5 is the top bracket: these are the strongest swaps for the same jobs.</p>') + '</div>';
-    if(ups.note) H += callout('info', h(ups.note));
+    if(!ups) H += loadingLine('Trying each swap on the whole deck');
+    else if(ups.note) H += callout('info', h(ups.note));
     // Pushing up: Game Changer swaps only go through once the deck itself is set to the higher bracket.
-    if(s.up > cur){
+    if(ups && s.up > cur){
       var gcIn = ups.filter(function(p){ return gcC(p.inn) && !gcC(p.outCard || cardFor(p.out)); }).length;
       var gcNow = (S.deck || []).filter(function(d){ return d.gc; }).length;
       var lim = safe(function(){ return typeof gcLimit === 'function' ? gcLimit() : BR(cur).gc; }, BR(cur).gc);
@@ -1580,8 +1596,8 @@ function drawIdeas(ctx, st){
           (typeof setBracket === 'function' ? '<button class="bs-btn bs-sm" type="button"' + ctx.act(function(){ setBracket(s.up); }) + '>Set the deck to bracket ' + s.up + '</button>' : '') + '</div>';
       }
     }
-    if(ups.length) H += '<div class="bs-swaps">' + ups.map(function(p){ return swapCard(ctx, p, 'up', s.up); }).join('') + '</div>';
-    else H += empty('check', 'No clear upgrades', 'Every card is already about as good as the options for its job' + (s.up === cur && cur < 5 ? ', or try Push to ' + (cur + 1) + '.' : '.'),
+    if(ups && ups.length) H += '<div class="bs-swaps">' + ups.map(function(p){ return swapCard(ctx, p, 'up', s.up); }).join('') + '</div>';
+    else if(ups) H += empty('check', 'No clear upgrades', 'No swap for the same job raises the deck score' + (s.up === cur && cur < 5 ? '; try Push to ' + (cur + 1) + '.' : '.'),
       '<button class="bs-btn bs-primary" type="button"' + ctx.act(function(){ s.tab = 'int'; redraw(); }) + '>See interesting cards</button>');
   }
   else if(s.tab === 'down'){
@@ -1592,9 +1608,10 @@ function drawIdeas(ctx, st){
       H += '<div class="pg-controls"><div class="pg-ctl"><span class="bs-label">Power down to</span><div class="bs-seg" role="group" aria-label="Power down to">' + opts.map(function(v){
         var on = s.down === v; return '<button class="' + (on ? 'on' : '') + '" type="button" aria-pressed="' + on + '"' + ctx.act(function(){ if(s.down !== v){ s.down = v; redraw(); } }) + '><span>Bracket ' + v + '<span class="bs-nosm">: ' + h(BR(v).name) + '</span></span></button>';
       }).join('') + '</div></div><p class="pg-legend pg-ctl-grow">For a table that plays at bracket ' + s.down + ': Game Changers over the limit, early combos and fast mana go first, then the strongest cards.</p></div>';
-      if(downs.note) H += callout('warn', h(downs.note));
-      if(downs.length) H += '<div class="bs-swaps">' + downs.map(function(p){ return swapCard(ctx, p, 'down', s.down); }).join('') + '</div>';
-      else H += empty('check', 'Nothing to power down', 'The deck already fits bracket ' + s.down + ', and no weaker card does the same jobs.');
+      if(!downs) H += loadingLine('Trying each swap on the whole deck');
+      else if(downs.note) H += callout('warn', h(downs.note));
+      if(downs && downs.length) H += '<div class="bs-swaps">' + downs.map(function(p){ return swapCard(ctx, p, 'down', s.down); }).join('') + '</div>';
+      else if(downs) H += empty('check', 'Nothing to power down', 'The deck already fits bracket ' + s.down + ', and no weaker card does the same jobs.');
     }
   }
   else {

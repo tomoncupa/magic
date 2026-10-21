@@ -1102,7 +1102,7 @@ E.staplesReady = function(){ return !!(STAP.data && STAP.cards.length); };
 function stapleOf(n){ return STAP.by[lc(n)] || STAP.by[front(n)] || null; }
 
 /* ============ ENGINE.upgrades ============ */
-E.upgrades = function(opts){
+E.upgrades = swapMemo('up', function(opts){
   try{
     var X = ctx(); if(!X.ok) return withNote([], X.why);
     var cur = bk(), tb = clamp(+((opts && opts.bracket) || cur) || cur, 1, 5), lim = limFor(tb);
@@ -1113,6 +1113,9 @@ E.upgrades = function(opts){
     var keep = {};
     comboList().forEach(function(o){ if(breaksAt(o, tb)) return; o.cards.forEach(function(n){ keep[lc(n)] = 1; keep[front(n)] = 1; }); });
     Object.keys(pinsNow()).forEach(function(k){ keep[k] = 1; keep[front(k)] = 1; });
+    // Engine pieces (Claude's plan engines, pins, combo pieces, cards that repeat or need the commander) are never cut for an upgrade.
+    var ES = engineSet(X);
+    Object.keys(ES).forEach(function(k){ keep[k] = 1; });
     var outs = X.rows.filter(function(r){ return !r.cmd && !r.basic && !r.must && !r.missing && !keep[lc(r.n)] && !keep[front(r.n)]; })
       .map(function(r){ var vv = valueOf(r.c, X, true, cset); return { r:r, v:vv.v, links:vv.links, job:jobFor(r) }; })
       .sort(function(a, b){ return a.v - b.v; });
@@ -1144,29 +1147,65 @@ E.upgrades = function(opts){
         if(oCmd && cmdLinked(i.c, X) < oCmd) return;
         // A mana rock that stays is not replaced by mana that comes once (Lotus Petal), unless pushing up for fast mana.
         if(o.job === 'ramp' && o.r.f.mana && !oneShotMana(o.r.c, o.r.f) && oneShotMana(i.c, i.f) && !(push && i.f.fast)) return;
-        var g = (i.v + qual(o.job, i.f)) - (o.v + qual(o.job, o.r.f)); if(g < 0.1) return;
+        var g = (i.v + qual(o.job, i.f)) - (o.v + qual(o.job, o.r.f)); if(g < 0) return;
         list.push({ o:o, i:i, g:g });
       });
       list.sort(function(a, b){ return b.g - a.g; });
       cand = cand.concat(list.slice(0, 6));
     });
     cand.sort(function(a, b){ return b.g - a.g; });
-    var usedO = {}, usedI = {}, added = 0, out = [];
+    // Swaps don't happen in isolation (Tom, 2026-10-10): the card numbers only pick which swaps to try;
+    // each is then judged by the whole deck's score before and after, and the list ranks by that.
+    // Pushing up a bracket is for power (Game Changers, fast mana, tutors), which the deck score does not
+    // measure: those swaps stay when the deck score holds, and come first.
+    var nTry = 0, tried = [];
+    var power = function(p){ return push && ((p.i.gc && !p.o.r.gc) || p.i.f.fast || p.i.f.tutorAny); };
     cand.forEach(function(p){
+      if(nTry >= UP_TRY) return;
+      nTry++;
+      p.sd = E.scoreDelta(p.o.r.n, p.i.c);
+      if(!p.sd) return;
+      p.pw = power(p);
+      if(p.sd.d >= 0.03 || (p.pw && p.sd.d > -0.03)) tried.push(p);
+    });
+    tried.sort(function(a, b){ return (b.pw ? 1 : 0) - (a.pw ? 1 : 0) || b.sd.d - a.sd.d || b.g - a.g; });
+    var usedO = {}, usedI = {}, added = 0, out = [];
+    tried.forEach(function(p){
       if(out.length >= 20 || usedO[p.o.r.n] || usedI[p.i.c.n]) return;
       // Only additions are counted against the limit, so any subset of these swaps stays legal.
       if(p.i.gc && !p.o.r.gc){ if(added >= room) return; added++; }
       usedO[p.o.r.n] = 1; usedI[p.i.c.n] = 1;
-      out.push({ out:p.o.r.n, inn:p.i.c, role:p.o.job, gain:r2(p.g), why:upWhy(p, lim, gcNow + added, tb, cur), outCard:p.o.r.c, own:p.i.own || '' });
+      out.push({ out:p.o.r.n, inn:p.i.c, role:p.o.job, gain:r2(p.g), sd:p.sd, pw:!!p.pw, why:upWhy(p, lim, gcNow + added, tb, cur), outCard:p.o.r.c, own:p.i.own || '' });
     });
-    var note = out.length ? '' : 'No card in the pool is clearly better at the same job. The pool is EDHREC\'s cards for ' + short() + '.';
+    var note = out.length ? '' : 'The cards tried come from EDHREC\'s page for ' + short() + ' and the staples list.';
     if(lim !== Infinity && gcNow > lim) note += (note ? ' ' : '') + 'The deck already has ' + gcNow + ' Game Changers, over the limit of ' + lim + ', so none are added.';
     return withNote(out, note);
   }catch(e){ return withNote([], 'Could not find upgrades: ' + e.message); }
-};
+});
+var UP_TRY = 200, DOWN_TRY = 3;   // most swaps judged by the deck score in Upgrades, and replacements tried per cut in Downgrades
+// Upgrades and downgrades are worked out once per deck picture and settings: each takes a second or so.
+var SWC = {};
+function swapKey(kind, opts){
+  var X = ctx();
+  return [kind, (opts && opts.bracket) || '', X.key, bk(), gcLim(), JSON.stringify(S.rejects || []), Object.keys(pinsNow()).sort().join(','),
+    comboList().length, STAP.cards.length, (S.pool || []).length, (S.plan && S.plan.at) || '', JSON.stringify(S.trapOff || {}), Object.keys(tasteNo()).length].join('|');
+}
+function swapMemo(kind, fn){
+  return function(opts){
+    var k; try{ k = swapKey(kind, opts); }catch(e){ return fn(opts); }
+    if(SWC[k]) return SWC[k];
+    if(Object.keys(SWC).length > 40) SWC = {};
+    return (SWC[k] = fn(opts));
+  };
+}
+// The worked-out list when it is ready, or null: the page shows a loading line first.
+E.swapsReady = function(kind, opts){ try{ return SWC[swapKey(kind, opts)] || null; }catch(e){ return null; } };
+// "Deck score 7.8 → 7.9, mostly synergy 8.7 → 8.9."
+function sdLine(sd){ return 'Deck score ' + E.scorePair(sd.from, sd.to) + (sd.part ? ', mostly ' + sd.part.label.toLowerCase() + ' ' + E.scorePair(sd.part.from, sd.part.to) : '') + '.'; }
 function upWhy(p, lim, gcAfter, tb, cur){
   var o = p.o, i = p.i, bits = [];
   bits.push((ROLE_NAMES[o.job] || 'Same job') + ', the same job as the card it replaces.');
+  if(p.sd) bits.push(sdLine(p.sd));
   var a = edhBit(i.c), b = edhBit(o.r.c);
   if(a != null && b != null) bits.push('EDHREC: in ' + pc(a) + ' of ' + short() + ' decks, against ' + pc(b) + '.');
   else if(a != null) bits.push('EDHREC: in ' + pc(a) + ' of ' + short() + ' decks; the card it replaces is not on that page.');
@@ -1178,7 +1217,7 @@ function upWhy(p, lim, gcAfter, tb, cur){
 }
 
 /* ============ ENGINE.downgrades ============ */
-E.downgrades = function(opts){
+E.downgrades = swapMemo('down', function(opts){
   try{
     var X = ctx(); if(!X.ok) return withNote([], X.why);
     var cur = bk(), tb = +((opts && opts.bracket) || cur - 1);
@@ -1200,7 +1239,9 @@ E.downgrades = function(opts){
       if(!breaksAt(o, tb)) return;
       var pcs = o.cards.map(rowOf).filter(function(r){ return r && !r.cmd && !r.must && !r.basic; });
       if(pcs.some(function(r){ return taken[r.n]; })) return;
-      pcs.sort(function(a, b){ return (val[a.n] ? val[a.n].v : 0) - (val[b.n] ? val[b.n].v : 0); });
+      // The piece whose loss costs the deck score least goes.
+      var cutScore = {}; pcs.forEach(function(r){ var sc = E.scoreWith([{ out:r.n }]); cutScore[r.n] = sc ? sc.raw : 0; });
+      pcs.sort(function(a, b){ return cutScore[b.n] - cutScore[a.n] || (val[a.n] ? val[a.n].v : 0) - (val[b.n] ? val[b.n].v : 0); });
       if(pcs[0] && val[pcs[0].n]) mark(pcs[0], 3, 'Breaks a combo not allowed at bracket ' + tb + ': ' + o.cards.join(' + ') + ' (' + o.result + ').');
     });
     // 4. Fast mana, extra turns and land destruction.
@@ -1215,8 +1256,9 @@ E.downgrades = function(opts){
       if(r.f.extraRep) mark(r, 3, 'Extra turns that come back again: bracket ' + tb + ' allows no chained extra turns.');
       else if(k > 0) mark(r, 3, 'More than one extra-turn card: bracket ' + tb + ' allows no chained extra turns.');
     });
-    // 5. Then the strongest cards, at most 6, each for a clearly weaker card.
-    rows.filter(function(r){ return !taken[r.n]; }).sort(function(a, b){ return val[b.n].v - val[a.n].v; }).slice(0, 12)
+    // 5. Then the strongest cards, at most 6, each for a clearly weaker card. Engine pieces stay.
+    var ES = engineSet(X);
+    rows.filter(function(r){ return !taken[r.n] && !ES[lc(r.n)] && !ES[front(r.n)]; }).sort(function(a, b){ return val[b.n].v - val[a.n].v; }).slice(0, 12)
       .forEach(function(r){ outs.push({ r:r, pri:0, why:'One of the strongest cards in the deck.', v:val[r.n].v }); });
     var pool = candidatePool(X).filter(function(c){
       var f = feats(c);
@@ -1226,15 +1268,14 @@ E.downgrades = function(opts){
       if(nearBad(c.n, tb)) return false;
       return true;
     }).map(function(c){ var own = ownedIn(c.n); return { c:c, f:feats(c), v:valueOf(c, X, false).v, own:own }; });
-    var usedI = {}, list = [], stuck = [], zero = 0;
+    var usedI = {}, list = [], stuck = [], zero = [];
     outs.sort(function(a, b){ return b.pri - a.pri || b.v - a.v; });
     outs.forEach(function(o){
       if(list.length >= 20) return;
-      if(o.pri === 0 && zero >= 6) return;
       var role = jobFor(o.r), mv = o.r.c.mv || 0;
       // A tutor leaving is replaced by card draw, which finds cards more slowly.
       var job = role === 'tutor' ? 'draw' : role;
-      var best = null, bestV = 0, bestRank = 0;
+      var fits = [];
       pool.forEach(function(i){
         if(usedI[i.c.n]) return;
         if(!doesJob(job, i.c, i.f) || !keepsMana(o.r.f, i.f, job)) return;
@@ -1243,29 +1284,36 @@ E.downgrades = function(opts){
         else if(Math.abs(i.c.mv - mv) > 1) return;
         var iv = i.v + qual(job, i.f);
         if(o.pri === 0 && iv > o.v + qual(job, o.r.f) - 0.1) return;
-        // A card he already owns (side deck, Considering) is picked first when it fits.
-        var rank = iv + (i.own ? 0.05 : 0);
-        if(!best || rank > bestRank){ best = i; bestV = iv; bestRank = rank; }
+        // A card he already owns (side deck, Considering) is tried first when it fits.
+        fits.push({ i:i, iv:iv, rank:iv + (i.own ? 0.05 : 0) });
       });
-      if(!best && job === 'lands' && o.pri > 0){
+      if(!fits.length && job === 'lands' && o.pri > 0){
         // No fair nonbasic land: a basic land of the deck's main colour does the job.
         var col = (S.ci || [])[0], bn = col ? BASICS[col] : 'Wastes';
-        best = { c:{ n:bn, type:'Basic Land — ' + bn, o:'', cost:'', mv:0, ci:[], prod:[col || 'C'], legal:'legal', kw:[], basic:true, stats:{} }, f:{}, v:0.05 };
-        bestV = best.v;
+        fits.push({ i:{ c:{ n:bn, type:'Basic Land — ' + bn, o:'', cost:'', mv:0, ci:[], prod:[col || 'C'], legal:'legal', kw:[], basic:true, stats:{} }, f:{}, v:0.05 }, iv:0.05, rank:0.05 });
       }
-      if(!best){ if(o.pri > 0) stuck.push(o.r.n); return; }
+      if(!fits.length){ if(o.pri > 0) stuck.push(o.r.n); return; }
+      // The weaker card that keeps the deck score highest, out of the few that fit best.
+      fits.sort(function(a, b){ return b.rank - a.rank; });
+      var pick = null;
+      fits.slice(0, DOWN_TRY).forEach(function(f){ f.sd = E.scoreDelta(o.r.n, f.i.c); if(!pick || (f.sd && (!pick.sd || f.sd.d > pick.sd.d + 0.005))) pick = f; });
+      var best = pick.i;
+      var item = { out:o.r.n, inn:best.c, role:role, gain:r2(o.v + qual(job, o.r.f) - pick.iv), pri:o.pri, own:best.own || '', sd:pick.sd || null,
+        why:o.why + ' ' + best.c.n + (job === role ? ' does the same job (' + (ROLE_NAMES[job] || job) + ').' : ' draws cards instead.') + (pick.sd ? ' ' + sdLine(pick.sd) : ''), outCard:o.r.c };
+      if(o.pri === 0){ zero.push({ item:item, best:best }); return; }
       if(!best.c.basic) usedI[best.c.n] = 1;
-      if(o.pri === 0) zero++;
-      list.push({ out:o.r.n, inn:best.c, role:role, gain:r2(o.v + qual(job, o.r.f) - bestV), pri:o.pri, own:best.own || '',
-        why:o.why + ' ' + best.c.n + (job === role ? ' does the same job (' + (ROLE_NAMES[job] || job) + ').' : ' draws cards instead.'), outCard:o.r.c });
+      list.push(item);
     });
+    // The strongest cards: the 6 whose swap costs the deck score least.
+    zero.sort(function(a, b){ return (b.item.sd ? b.item.sd.d : -9) - (a.item.sd ? a.item.sd.d : -9); });
+    zero.forEach(function(z){ if(list.length >= 20 || list.filter(function(p){ return !p.pri; }).length >= 6) return; if(!z.best.c.basic && usedI[z.best.c.n]) return; if(!z.best.c.basic) usedI[z.best.c.n] = 1; list.push(z.item); });
     var gcLeft = X.gcs.length - list.filter(function(p){ var r = rowOf(p.out); return r && r.gc; }).length;
     var note = [];
     if(stuck.length) note.push('No fair card for the same job in the pool for: ' + stuck.join(', ') + '. Cut these by hand.');
     if(gcLeft > lim) note.push('After these swaps the deck still has ' + gcLeft + ' Game Changers; bracket ' + tb + ' allows ' + lim + '.');
     return withNote(list, note.join(' '));
   }catch(e){ return withNote([], 'Could not find downgrades: ' + e.message); }
-};
+});
 
 /* ============ ENGINE.interesting ============ */
 E.interesting = async function(){
