@@ -2751,7 +2751,6 @@ async function applySwap(sw, mine){
   }
   if(c.legal !== 'legal') return c.n + ' is not legal in Commander.';
   if(!withinCI(c)) return c.n + ' is outside the colour identity.';
-  if(!allowed(c)) return c.n + ' breaks a rule you set (refused card or bracket).';
   var gcs = S.deck.filter(function(d){ return d.gc; }).length - (S.deck[i].gc ? 1 : 0);
   var role = isLand(c) ? 'lands' : (S.deck[i].role !== 'lands' && c.roles[ROLE_KEY[S.deck[i].role]] ? S.deck[i].role : primaryRole(c));
   var e = entry(c, role), outD = S.deck[i]; e.why = 'Claude: ' + sw.why;
@@ -3350,9 +3349,9 @@ function changeDeck(outName, inCard, why, undo, o){
       if(!withinCI(c)) return c.n + ' is outside the deck\'s colours.';
       if(!anyNumber(c) && S.deck.some(function(d, j){ return j !== i && (sameName(d.n, c.n) || sameName(c.n, d.n)); })) return c.n + ' is already in the deck.';
       var gcs = S.deck.filter(function(d){ return d.gc; }).length - (outD && outD.gc ? 1 : 0);
-      // o.trust: the card is already in his real deck (My deck now), so his own limits do not refuse it.
-      // Game Changers past the limit come in like cards past 100: his call (Tom, 2026-10-19). The count shows it.
-      if(!o.trust && !allowed(c)) return c.n + ' breaks a rule set for this deck (a refused card, mass land destruction at this bracket, or your own Game Changer picks).';
+      // His own changes are never refused by the deck's rules (Tom, 2026-10-23: "Remove these rule restrictions",
+      // on Grim Monolith): a refused card, mass land destruction at the bracket or a Game Changer he did not pick goes
+      // in like a card past 100, his call. The builder's picks still follow allowed().
       e = entry(c, roleForIn(c, outD)); e.why = (why ? why + ' ' : 'Added by you. ') + e.why;
     }
   }
@@ -6662,7 +6661,6 @@ function swmNo(c, outD, gcs){
   if(c.legal !== 'legal') return 'Not legal in Commander.';
   if(!anyNumber(c) && S.deck.some(function(d){ return d !== outD && (sameName(d.n, c.n) || sameName(c.n, d.n)); })) return 'Already in the deck.';
   if(sameName(c.n, S.cmd.n) || (S.partner && sameName(c.n, S.partner.n))) return 'It is your commander.';
-  if(!allowed(c)) return 'Breaks a rule set for this deck.';
   return '';
 }
 // Every row the menu can show, for the card in the header. Cached until the deck, the combos or the
