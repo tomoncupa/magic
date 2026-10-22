@@ -6734,7 +6734,7 @@ function swmCalc(r, M){
   // The card-level numbers above still sort the list and fill the row's reason.
   r.sd = null;
   if(!r.no && window.ENGINE && ENGINE.scoreDelta){ try{ r.sd = ENGINE.scoreDelta(outD.n, inC); }catch(e){ r.sd = null; } }
-  if(r.sd) r.vk = r.sd.d >= 0.03 ? 'up' : r.sd.d <= -0.03 ? 'down' : 'even';
+  if(r.sd) r.vk = r.sd.d >= ENGINE.STEP ? 'up' : r.sd.d <= -ENGINE.STEP ? 'down' : 'even';
   // Taking out a piece of a combo the deck runs is never called an upgrade: the deck loses a way to win.
   // Nor is taking out a piece of the commander's engine (Patriar's Seal untaps Krenko): the deck is built round it.
   r.eng = !outD.basic && window.ENGINE && ENGINE.engine ? ENGINE.engine(outD.n) : '';
@@ -6816,7 +6816,7 @@ function swmChanges(r, M){
   if(d.basic) parts.push('the ' + esc(d.n) + ' just leaves (basic lands are not kept)');
   // The deckbuilding guidelines this swap moves, green when it moves toward the aim.
   var gd = guideDeltaText(d.n, r.inC, true); if(gd) parts.push(gd);
-  if(r.sd) parts.unshift('<span class="' + (r.sd.d >= 0.03 ? 'bs-pos' : r.sd.d <= -0.03 ? 'bs-neg' : '') + '">Deck score <b class="bs-num">' + ENGINE.scorePair(r.sd.from, r.sd.to) + '</b></span>');
+  if(r.sd) parts.unshift('<span class="' + (r.sd.d >= ENGINE.STEP ? 'bs-pos' : r.sd.d <= -ENGINE.STEP ? 'bs-neg' : '') + '">Deck score <b class="bs-num">' + ENGINE.scorePair(r.sd.from, r.sd.to) + '</b></span>');
   if(!parts.length) return '';
   return parts.map(function(x){ return x.charAt(0).toUpperCase() + x.slice(1); }).join('. ') + '.';
 }

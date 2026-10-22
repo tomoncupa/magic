@@ -469,8 +469,8 @@ function moveScoreHtml(m, done){
   if(done) return '';
   var r = moveScore(m); if(!r) return '';
   if(r.wait) return '<span class="mn-move-s pg-fine">Working out the deck score…</span>';
-  var E = window.ENGINE, cls = r.d >= 0.03 ? 'bs-pos' : r.d <= -0.03 ? 'bs-neg' : 'pg-fine';
-  return '<span class="mn-move-s ' + cls + '">Deck score <b class="bs-num">' + E.scorePair(r.from, r.to) + '</b>' + (r.d <= -0.03 ? ', lowers it' : '') + '</span>' +
+  var E = window.ENGINE, cls = r.d >= E.STEP ? 'bs-pos' : r.d <= -E.STEP ? 'bs-neg' : 'pg-fine';
+  return '<span class="mn-move-s ' + cls + '">Deck score <b class="bs-num">' + E.scorePair(r.from, r.to) + '</b>' + (r.d <= -E.STEP ? ', lowers it' : '') + '</span>' +
     (r.kept ? '<span class="mn-move-s bs-neg">You pinned ' + esc(r.out) + '</span>' : '');
 }
 // Each change Claude suggests: its cards as names with their hover, and its own button beside them.

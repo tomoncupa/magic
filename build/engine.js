@@ -686,6 +686,45 @@ E.cardLinks = function(name, card){
   }catch(e){ return []; }
 };
 
+// The separate ways the deck ends a game. Each finisher (and big threat) goes in one way by its text; a way's
+// strength is the chance to draw at least one of its cards by turn 8 (seeAtLeast), so a way held up by
+// one card is thin and a second card makes it real. Combos: the chance to draw every piece but the commander
+// of at least one of them; the commander,
+// always at hand, counts 1 when it is a threat. -> { ways, list:[{ k, label, n, p, cards }] }
+var WIN_WAYS = [['alt', 'Alternate win'], ['combo', 'Combos'], ['drain', 'Drain and burn'], ['amp', 'Damage doublers'], ['team', 'Team pumps and overruns'],
+  ['extra', 'Extra combats and turns'], ['combat', 'Big attackers'], ['cmd', 'The commander']];
+function winWay(r){
+  var o = tx(r.c);
+  if(/\byou win the game\b|\b(?:player|opponent)s? (?:loses|lose) the game\b/.test(o)) return 'alt';
+  if(r.f.amp) return 'amp';
+  if(r.f.extra || /additional combat phase/.test(o)) return 'extra';
+  if(/each opponent loses|deals? [^.]*?damage[^.]*? to (?:each opponent|any target|target (?:player|opponent)|each player|any other target)|deals? damage equal to/.test(o)) return 'drain';
+  if(/creatures you control (?:get|have|gain|can't be blocked)|other [a-z]+s? you control (?:get|have)|each creature (?:you control )?gets|attacking creatures|on each (?:other )?creature you control|whenever a creature you control attacks|can't block creatures you control|creatures can't block|tapped and attacking/.test(o)) return 'team';
+  return 'combat';
+}
+function winRoutes(X, cl, cmdWhy){
+  var by = {};
+  X.rows.forEach(function(r){
+    if(r.cmd || r.basic || r.missing || !(r.jobs.wincon || r.f.threat)) return;
+    var k = winWay(r), w = by[k] = by[k] || { n:0, cards:[] };
+    w.n += (r.jobs.wincon ? 1 : 0.5) * (r.q || 1); w.cards.push(r.n);
+  });
+  var miss = 1, cmdN = X.rows.filter(function(r){ return r.cmd; }).map(function(r){ return r.n; });
+  cl.forEach(function(o){
+    var k = o.cards.filter(function(n){ return !cmdN.some(function(c){ return sameName(n, c) || sameName(c, n); }); }).length, q = 1;
+    for(var j = 0; j < k; j++) q *= (SEEN_N - j) / (99 - j);
+    miss *= 1 - q;
+  });
+  var list = [], ways = 0;
+  WIN_WAYS.forEach(function(d){
+    var p, w = by[d[0]];
+    if(d[0] === 'combo'){ if(!cl.length) return; p = 1 - miss; w = { n:cl.length, cards:[] }; }
+    else if(d[0] === 'cmd'){ if(!cmdWhy) return; p = 1; w = { n:1, cards:X.rows.filter(function(r){ return r.cmd; }).map(function(r){ return r.n; }) }; }
+    else { if(!w || !w.n) return; p = seeAtLeast(Math.round(w.n), 1) || seeAtLeast(1, 1) / 2; }
+    ways += p; list.push({ k:d[0], label:d[1], n:w.n, p:p, cards:w.cards });
+  });
+  return { ways:ways, list:list };
+}
 // Why the commander is a threat on its own, or '' when it is not.
 function cmdThreat(X){
   var cl = comboList(), top = X.themes.filter(function(h){ return h.active; })[0], why = '';
@@ -754,6 +793,7 @@ var TARGET = {
   protection:        [2,    2,    3,    4,    4],   // hexproof, indestructible, redirects, ward
   instantShare:      [0.3,  0.4,  0.5,  0.6,  0.75],// share of the interaction that works at instant speed
   finishers:         [2,    3,    3,    3,    2],   // cards that end games (drain, overrun, scaling damage)
+  ways:              [1.5,  2,    2.5,  2.5,  2.5], // separate ways to end the game, each the chance to draw one of its cards
   combos:            [0,    0,    1,    2,    2],   // combos fully in the deck (Commander Spellbook)
   winTurn:           [10,   9,    8,    6,    4]    // goldfish win turn aimed for (lower is better)
 };
@@ -761,7 +801,7 @@ var WEIGHT = {
   draw:1, tutor:0.6, selection:0.5, recursion:0.35,
   avgMv:0.8, ramp:1, cheapRamp:0.6, lands:0.8, colours:0.5, fastMana:0.4,
   removal:1, wipes:0.6, counterspells:0.5, protection:0.7, instantShare:0.5,
-  finishers:1, combos:0.7, commander:0.6, winTurn:0.9
+  ways:1.2, finishers:1, planFin:0.6, combos:0.7, commander:0.6, winTurn:0.9
 };
 function tgt(k){ return TARGET[k][bk() - 1]; }
 function fUp(have, want){ return want > 0 ? 1 - Math.exp(-1.9 * have / want) : 1; }
@@ -769,7 +809,7 @@ function fDown(have, want, pow){ if(!(have > 0)) return 1; return 1 - Math.exp(-
 function fNear(have, want, spread){ var d = (have - want) / spread; return 0.95 * Math.exp(-0.7 * d * d); }
 function part(key, label, have, want, value, cards, note, weight){
   return { key:key, label:label, have:have, want:want, cards:cards || [], note:note || '',
-    weight:weight == null ? (WEIGHT[key] || 0.5) : weight, value:r2(clamp(value, 0, 1)), score:r1(clamp(value, 0, 1) * 10) };
+    weight:weight == null ? (WEIGHT[key] || 0.5) : weight, value:r2(clamp(value, 0, 1)), raw:clamp(value, 0, 1), score:r1(clamp(value, 0, 1) * 10) };
 }
 function pillarOf(name, parts, raiseFn){
   var sw = 0, s = 0;
@@ -871,7 +911,7 @@ E.pillars = function(){
       part('instantShare', 'Instant speed', Math.round(share * 100) / 100, tgt('instantShare'), fUp(share, tgt('instantShare')), inst,
         inst.length + ' of ' + interRows.length + ' interaction cards work at instant speed.')
     ];
-    // ---- win conditions
+    // ---- win conditions (Tom, 2026-10-22: a part of the deck score, so a swap never trades a way to win away unseen)
     var fin = namesWhere(X, function(r){ return r.jobs.wincon; });
     var threats = namesWhere(X, function(r){ return !r.cmd && !r.jobs.wincon && r.f.threat; });
     var finHave = fin.length + threats.length / 2;
@@ -880,9 +920,19 @@ E.pillars = function(){
     var cmdR = X.rows.filter(function(r){ return r.cmd; });
     var cmdWhy = cmdThreat(X);
     var wt = sm ? sm.winTurn : null, wantT = tgt('winTurn');
+    var WR = winRoutes(X, cl, cmdWhy);
+    // Finishers the deck's own plans feed: payoffs of a live plan, or pieces of a combo.
+    var planFin = X.rows.filter(function(r){ return !r.basic && !r.missing && (r.jobs.wincon || r.f.threat) &&
+      (X.themes.some(function(h){ return h.active && h.v >= 0.2 && h.payRows.indexOf(r) >= 0; }) || comboCards.some(function(n){ return sameName(n, r.n) || sameName(r.n, n); })); });
+    var planFinHave = planFin.reduce(function(t, r){ return t + (r.jobs.wincon ? 1 : 0.5); }, 0);
+    planFin = planFin.map(function(r){ return r.n; });
     var wins = [
+      part('ways', 'Ways to win', r1(WR.ways), tgt('ways'), fUp(WR.ways, tgt('ways')), [],
+        WR.list.length ? WR.list.map(function(w){ return w.label + ' ' + w.n + (w.k === 'cmd' ? '' : ' (' + pc(w.p) + ')'); }).join(', ') + '. Each way counts as the chance to draw one of its cards by turn 8 (a combo, all its pieces); the commander counts 1.' : 'No way to end the game found.'),
       part('finishers', 'Finishers', finHave, tgt('finishers'), fUp(finHave, tgt('finishers')), fin.concat(threats),
         'Drain, overruns, scaling damage, extra combats, alternate wins.' + (threats.length ? ' Big evasive or trampling creatures count half: ' + threats.length + '.' : '')),
+      part('planFin', 'Finishers the plan feeds', planFinHave, tgt('finishers'), fUp(planFinHave, tgt('finishers')), planFin,
+        'Finishers that are payoffs of the deck\'s own plan or pieces of a combo, so the rest of the deck builds toward them.'),
       part('combos', 'Combos in the deck', cl.length, tgt('combos'), fUp(cl.length, tgt('combos')), comboCards,
         tgt('combos') ? (cl.length ? cl.slice(0, 3).map(function(o){ return o.cards.join(' + '); }).join('; ') : 'Commander Spellbook finds none.') : 'Not expected at bracket ' + b + ', so not scored.', tgt('combos') ? null : 0),
       part('commander', 'Commander as a threat', cmdWhy ? 1 : 0, 1, cmdWhy ? 0.95 : 0.35, cmdWhy ? cmdR.map(function(r){ return r.n; }) : [], cmdWhy || 'The commander does not win games by itself here.'),
@@ -926,6 +976,8 @@ function raiseTip(p){
     case 'protection': return 'Add ' + n + ' more protection for your key creature (hexproof, indestructible, redirects).';
     case 'instantShare': return 'Swap sorcery-speed answers for instants or abilities you can use on any turn.';
     case 'finishers': return 'Add ' + words(n, 'card') + ' that ends the game once your board is set.';
+    case 'ways': return 'Add a second card to a way to win that rests on one card, or a finisher that wins a different way.';
+    case 'planFin': return 'Pick finishers your plan feeds, so the rest of the deck builds toward them.';
     case 'combos': return 'A combo would give the deck a sudden win; see One card away on the Synergy page.';
     case 'commander': return 'Pick cards that turn the commander into a threat.';
     case 'winTurn': return 'Faster threats or more cheap ramp would win sooner.';
@@ -1165,8 +1217,10 @@ E.upgrades = swapMemo('up', function(opts){
       nTry++;
       p.sd = E.scoreDelta(p.o.r.n, p.i.c);
       if(!p.sd) return;
+      // A way to win is never traded for something else (Tom, 2026-10-22): a swap that lowers Win conditions is not an upgrade.
+      if(p.sd.parts && p.sd.parts.win < -0.005) return;
       p.pw = power(p);
-      if(p.sd.d >= 0.03 || (p.pw && p.sd.d > -0.03)) tried.push(p);
+      if(p.sd.d >= E.STEP || (p.pw && p.sd.d > -E.STEP)) tried.push(p);
     });
     tried.sort(function(a, b){ return (b.pw ? 1 : 0) - (a.pw ? 1 : 0) || b.sd.d - a.sd.d || b.g - a.g; });
     var usedO = {}, usedI = {}, added = 0, out = [];
@@ -2066,12 +2120,13 @@ function fixPackage(pairs){
    pillar's own score; one that lowers the deck score is left out. */
 var RAISE_JOB = { draw:'draw', selection:'draw', tutor:'tutor', ramp:'ramp', cheapRamp:'ramp', fastMana:'ramp',
   removal:'removal', instantShare:'removal', counterspells:'removal', wipes:'wipes', protection:'protection',
-  finishers:'wincon', winTurn:'wincon', lands:'lands', colours:'lands' };
+  finishers:'wincon', ways:'wincon', planFin:'wincon', winTurn:'wincon', lands:'lands', colours:'lands' };
 var RAISE_WORD = { draw:'Card draw', tutor:'A tutor', ramp:'Ramp', removal:'Removal', wipes:'A board wipe', protection:'Protection', wincon:'A finisher', lands:'A land' };
 function tasteNo(){ try{ return typeof window.tasteRejected === 'function' ? window.tasteRejected() : {}; }catch(e){ return {}; } }
 function pillarRaw(p){
   var sw = 0, s = 0;
-  ((p && p.parts) || []).forEach(function(x){ if(x.weight > 0){ sw += x.weight; s += x.weight * x.value; } });
+  // Unrounded: one swap in a 100-card deck moves a part only a little.
+  ((p && p.parts) || []).forEach(function(x){ if(x.weight > 0){ sw += x.weight; s += x.weight * (x.raw != null ? x.raw : x.value); } });
   return sw ? 10 * s / sw : 0;
 }
 E.raiseFix = function(pk){
@@ -2412,7 +2467,7 @@ function partOf(p, key){ return ((p && p.parts) || []).filter(function(x){ retur
 /* ============ ENGINE.score: one score for the whole deck ============
    Tom, 2026-10-10: "swaps dont happen in isolation, each card is part of a cohesive whole". Every
    swap, Fix row and the toast after a change judge a change by what it does to this one number.
-   Five parts out of 10, equal weight (Tom has not set weights; shown with their working):
+   Six parts out of 10, equal weight (Tom has not set weights; shown with their working):
      Interaction  the Interaction pillar, 70%, plus the answer grid, 30%: each of creature, artifact,
                   enchantment and planeswalker answered by two or more cards (one card counts half)
      Synergy      links among the plan cards (no staple job), 50%: each card's links up to 8, against
@@ -2421,6 +2476,8 @@ function partOf(p, key){ return ((p && p.parts) || []).filter(function(x){ retur
      Guidelines   the checked guidelines: Good 1, Watch 0.5, Fix 0 (habits and ones he marked fine)
      Curve        the Efficiency pillar's mana parts: average mana value, ramp, cheap ramp, lands, fast mana
      Colours      coloured sources against what the spells ask for; left out in a one-colour deck
+     Win conditions  the Win conditions pillar: ways to win (each the chance to draw one of its cards by turn 8),
+                  finishers, finishers the plan feeds, combos, the commander as a threat, goldfish win turn
    E.score()            -> { score, parts:[{ k, label, score, line }] } for the open deck
    E.scoreWith(changes) -> the same for the deck with [{ out:name, inn:card }] made, the deck untouched
    A what-if reuses the real deck's test games (the goldfish turn) and its combos, less any it breaks. */
@@ -2434,7 +2491,7 @@ function scoreNow(){
   // Interaction
   var A = E.answers(), AR = {}; (A.rows || []).forEach(function(r){ AR[r.k] = r; });
   var cov = ANS_PERM.reduce(function(s, k){ var n = AR[k] ? AR[k].n : 0; return s + (n >= 2 ? 1 : n === 1 ? 0.5 : 0); }, 0) / 4;
-  parts.push({ k:'inter', label:'Interaction', score:0.7 * P.interaction.score + 3 * cov,
+  parts.push({ k:'inter', label:'Interaction', score:0.7 * pillarRaw(P.interaction) + 3 * cov,
     line:'Interaction score ' + P.interaction.score + ' of 10; ' + ANS_PERM.filter(function(k){ return AR[k] && AR[k].n >= 2; }).length + ' of 4 kinds of permanent have two or more answers.' });
   // Synergy
   var L = buildLinks(X);
@@ -2461,12 +2518,16 @@ function scoreNow(){
     line:(gl.length - nf - nw) + ' of ' + gl.length + ' met, ' + nw + ' to watch, ' + nf + ' to fix.' });
   // Curve and colours, from the Efficiency pillar's parts
   var sw = 0, sv = 0, ep = P.efficiency.parts || [];
-  ep.forEach(function(p){ if(p.key !== 'colours' && p.weight > 0){ sw += p.weight; sv += p.weight * p.value; } });
+  ep.forEach(function(p){ if(p.key !== 'colours' && p.weight > 0){ sw += p.weight; sv += p.weight * (p.raw != null ? p.raw : p.value); } });
   var av = partOf(P.efficiency, 'avgMv'), ln = partOf(P.efficiency, 'lands');
   parts.push({ k:'curve', label:'Curve', score:sw ? 10 * sv / sw : 0,
     line:'Average mana value ' + (av ? av.have : '?') + ' (aim ' + (av ? av.want : '?') + '), ' + (ln ? ln.have + ' lands (aim ' + ln.want + ')' : '') + ', ramp counted.' });
   var colP = partOf(P.efficiency, 'colours');
   if(colP && colP.weight > 0) parts.push({ k:'col', label:'Colours', score:10 * colP.value, line:'Coloured lands: ' + colP.note });
+  // Win conditions (Tom, 2026-10-22): the Win conditions pillar, so a swap that takes a way to win away shows it.
+  var wy = partOf(P.wincons, 'ways'), wf = partOf(P.wincons, 'finishers');
+  parts.push({ k:'win', label:'Win conditions', score:pillarRaw(P.wincons),
+    line:(wy ? 'Ways to win ' + wy.have + ' (aim ' + wy.want + ')' : '') + (wf ? ', ' + wf.have + ' finishers' : '') + (P.winTurn ? ', wins on turn ' + P.winTurn + ' in test games' : '') + '.' });
   // Shown to one decimal, averaged unrounded: one swap moves a 100-card deck only a little.
   parts.forEach(function(p){ p.v = clamp(p.score, 0, 10); p.score = r1(p.v); });
   var total = parts.reduce(function(s, p){ return s + p.v; }, 0) / parts.length;
@@ -2507,6 +2568,8 @@ function whatIf(changes, fn){
   }
 }
 E.score = function(){ try{ return scoreNow(); }catch(e){ return null; } };
+// The smallest change in the deck score that counts as a change: one swap in six parts of a 100-card deck.
+E.STEP = 0.02;
 // "8.1 → 8.4", two decimals when one would show no change.
 E.scorePair = function(a, b){ var d = a.toFixed(1) === b.toFixed(1) && a !== b ? 2 : 1; return a.toFixed(d) + ' → ' + b.toFixed(d); };
 E.scoreWith = function(changes){ try{ return whatIf(changes || [], scoreNow); }catch(e){ return null; } };
@@ -2516,7 +2579,8 @@ E.scoreDelta = function(outName, inCard){
   if(!a || !b) return null;
   var big = null;
   b.parts.forEach(function(p){ var q = a.parts.filter(function(x){ return x.k === p.k; })[0]; if(!q) return; var dv = p.v - q.v; if(!big || Math.abs(dv) > Math.abs(big.d)) big = { k:p.k, label:p.label, from:q.v, to:p.v, d:dv }; });
-  return { from:a.raw, to:b.raw, d:b.raw - a.raw, part:big && Math.abs(big.d) >= 0.05 ? big : null };
+  var dp = {}; b.parts.forEach(function(p){ var q = a.parts.filter(function(x){ return x.k === p.k; })[0]; if(q) dp[p.k] = p.v - q.v; });
+  return { from:a.raw, to:b.raw, d:b.raw - a.raw, part:big && Math.abs(big.d) >= 0.05 ? big : null, parts:dp };
 };
 
 /* ============ ENGINE.holds: cards the deck cannot lose (the synergy map's third group) ============

@@ -682,7 +682,7 @@ function deckScoreHtml(){
       return '<div class="pg-dscore-p"><div class="pg-dscore-top"><span class="bs-label">' + h(p.label) + '</span><b class="bs-num">' + one(p.score) + '</b></div>' +
         meter(p.score, p.label) + '<p class="pg-fine">' + h(p.line) + '</p></div>';
     }).join('') + '</div>' +
-    '<p class="bs-panel-note pg-mt">The average of ' + words(s.parts.length, 'part') + ', weighted equally' + (s.parts.length < 5 ? ' (one colour, so colours are left out)' : '') + '. Brewing Station\'s own estimate.</p>' +
+    '<p class="bs-panel-note pg-mt">The average of ' + words(s.parts.length, 'part') + ', weighted equally' + (s.parts.length < 6 ? ' (one colour, so colours are left out)' : '') + '. Brewing Station\'s own estimate.</p>' +
   '</section>';
 }
 // Mana made against mana asked for. Needs: every mana symbol in the deck's spells and commander, as a
@@ -1503,8 +1503,8 @@ function swapWhy(t){
     .replace(/Works with (\d+) of your cards, against (\d+)\./g, 'Works with $1 of your cards (the card it replaces: $2).');
   return s || o;
 }
-// The badge reads the deck score's change (ENGINE.scoreDelta): about 0.03 is the smallest that counts.
-function gainWord(p){ var d = p.sd ? p.sd.d : 0; return p.pw && d < 0.03 ? 'More power' : d >= 0.1 ? 'Big upgrade' : d >= 0.05 ? 'Clear upgrade' : 'Small upgrade'; }
+// The badge reads the deck score's change (ENGINE.scoreDelta): ENGINE.STEP is the smallest that counts.
+function gainWord(p){ var d = p.sd ? p.sd.d : 0; return p.pw && d < E().STEP ? 'More power' : d >= 0.1 ? 'Big upgrade' : d >= 0.05 ? 'Clear upgrade' : 'Small upgrade'; }
 // Upgrades and downgrades judge every swap against the whole deck, which takes a moment: the page
 // shows a loading line, works the list out just after, and draws again.
 var SWQ = {};
