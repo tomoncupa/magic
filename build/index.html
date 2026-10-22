@@ -4184,8 +4184,12 @@ function plHtml(k, v){
   return '<div class="bs-pl"><span class="bs-pl-k">' + k + '</span><span class="bs-pl-v">' + v.toFixed(1) + '</span><span class="bs-meter bs-sm" style="--v:' + v +
     '" role="meter" aria-valuemin="0" aria-valuemax="10" aria-valuenow="' + v + '" aria-label="' + k + ' ' + v.toFixed(1) + ' out of 10"></span></div>';
 }
+// The deck score and its six parts (summary sv 2); an older summary has only the four pillars.
 function pillarsHtml(p){
-  return '<div class="bs-pillars">' + plHtml('Consistency', p.c) + plHtml('Efficiency', p.e) + plHtml('Interaction', p.i) + plHtml('Win conditions', p.w) + '</div>';
+  var six = p.sv >= 2;
+  return '<div class="bs-pillars">' + (six && typeof p.o === 'number' ? '<div class="bs-pl-all">' + plHtml('Deck score', p.o) + '</div>' : '') +
+    plHtml('Consistency', p.c) + plHtml('Efficiency', p.e) + plHtml('Interaction', p.i) + plHtml('Win conditions', p.w) +
+    (six ? plHtml('Synergy', p.s) + plHtml('Guidelines', p.g) : '') + '</div>';
 }
 function progHtml(t){ return '<div class="bs-loading"><span class="bs-spin"></span>' + esc(t || 'Starting') + '</div>'; }
 function deckTile(x){
@@ -5944,11 +5948,12 @@ function drawDeckSide(){
       ENGINE.prime().then(function(){ if(CUR + '|' + ENGINE.key() !== pk) return; PRIMED.k = pk; if($('deckSide')) drawDeckSide(); });
     }
     if(PRIMED.k !== pk && !sameDeck)
-      h += '<section class="bs-panel"><div class="bs-panel-head"><h3 class="bs-panel-title">Four pillars</h3></div><div class="bs-loading"><span class="bs-spin"></span>Counting combos and scoring the deck</div></section>';
+      h += '<section class="bs-panel"><div class="bs-panel-head"><h3 class="bs-panel-title">Deck score</h3></div><div class="bs-loading"><span class="bs-spin"></span>Counting combos and scoring the deck</div></section>';
     var P = null; if(PRIMED.k === pk || sameDeck){ try{ P = ENGINE.pillars(); }catch(e){ P = null; } }
     if(P && P.consistency){
-      h += '<section class="bs-panel"><div class="bs-panel-head"><h3 class="bs-panel-title">Four pillars</h3>' + (typeof P.overall === 'number' ? '<div class="bs-score bs-sm" style="margin-left:auto"><b>' + P.overall.toFixed(1) + '</b><span>/10</span></div>' : '') + '</div>' +
-        pillarsHtml({ c:P.consistency.score, e:P.efficiency.score, i:P.interaction.score, w:P.wincons.score }) +
+      var SC = deckScoreNow(), pt = function(k){ var q = SC && SC.parts.filter(function(x){ return x.k === k; })[0]; return q ? q.score : null; };
+      h += '<section class="bs-panel"><div class="bs-panel-head"><h3 class="bs-panel-title">Deck score</h3>' + (SC ? '<div class="bs-score bs-sm" style="margin-left:auto"><b>' + SC.score.toFixed(1) + '</b><span>/10</span></div>' : '') + '</div>' +
+        pillarsHtml({ c:P.consistency.score, e:P.efficiency.score, i:P.interaction.score, w:P.wincons.score, s:pt('syn'), g:pt('guide'), sv:SC ? 2 : 0 }) +
         '<p class="sh-sub">Brewing Station\'s own estimate, from the cards\' rules text.' + (PG('analysis') ? ' <a class="linkbtn" href="#d=' + CUR + '&amp;p=analysis">See what counts</a>' : '') + '</p></section>';
     }
   }

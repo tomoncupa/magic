@@ -198,6 +198,8 @@ input[type=text].bs-deck-input{min-height:32px;height:32px;padding:0 6px;margin-
 .bs-pl-k{font-family:var(--disp);font-weight:600;font-size:var(--t1);letter-spacing:var(--cap);text-transform:uppercase;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bs-pl-v{font-family:var(--num);font-weight:700;font-size:var(--t2);color:var(--ink);font-variant-numeric:tabular-nums}
 .bs-pl .bs-meter{grid-column:1 / -1;min-width:0}
+.bs-pl-all{grid-column:1 / -1}
+.bs-pl-all .bs-pl-v{font-size:var(--t3)}
 .bs-pillars.bs-none{display:flex;align-items:center;min-height:52px;padding:0 var(--s3);border:1px dashed var(--line2);border-radius:var(--r-sm);font-size:var(--t2);color:var(--ink3)}
 
 /* "What counts" and other fold-outs */

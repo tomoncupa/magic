@@ -844,7 +844,7 @@ E.pillars = function(){
     if(PIL.key === key) return PIL.v;
     if(!X.ok){
       var wait = function(){ return { score:0, verdict:X.why || 'Card data is not loaded yet.', parts:[], raise:[] }; };
-      return { consistency:wait(), efficiency:wait(), interaction:wait(), wincons:wait(), overall:0, ready:false, note:X.why || 'Card data is not loaded yet.' };
+      return { consistency:wait(), efficiency:wait(), interaction:wait(), wincons:wait(), ready:false, note:X.why || 'Card data is not loaded yet.' };
     }
     var b = bk(), ci = S.ci || [];
     // ---- consistency
@@ -911,6 +911,14 @@ E.pillars = function(){
       part('instantShare', 'Instant speed', Math.round(share * 100) / 100, tgt('instantShare'), fUp(share, tgt('instantShare')), inst,
         inst.length + ' of ' + interRows.length + ' interaction cards work at instant speed.')
     ];
+    // The answer grid: each of creature, artifact, enchantment and planeswalker answered by two or more cards
+    // (one card counts half). It weighs 30% of the pillar, the rest 70%, as the deck score's Interaction always did.
+    var AR = {}; (E.answers().rows || []).forEach(function(r){ AR[r.k] = r; });
+    var covN = ANS_PERM.reduce(function(t, k){ var n = AR[k] ? AR[k].n : 0; return t + (n >= 2 ? 1 : n === 1 ? 0.5 : 0); }, 0);
+    var thin = ANS_PERM.filter(function(k){ return !AR[k] || AR[k].n < 2; });
+    var iw = inter.reduce(function(t, x){ return t + (x.weight > 0 ? x.weight : 0); }, 0);
+    inter.push(part('answers', 'Answers to every kind', covN, 4, covN / 4, [],
+      thin.length ? 'Fewer than two answers to: ' + thin.map(function(k){ return k + 's'; }).join(', ') + '. One answer counts half.' : 'Two or more answers each to creatures, artifacts, enchantments and planeswalkers.', iw * 3 / 7));
     // ---- win conditions (Tom, 2026-10-22: a part of the deck score, so a swap never trades a way to win away unseen)
     var fin = namesWhere(X, function(r){ return r.jobs.wincon; });
     var threats = namesWhere(X, function(r){ return !r.cmd && !r.jobs.wincon && r.f.threat; });
@@ -945,7 +953,6 @@ E.pillars = function(){
       interaction:pillarOf('interaction', inter, raiseTip),
       wincons:pillarOf('wincons', wins, raiseTip)
     };
-    P.overall = r1((P.consistency.score + P.efficiency.score + P.interaction.score + P.wincons.score) / 4);
     P.ready = true;
     P.bracket = b;
     P.winTurn = wt;
@@ -954,7 +961,7 @@ E.pillars = function(){
     return P;
   }catch(e){
     var z = function(){ return { score:0, verdict:'Could not work this out.', parts:[], raise:[] }; };
-    return { consistency:z(), efficiency:z(), interaction:z(), wincons:z(), overall:0, note:'Could not score the deck: ' + e.message };
+    return { consistency:z(), efficiency:z(), interaction:z(), wincons:z(), note:'Could not score the deck: ' + e.message };
   }
 };
 function raiseTip(p){
@@ -981,6 +988,7 @@ function raiseTip(p){
     case 'combos': return 'A combo would give the deck a sudden win; see One card away on the Synergy page.';
     case 'commander': return 'Pick cards that turn the commander into a threat.';
     case 'winTurn': return 'Faster threats or more cheap ramp would win sooner.';
+    case 'answers': return 'Add removal that hits the kinds of permanent you have fewer than two answers to.';
   }
   return '';
 }
@@ -2120,7 +2128,7 @@ function fixPackage(pairs){
    pillar's own score; one that lowers the deck score is left out. */
 var RAISE_JOB = { draw:'draw', selection:'draw', tutor:'tutor', ramp:'ramp', cheapRamp:'ramp', fastMana:'ramp',
   removal:'removal', instantShare:'removal', counterspells:'removal', wipes:'wipes', protection:'protection',
-  finishers:'wincon', ways:'wincon', planFin:'wincon', winTurn:'wincon', lands:'lands', colours:'lands' };
+  answers:'removal', finishers:'wincon', ways:'wincon', planFin:'wincon', winTurn:'wincon', lands:'lands', colours:'lands' };
 var RAISE_WORD = { draw:'Card draw', tutor:'A tutor', ramp:'Ramp', removal:'Removal', wipes:'A board wipe', protection:'Protection', wincon:'A finisher', lands:'A land' };
 function tasteNo(){ try{ return typeof window.tasteRejected === 'function' ? window.tasteRejected() : {}; }catch(e){ return {}; } }
 function pillarRaw(p){
@@ -2467,32 +2475,40 @@ function partOf(p, key){ return ((p && p.parts) || []).filter(function(x){ retur
 /* ============ ENGINE.score: one score for the whole deck ============
    Tom, 2026-10-10: "swaps dont happen in isolation, each card is part of a cohesive whole". Every
    swap, Fix row and the toast after a change judge a change by what it does to this one number.
-   Six parts out of 10, equal weight (Tom has not set weights; shown with their working):
-     Interaction  the Interaction pillar, 70%, plus the answer grid, 30%: each of creature, artifact,
-                  enchantment and planeswalker answered by two or more cards (one card counts half)
-     Synergy      links among the plan cards (no staple job), 50%: each card's links up to 8, against
-                  30 plan cards fully linked; cards that work with the commander through a plan of their
-                  own or sit in a combo count their links twice; 70%, with the strongest plan's strength 30%
-     Guidelines   the checked guidelines: Good 1, Watch 0.5, Fix 0 (habits and ones he marked fine)
-     Curve        the Efficiency pillar's mana parts: average mana value, ramp, cheap ramp, lands, fast mana
-     Colours      coloured sources against what the spells ask for; left out in a one-colour deck
+   Tom, 2026-10-22: "Cant we combine them". The one headline number. Six parts out of 10, equal weight
+   (Tom has not set weights), averaged unrounded:
+     Consistency     the Consistency pillar: card draw, tutors, card selection, recursion
+     Efficiency      the Efficiency pillar: average mana value, ramp, cheap ramp, lands, coloured sources, fast mana
+     Interaction     the Interaction pillar: removal, wipes, counterspells, protection, instant speed (70%), and
+                     the answer grid (30%): creature, artifact, enchantment, planeswalker each answered twice
      Win conditions  the Win conditions pillar: ways to win (each the chance to draw one of its cards by turn 8),
-                  finishers, finishers the plan feeds, combos, the commander as a threat, goldfish win turn
+                     finishers, finishers the plan feeds, combos, the commander as a threat, goldfish win turn
+     Synergy         links among the plan cards (no staple job), weighed, engine pieces twice; 70%, with the
+                     strongest plan's strength 30%; less 0.4 for each card that clashes with the plan (2 at most)
+     Guidelines      the checked guidelines: Good 1, Watch 0.5, Fix 0 (habits, ones he marked fine, and the four
+                     that count what a pillar already scores, card draw, lands, ramp and targeted interaction, left out)
+   Each pillar is the weighted average of its parts (see ENGINE.pillars); the old pillar average ("Overall")
+   is gone, so nothing is counted twice.
    E.score()            -> { score, parts:[{ k, label, score, line }] } for the open deck
    E.scoreWith(changes) -> the same for the deck with [{ out:name, inn:card }] made, the deck untouched
    A what-if reuses the real deck's test games (the goldfish turn) and its combos, less any it breaks. */
 var SCX = {};   // scores by deck picture
+var GUIDE_IN_PILLAR = { draw:1, lands:1, ramp10:1, inter12:1 };
 function scoreNow(){
   var X = ctx(); if(!X.ok) return null;
   var cl = comboList();
   var key = X.key + '|' + JSON.stringify(S.trapOff || {}) + '|' + cl.length + '|' + STAP.cards.length + '|' + ((S.plan && S.plan.at) || '');
   if(SCX[key]) return SCX[key];
   var P = E.pillars(), parts = [];
-  // Interaction
-  var A = E.answers(), AR = {}; (A.rows || []).forEach(function(r){ AR[r.k] = r; });
-  var cov = ANS_PERM.reduce(function(s, k){ var n = AR[k] ? AR[k].n : 0; return s + (n >= 2 ? 1 : n === 1 ? 0.5 : 0); }, 0) / 4;
-  parts.push({ k:'inter', label:'Interaction', score:0.7 * pillarRaw(P.interaction) + 3 * cov,
-    line:'Interaction score ' + P.interaction.score + ' of 10; ' + ANS_PERM.filter(function(k){ return AR[k] && AR[k].n >= 2; }).length + ' of 4 kinds of permanent have two or more answers.' });
+  var short3 = function(p){ return ((p && p.parts) || []).filter(function(x){ return x.weight > 0 && x.value < 0.7; }).slice(0, 2).map(function(x){ return x.label.toLowerCase(); }); };
+  var pl = function(k, label, p){ var g = short3(p); parts.push({ k:k, label:label, score:pillarRaw(p), line:(p.verdict || '').replace(/\..*$/, '') + (g.length ? '; short on ' + g.join(' and ') : '') + '.' }); };
+  pl('cons', 'Consistency', P.consistency);
+  pl('eff', 'Efficiency', P.efficiency);
+  pl('inter', 'Interaction', P.interaction);
+  // Win conditions (Tom, 2026-10-22): the Win conditions pillar, so a swap that takes a way to win away shows it.
+  var wy = partOf(P.wincons, 'ways'), wf = partOf(P.wincons, 'finishers');
+  parts.push({ k:'win', label:'Win conditions', score:pillarRaw(P.wincons),
+    line:(wy ? 'Ways to win ' + wy.have + ' (aim ' + wy.want + ')' : '') + (wf ? ', ' + wf.have + ' finishers' : '') + (P.winTurn ? ', wins on turn ' + P.winTurn + ' in test games' : '') + '.' });
   // Synergy
   var L = buildLinks(X);
   var plan = X.rows.filter(function(r){ return !r.cmd && !r.basic && !r.missing && !r.f.land && !r.jobs.lands && !Object.keys(r.jobs).some(function(j){ return STAPLE[j]; }); });
@@ -2511,23 +2527,12 @@ function scoreNow(){
   parts.push({ k:'syn', label:'Synergy', score:Math.max(0, 10 * (0.7 * massV + 0.3 * topV) - clashCut),
     line:(CL.length ? words(CL.length, 'clash', 'clashes') + ' between cards (-' + r1(clashCut) + '); ' : '') + plan.length + ' plan cards with ' + mass + ' weighted links between them' + (nEng ? ', the ' + words(nEng, 'engine piece') + ' counted twice' : '') + (top ? '; strongest plan ' + top.t.label + ' at ' + Math.round(topV * 100) + '%' : '; no plan found') + '.' });
   // Guidelines
-  var gl = E.guides().filter(function(t){ return t.status !== 'habit'; });
+  // The guidelines that count what a pillar already scores (card draw, lands, ramp, targeted interaction) are left out here.
+  var gl = E.guides().filter(function(t){ return t.status !== 'habit' && !GUIDE_IN_PILLAR[t.key]; });
   var gv = { good:1, watch:0.5, fix:0 }, gs = gl.reduce(function(s, t){ return s + (gv[t.status] != null ? gv[t.status] : 1); }, 0);
   var nf = gl.filter(function(t){ return t.status === 'fix'; }).length, nw = gl.filter(function(t){ return t.status === 'watch'; }).length;
   parts.push({ k:'guide', label:'Guidelines', score:gl.length ? 10 * gs / gl.length : 10,
     line:(gl.length - nf - nw) + ' of ' + gl.length + ' met, ' + nw + ' to watch, ' + nf + ' to fix.' });
-  // Curve and colours, from the Efficiency pillar's parts
-  var sw = 0, sv = 0, ep = P.efficiency.parts || [];
-  ep.forEach(function(p){ if(p.key !== 'colours' && p.weight > 0){ sw += p.weight; sv += p.weight * (p.raw != null ? p.raw : p.value); } });
-  var av = partOf(P.efficiency, 'avgMv'), ln = partOf(P.efficiency, 'lands');
-  parts.push({ k:'curve', label:'Curve', score:sw ? 10 * sv / sw : 0,
-    line:'Average mana value ' + (av ? av.have : '?') + ' (aim ' + (av ? av.want : '?') + '), ' + (ln ? ln.have + ' lands (aim ' + ln.want + ')' : '') + ', ramp counted.' });
-  var colP = partOf(P.efficiency, 'colours');
-  if(colP && colP.weight > 0) parts.push({ k:'col', label:'Colours', score:10 * colP.value, line:'Coloured lands: ' + colP.note });
-  // Win conditions (Tom, 2026-10-22): the Win conditions pillar, so a swap that takes a way to win away shows it.
-  var wy = partOf(P.wincons, 'ways'), wf = partOf(P.wincons, 'finishers');
-  parts.push({ k:'win', label:'Win conditions', score:pillarRaw(P.wincons),
-    line:(wy ? 'Ways to win ' + wy.have + ' (aim ' + wy.want + ')' : '') + (wf ? ', ' + wf.have + ' finishers' : '') + (P.winTurn ? ', wins on turn ' + P.winTurn + ' in test games' : '') + '.' });
   // Shown to one decimal, averaged unrounded: one swap moves a 100-card deck only a little.
   parts.forEach(function(p){ p.v = clamp(p.score, 0, 10); p.score = r1(p.v); });
   var total = parts.reduce(function(s, p){ return s + p.v; }, 0) / parts.length;
@@ -2641,7 +2646,9 @@ E.summary = function(){
       key:E.key(), at:Date.now(),
       cmd:S.cmd.n, partner:S.partner ? S.partner.n : null, art:(S.cmd.img || '').replace('/normal/', '/art_crop/'),
       ci:(S.ci || []).slice(), bracket:S.bracket || null,
-      pillars:{ c:P.consistency.score, e:P.efficiency.score, i:P.interaction.score, w:P.wincons.score, o:P.overall },
+      // sv 2: o is the deck score (ENGINE.score), s and g its synergy and guidelines parts. Before, o was the pillar average.
+      pillars:(function(){ var sc = E.score(), pt = function(k){ var q = sc && sc.parts.filter(function(x){ return x.k === k; })[0]; return q ? q.score : null; };
+        return { c:P.consistency.score, e:P.efficiency.score, i:P.interaction.score, w:P.wincons.score, s:pt('syn'), g:pt('guide'), o:sc ? sc.score : null, sv:2 }; })(),
       roles:roles, curve:curve, avgMv:mvN ? r2(mvSum / mvN) : 0, gcs:X.gcs.length,
       combos:(CB.res && CB.key === namesSig()) || (S.lastCheck && S.lastCheck.combos) ? comboList().length : null,
       themes:th, usd:pr.usd, names:X.rows.filter(function(r){ return !r.basic; }).map(function(r){ return r.n; }), winTurn:P.winTurn || null

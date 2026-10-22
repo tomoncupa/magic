@@ -448,8 +448,13 @@ function testGames(cb){
 var PILLARS = [
   ['consistency', 'Consistency', 'Finds the cards it needs: card draw, tutors, looking at the top of the deck, getting cards back.'],
   ['efficiency', 'Efficiency', 'Gets going quickly: cheap spells, ramp, enough lands of the right colours.'],
-  ['interaction', 'Interaction', 'Deals with what opponents do: removal, board wipes, counterspells, protection.'],
-  ['wincons', 'Win conditions', 'Has a way to end the game: finishers, combos, the commander, speed.']
+  ['interaction', 'Interaction', 'Deals with what opponents do: removal, board wipes, counterspells, protection, an answer to every kind of permanent.'],
+  ['wincons', 'Win conditions', 'Has ways to end the game: finishers, separate ways to win, combos, the commander, speed.']
+];
+// The deck score's two parts that are not pillars, drawn as cards beside them.
+var SCORE_CARDS = [
+  ['syn', 'Synergy', 'How well the cards work together: links between plan cards, the strongest plan, cards that clash with it.'],
+  ['guide', 'Guidelines', 'The deckbuilding guidelines below a list can show. Card draw, lands, ramp and targeted interaction count in the cards above instead.']
 ];
 var JOBS = ['lands', 'ramp', 'draw', 'tutor', 'removal', 'wipes', 'protection', 'wincon', 'synergy'];
 var COLN = { W:'White', U:'Blue', B:'Black', R:'Red', G:'Green', C:'Colourless' };
@@ -464,6 +469,7 @@ function haveWant(x){
     case 'instantShare': return '<b>' + pct(hv) + '</b> <small>aim ' + pct(w) + '</small>';
     case 'lands': return '<b>' + n(hv) + '</b> <small>aim about ' + n(w) + '</small>';
     case 'colours': return '<b>' + n(hv) + ' of ' + n(w) + '</b> <small>colours covered</small>';
+    case 'answers': return '<b>' + n(hv) + ' of ' + n(w) + '</b> <small>kinds answered twice</small>';
     case 'commander': return '<b>' + (hv ? 'Yes' : 'No') + '</b>';
   }
   if(!(x.weight > 0)) return '<b>' + n(hv) + '</b> <small>not scored</small>';
@@ -671,18 +677,14 @@ function guidesHtml(ctx, st){
   '</section>';
 }
 
-// The whole-deck score (ENGINE.score): the one number every swap, Fix and change is judged by.
-function deckScoreHtml(){
-  var e = E(), s = e && e.score ? safe(function(){ return e.score(); }, null) : null;
-  if(!s) return '';
-  return '<section class="bs-panel pg-dscore">' +
-    '<div class="bs-panel-head"><h3 class="bs-panel-title">Deck score</h3><div class="bs-score pg-right"><b>' + one(s.score) + '</b><span>/10</span></div></div>' +
-    '<p class="bs-panel-note pg-mb">How well the 100 work as one deck. Every swap, every Fix and the note after a change say what they do to this number. The four scores above say how strong the deck is for its bracket.</p>' +
-    '<div class="pg-dscore-parts">' + s.parts.map(function(p){
-      return '<div class="pg-dscore-p"><div class="pg-dscore-top"><span class="bs-label">' + h(p.label) + '</span><b class="bs-num">' + one(p.score) + '</b></div>' +
-        meter(p.score, p.label) + '<p class="pg-fine">' + h(p.line) + '</p></div>';
-    }).join('') + '</div>' +
-    '<p class="bs-panel-note pg-mt">The average of ' + words(s.parts.length, 'part') + ', weighted equally' + (s.parts.length < 6 ? ' (one colour, so colours are left out)' : '') + '. Brewing Station\'s own estimate.</p>' +
+// Synergy and Guidelines, the deck score's parts that are not pillars, as cards in the pillar row.
+function scoreCard(def, p){
+  if(!p) return '';
+  return '<section class="bs-panel bs-pillar pg-pillar">' +
+    '<div class="bs-pillar-top"><h3 class="bs-panel-title">' + def[1] + '</h3><div class="bs-score bs-sm"><b>' + one(p.score) + '</b><span>/10</span></div></div>' +
+    meter(p.score, def[1]) +
+    '<p class="pg-what">' + def[2] + '</p>' +
+    '<p class="bs-verdict">' + h(p.line) + '</p>' +
   '</section>';
 }
 // Mana made against mana asked for. Needs: every mana symbol in the deck's spells and commander, as a
@@ -897,13 +899,14 @@ function drawAnalysis(ctx, st){
 
   // ---- head and pillars
   var ready = P && P.ready !== false && P.consistency;
+  var SC = ready && e.score ? safe(function(){ return e.score(); }, null) : null;
   var H = head('How strong is it?',
     'Scores out of 10 for bracket ' + b + ', ' + h(br.name) + '. These are Brewing Station\'s own estimates, worked out from the cards\' rules text, not an official rating.',
-    ready ? '<div class="pg-overall"><span class="bs-label">Overall</span><div class="bs-score"><b>' + one(P.overall) + '</b><span>/10</span></div>' + meter(P.overall, 'Overall', 'bs-lg') + '<span class="pg-overall-n">Average of the four scores</span></div>' : '');
+    ready && SC ? '<div class="pg-overall"><span class="bs-label">Deck score</span><div class="bs-score"><b>' + one(SC.score) + '</b><span>/10</span></div>' + meter(SC.score, 'Deck score', 'bs-lg') + '<span class="pg-overall-n">Average of the six parts below. Every swap and Fix says what it does to it.</span></div>' : '');
   if(!ready) H += callout('info', h((P && P.note) || 'Card data is not loaded yet, so these numbers are incomplete.'));
   else if(!cb) H += '<div class="pg-note-line">' + loadingLine('Checking Commander Spellbook for combos; the scores update when it answers') + '</div>';
-  H += '<div class="pg-pillars">' + PILLARS.map(function(d){ return pillarCard(ctx, d, P && P[d[0]]); }).join('') + '</div>';
-  if(ready) H += deckScoreHtml();
+  H += '<div class="pg-pillars">' + PILLARS.map(function(d){ return pillarCard(ctx, d, P && P[d[0]]); }).join('') +
+    (SC ? SCORE_CARDS.map(function(d){ return scoreCard(d, SC.parts.filter(function(x){ return x.k === d[0]; })[0]); }).join('') : '') + '</div>';
   if(ready) H += benchHtml(ctx);
   if(ready) H += saltHtml(ctx);
 
@@ -1684,7 +1687,9 @@ var CMP_ROWS = [
   ['Efficiency', function(s){ return s.pillars && s.pillars.e; }, 'bar', 'hi'],
   ['Interaction', function(s){ return s.pillars && s.pillars.i; }, 'bar', 'hi'],
   ['Win conditions', function(s){ return s.pillars && s.pillars.w; }, 'bar', 'hi'],
-  ['Overall', function(s){ return s.pillars && s.pillars.o; }, 'one', 'hi', 'average of the four'],
+  ['Synergy', function(s){ return s.pillars && s.pillars.sv ? s.pillars.s : null; }, 'bar', 'hi'],
+  ['Guidelines', function(s){ return s.pillars && s.pillars.sv ? s.pillars.g : null; }, 'bar', 'hi'],
+  ['Deck score', function(s){ return s.pillars && s.pillars.sv ? s.pillars.o : null; }, 'one', 'hi', 'average of the six'],
   ['Speed'],
   ['Average mana value', function(s){ return s.avgMv; }, 'two', 'lo', 'spells only, lower is faster'],
   ['Mana curve', function(s){ return s.curve; }, 'curve'],

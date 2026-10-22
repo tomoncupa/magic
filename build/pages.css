@@ -55,7 +55,8 @@
 .pg-overall-n{font-size:var(--t1);color:var(--ink3)}
 .pg-pillars{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--s5);align-items:start}
 @media (min-width:640px){ .pg-pillars{grid-template-columns:repeat(2,minmax(0,1fr))} }
-@media (min-width:1180px){ .pg-pillars{grid-template-columns:repeat(4,minmax(0,1fr))} }
+@media (min-width:1180px){ .pg-pillars{grid-template-columns:repeat(3,minmax(0,1fr))} }
+@media (min-width:2400px){ .pg-pillars{grid-template-columns:repeat(6,minmax(0,1fr))} }
 .pg-what{margin:0;font-size:var(--t2);line-height:1.45;color:var(--ink3)}
 .pg-pillar .bs-verdict{color:var(--ink)}
 .pg-folds{margin-top:var(--s1)}
