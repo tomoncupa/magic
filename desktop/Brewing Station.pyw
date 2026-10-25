@@ -350,6 +350,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return self.send_json_text(moxfield_feed(user, fresh))
             except Exception as e:  # the page shows the message and falls back to decks/moxfield.json
                 return self.send_json({"error": str(e) or "Moxfield could not be read."}, 502)
+        if path == "/api/moxfield/history":
+            q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+            pid = (q.get("id") or [""])[0]
+            if not MOX_DECK_ID.fullmatch(pid):
+                return self.send_json({"error": "That is not a Moxfield deck id."}, 400)
+            try:
+                import moxfield_decks
+                return self.send_json({"rows": moxfield_decks.fetch_history(pid)})
+            except Exception as e:  # the compare view shows Moxfield's side without dates
+                return self.send_json({"error": str(e) or "Moxfield could not be read."}, 502)
         if path == "/api/moxfield/deck":
             q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
             pid = (q.get("id") or [""])[0]

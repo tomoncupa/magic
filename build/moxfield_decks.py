@@ -171,6 +171,31 @@ def read_deck(pid):
     return d
 
 
+HISTORY = API + "/v2/decks/all/{id}/history?pageNumber={page}&pageSize=100"
+HIST_BOARDS = {"mainboard": "main", "sideboard": "side", "maybeboard": "maybe", "commanders": "cmd"}
+
+
+def fetch_history(public_id, pages=3):
+    """A deck's change history on Moxfield, newest first: [{"n", "b", "d", "t"}] (card name, board,
+    quantity change, when). Each card move is one row per board. Brewing Station's compare view dates
+    Moxfield's side with it (Tom, 2026-10-25: "any way to sort by date?")."""
+    pid = str(public_id or "")
+    if not DECK_ID_OK.fullmatch(pid):
+        raise ValueError("That is not a Moxfield deck id.")
+    out = []
+    for page in range(1, pages + 1):
+        r = get(HISTORY.format(id=urllib.parse.quote(pid), page=page))
+        for e in (r or {}).get("data") or []:
+            name = ((e.get("card") or {}).get("name")) or ""
+            if name:
+                out.append({"n": name, "b": HIST_BOARDS.get(e.get("boardType"), e.get("boardType") or ""),
+                            "d": int(e.get("quantityDelta") or 0), "t": e.get("updatedAtUtc") or ""})
+        if page >= int((r or {}).get("totalPages") or 1):
+            break
+        time.sleep(PAUSE)
+    return out
+
+
 def fetch_deck(public_id):
     """One deck by its Moxfield publicId, in the contract 1 deck shape, plus "author".
 
