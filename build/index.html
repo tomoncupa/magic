@@ -5341,7 +5341,40 @@ function dragIn(n, from, out, cat){
    room. Boxes he never moved fill the shortest column under the ones he did. In My categories the drop also
    sets the categories' order (top to bottom, then left to right), which Pictures and the phone stack by. */
 var BOARD = { cw:300, grid:12, ro:null, drag:null, raf:0 };
-function boardPos(view){ var P = cats().pos; return P[view] || (P[view] = {}); }
+/* Each window width keeps its own layout (Tom, 2026-10-23: "design brewing station for this ultra wide view, right now
+   im scrolling down too much"): places are kept per column count in pos['cat:10'], so the 3840 board fills its ten
+   columns and the 1920 one keeps his. A count with no layout yet packs the boxes in category order. The one layout
+   from before (pos.cat) still serves any width it fits that it fills at least half of. */
+function boardCols(bd){ var gap = boardGap(); return Math.max(1, Math.floor(((bd ? bd.clientWidth : 0) + gap) / (BOARD.cw + gap))); }
+function boardOld(P, view, bd){
+  var o = P[view], ks = o ? Object.keys(o) : []; if(!ks.length) return null;
+  var gap = boardGap(), xs = ks.map(function(k){ return o[k].x || 0; }), right = Math.max.apply(null, xs);
+  var used = {}; xs.forEach(function(x){ used[Math.round(x / (BOARD.cw + gap))] = 1; });
+  return right + BOARD.cw <= bd.clientWidth && Object.keys(used).length * 2 >= boardCols(bd) ? o : null;
+}
+function boardPos(view, bd){
+  var P = cats().pos; if(!bd) return P[view] || (P[view] = {});
+  var k = view + ':' + boardCols(bd);
+  if(P[k]) return P[k];
+  var old = boardOld(P, view, bd); if(old) return old;
+  P[k] = {};
+  if(P[view] && Object.keys(P[view]).length) boardSpreadSoon(view, k);
+  return P[k];
+}
+// Said once per width, after a resize settles, with Undo back to the layout from the narrower window.
+var BSPREAD = { t:0 };
+function boardSpreadSoon(view, k){
+  clearTimeout(BSPREAD.t);
+  BSPREAD.t = setTimeout(function(){
+    var bd = main.querySelector('.bs-board'), P = cats().pos;
+    if(!bd || view + ':' + boardCols(bd) !== k || !P[k] || Object.keys(P[k]).length) return;
+    save();
+    toast('The boxes are spread across this wider window. Drag one and it stays where you put it.', { undo:function(){
+      var o = cats().pos[view] || {}; cats().pos[k] = JSON.parse(JSON.stringify(o)); save(); boardLayout(); return true; } });
+  }, 700);
+}
+// Every layout of a grouping (one per window width), for renames and deletes.
+function boardAll(view){ var P = cats().pos; return Object.keys(P).filter(function(k){ return k === view || k.indexOf(view + ':') === 0; }).map(function(k){ return P[k]; }); }
 // 12px between boxes (Tom, 2026-10-19: "lessen the margins for categories"); By type and By job keep their own.
 function boardGap(){ var bd = main.querySelector('.bs-board'); return parseInt(getComputedStyle(bd || main).getPropertyValue('--board-gap'), 10) || 12; }
 // Where every box goes from the places in pos. first: the box just dropped (or being dragged), which keeps
@@ -5377,7 +5410,7 @@ function boardTighten(bd, view){
   var C = cats(); if(!C.tight || typeof C.tight !== 'object') C.tight = {};
   if(C.tight[view]) return;
   C.tight[view] = 1;
-  var pos = boardPos(view), gap = boardGap(), els = {}, cols = {};
+  var pos = C.pos[view] || {}, gap = boardGap(), els = {}, cols = {};
   [].forEach.call(bd.querySelectorAll(':scope > [data-box]'), function(el){ els[el.getAttribute('data-box')] = el; });
   Object.keys(pos).forEach(function(k){
     var p = pos[k]; p.x = Math.round(p.x * (BOARD.cw + gap) / (BOARD.cw + 36) / BOARD.grid) * BOARD.grid;
@@ -5396,7 +5429,7 @@ function boardLayout(first){
   var bd = main.querySelector('.bs-board'); if(!bd || BOARD.drag) return;
   boardTighten(bd, bd.getAttribute('data-bview'));
   var bottom = 0;
-  boardPlan(bd, boardPos(bd.getAttribute('data-bview')), first).forEach(function(b){ b.el.style.left = b.x + 'px'; b.el.style.top = b.y + 'px'; bottom = Math.max(bottom, b.y + b.h); });
+  boardPlan(bd, boardPos(bd.getAttribute('data-bview'), bd), first).forEach(function(b){ b.el.style.left = b.x + 'px'; b.el.style.top = b.y + 'px'; bottom = Math.max(bottom, b.y + b.h); });
   bd.style.height = (bottom + 120) + 'px';   // room under the last box to drop one there
 }
 function boardWatch(){
@@ -5458,7 +5491,7 @@ function boardDown(e){
     if(!cancel){
       // Every box keeps the place it shows now, so moving one never rearranges the rest; the dropped box
       // keeps its spot and only the boxes it lands on move down to make room.
-      var view = bd.getAttribute('data-bview'), pos = boardPos(view), all = bd.querySelectorAll(':scope > [data-box]');
+      var view = bd.getAttribute('data-bview'), pos = boardPos(view, bd), all = bd.querySelectorAll(':scope > [data-box]');
       var keep = function(){ [].forEach.call(all, function(el){ pos[el.getAttribute('data-box')] = { x:parseInt(el.style.left, 10) || 0, y:parseInt(el.style.top, 10) || 0 }; }); };
       keep(); boardLayout(box); keep();
       if(view === 'cat'){
@@ -5496,7 +5529,7 @@ async function catRename(name){
   C.list[C.list.indexOf(name)] = t;
   Object.keys(C.of).forEach(function(k){ if(C.of[k] === name) C.of[k] = t; });
   Object.keys(C.also).forEach(function(k){ C.also[k] = C.also[k].map(function(x){ return x === name ? t : x; }); });
-  var bp = C.pos.cat; if(bp && bp[name]){ bp[t] = bp[name]; delete bp[name]; }
+  boardAll('cat').forEach(function(bp){ if(bp[name]){ bp[t] = bp[name]; delete bp[name]; } });
   if(C.pin[name]){ C.pin[t] = C.pin[name]; delete C.pin[name]; }
   // A renamed category is no longer offered under its old name.
   lsSet('forge.catNames', JSON.stringify(catNamesUsed().filter(function(x){ return x !== name; })));
@@ -5508,7 +5541,7 @@ function catDelete(name){
   C.list.splice(C.list.indexOf(name), 1);
   Object.keys(C.of).forEach(function(k){ if(C.of[k] === name){ delete C.of[k]; n++; } });
   Object.keys(C.also).forEach(function(k){ C.also[k] = C.also[k].filter(function(x){ return x !== name; }); if(!C.also[k].length) delete C.also[k]; });
-  if(C.pos.cat) delete C.pos.cat[name];
+  boardAll('cat').forEach(function(bp){ delete bp[name]; });
   delete C.pin[name];
   save(); catRedraw();
   toast('Deleted <b>' + esc(name) + '</b>.' + (n ? ' Its ' + n + ' card' + (n > 1 ? 's are' : ' is') + ' under No category yet.' : ''), { undo:catUndo(snap) });

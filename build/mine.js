@@ -481,10 +481,31 @@ function moveHtml(m, i, done){
   return '<div class="mn-move"><span class="mn-move-t">' + label + moveScoreHtml(m, done) + '</span>' + (done ? '<span class="bs-badge bs-good">' + ico('check', 'bs-i16 pg-i12') + '<span>Done</span></span>'
     : '<button class="bs-btn bs-sm" type="button" data-mv="' + i + '">' + ico(m.kind === 'swap' ? 'swap' : m.kind === 'cut' ? 'side' : 'plus', 'bs-i16') + verb + '</button>') + '</div>';
 }
+/* On a wide screen the deck sits beside the conversation (Tom, 2026-10-23, ultrawide pass): his categories when
+   he has made any, else card types, as the Deck tab's rows. Hidden under 2400px by pages.css. */
+function askDeckSide(){
+  if(typeof crowHtml !== 'function' || !S.deck) return '';
+  var C = typeof cats === 'function' ? cats() : { list:[] }, mine = C.list.length && typeof catOf === 'function';
+  var TYPES = ['Creature', 'Planeswalker', 'Battle', 'Instant', 'Sorcery', 'Artifact', 'Enchantment', 'Land'];
+  var groups = {}, order = mine ? C.list.concat(['No category yet']) : TYPES.concat(['Other']);
+  var seen = {};
+  S.deck.forEach(function(d){
+    if(seen[d.n]){ seen[d.n].q++; return; }
+    var c = (typeof poolCard === 'function' && poolCard(d.n)) || { n:d.n, type:'' };
+    var g = mine ? (catOf(d.n) || 'No category yet') : (TYPES.filter(function(t){ return new RegExp('\b' + t + '\b').test(c.type || ''); })[0] || (d.basic ? 'Land' : 'Other'));
+    var it = { n:d.n, c:c, q:1, board:'main', basic:!!d.basic };
+    seen[d.n] = it; (groups[g] = groups[g] || []).push(it);
+  });
+  var body = order.filter(function(g){ return groups[g]; }).map(function(g){
+    var l = groups[g], n = l.reduce(function(a, it){ return a + it.q; }, 0);
+    return '<div class="bs-clist"><p class="bs-label">' + esc(g) + ' <span class="bs-count">' + n + '</span></p>' + l.map(crowHtml).join('') + '</div>';
+  }).join('');
+  return '<aside class="mn-side" aria-label="The deck"><h2 class="mn-side-h">The deck</h2><div class="bs-flow" style="--cw:300px">' + body + '</div></aside>';
+}
 function drawAsk(el){
   claudeOk();
   var T = thread(), direct = canDirect(), busy = ASK.busy === CUR;
-  var h = '<div class="pg-root mn-ask">';
+  var h = '<div class="mn-wide"><div class="pg-root mn-ask">';
   h += '<div class="mn-head"><div><h2 class="mn-title">Ask Claude about this deck</h2>' +
     '<p class="pg-fine">Each question sends Claude one page about this deck and your last ' + KEEP + ' questions, never the whole conversation. Start a new conversation to change subject.</p></div>' +
     (T.length ? '<button class="bs-btn bs-sm bs-quiet" type="button" id="askNew">' + ico('refresh', 'bs-i16') + 'New conversation</button>' : '') + '</div>';
@@ -519,7 +540,7 @@ function drawAsk(el){
   h += '<div class="mn-form"><label class="bs-sr" for="askQ">Your question</label>' +
     '<textarea id="askQ" class="mn-ta" rows="3" placeholder="Ask anything about this deck. Ctrl+Enter sends."' + (busy ? ' disabled' : '') + '>' + esc(ASK.draft) + '</textarea>' +
     '<button class="bs-btn bs-primary" type="button" id="askGo"' + (busy ? ' disabled' : '') + '>' + 'Ask' + '</button></div>';
-  h += '</div>';
+  h += '</div>' + askDeckSide() + '</div>';
   el.innerHTML = h;
   var th = el.querySelector('.mn-thread'); if(th && T.length) setTimeout(function(){ var last = el.querySelector('.mn-thread > :last-child'); if(last && last.scrollIntoView) last.scrollIntoView({ block:'nearest' }); }, 0);
   el.oninput = function(e){ if(e.target.id === 'askQ') ASK.draft = e.target.value; if(e.target.id === 'askPaste') ASK.paste = e.target.value; };

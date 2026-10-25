@@ -340,7 +340,25 @@
   .bs-flow > .bs-clist{break-inside:auto}
   .bs-flow .bs-group{break-after:avoid}
   .bs-flow .bs-crow{break-inside:avoid}
+  /* Ultrawide pass (Tom, 2026-10-23: "right now im scrolling down too much"): a long section may run on into the
+     next column between its panels, so the columns come out even; card rows sit in 300px columns, not one row
+     stretched across a 1239px section. */
+  .pg-root > .bs-section:not(.bs-cols){break-inside:auto}
+  .pg-root > .bs-section > .bs-section-head,.pg-root > .bs-section > .pg-legend{break-after:avoid}
+  .pg-root > .bs-section .bs-panel,.pg-root > .bs-section .bs-cgrid,.pg-root > .bs-section .pg-near{break-inside:avoid}
+  .pg-root .bs-clist.pg-list{display:block;columns:300px;column-gap:var(--s5)}
+  .pg-root .bs-clist.pg-list > *{break-inside:avoid}
+  /* Ask Claude: the conversation scrolls on its own beside the deck, the question box always on screen */
+  .mn-wide{display:grid;grid-template-columns:920px minmax(0,1fr);gap:var(--s7);align-items:start}
+  .mn-wide > .mn-ask{columns:auto;max-width:none;position:sticky;top:var(--head-h);height:calc(100vh - var(--head-h) - var(--s6) - var(--s8))}
+  .mn-wide .mn-thread{flex:1 1 auto;min-height:0;overflow:auto;padding-right:var(--s2)}
+  .mn-wide .mn-thread:empty{display:flex}
+  .mn-wide > .mn-side{display:block}
 }
+.mn-side{display:none}
+.mn-side-h{margin:0 0 var(--s4);font-family:var(--disp);font-size:var(--t4);font-weight:600;color:var(--ink)}
+.mn-side .bs-clist{break-inside:avoid;margin:0 0 var(--s5)}
+.mn-side .bs-label{margin:0 0 var(--s2)}
 
 /* Mana: asked for against made */
 .pg-mana{margin-top:var(--s4)}

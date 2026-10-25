@@ -392,8 +392,12 @@ function addButtons(ctx, c, why){
   }) + '>' + ico('plus', 'bs-i16') + 'Add</button>' + sw;
 }
 // Columns a card grid of --card-min px fills in this page's width, for "two rows, then Show all".
+function wideScreen(){ return !!(window.matchMedia && matchMedia('(min-width:2400px)').matches); }
 function gridCols(ctx, min){
   var w = ctx.el.clientWidth || Math.min(1440, document.documentElement.clientWidth || 1200) - 48;
+  // From 2400px a section sits in one of the page's 940px columns (pages.css), so a row is a column wide, not
+  // the window: at 3840 that is 7 cards, where the window counted 25 and every EDHREC list opened at 50.
+  if(wideScreen()){ var g = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--s7'), 10) || 48, n = Math.max(1, Math.floor((w + g) / (940 + g))); w = (w - (n - 1) * g) / n; }
   if(w <= 420) return 2;
   return Math.max(2, Math.floor((w + 12) / (min + 12)));
 }
@@ -907,8 +911,9 @@ function drawAnalysis(ctx, st){
   else if(!cb) H += '<div class="pg-note-line">' + loadingLine('Checking Commander Spellbook for combos; the scores update when it answers') + '</div>';
   H += '<div class="pg-pillars">' + PILLARS.map(function(d){ return pillarCard(ctx, d, P && P[d[0]]); }).join('') +
     (SC ? SCORE_CARDS.map(function(d){ return scoreCard(d, SC.parts.filter(function(x){ return x.k === d[0]; })[0]); }).join('') : '') + '</div>';
-  if(ready) H += benchHtml(ctx);
-  if(ready) H += saltHtml(ctx);
+  // On a wide screen the benchmark and salt join the panels' columns instead of each taking a full-width band.
+  var wideTop = ready && wideScreen() ? benchHtml(ctx) + saltHtml(ctx) : '';
+  if(ready && !wideTop) H += benchHtml(ctx) + saltHtml(ctx);
 
   // ---- mana curve
   var curve = [0, 0, 0, 0, 0, 0, 0, 0], mvs = 0;
@@ -1061,7 +1066,7 @@ function drawAnalysis(ctx, st){
 
   // Jobs and the bracket check are long lists; the curve, colours and test games are short
   // panels, so on a PC they stack in the right-hand column beside them.
-  H += '<div class="bs-cols bs-section"><div class="bs-main">' + answersHtml(ctx) + guidesHtml(ctx, st) + jobsHtml + brHtml + '</div>' +
+  H += '<div class="bs-cols bs-section"><div class="bs-main">' + wideTop + answersHtml(ctx) + guidesHtml(ctx, st) + jobsHtml + brHtml + '</div>' +
     '<aside class="bs-side bs-sticky" aria-label="Mana curve, colours and test games">' + curveHtml + colHtml + games + '</aside></div>' + priceFoot;
   el.innerHTML = wrap(H);
 }
