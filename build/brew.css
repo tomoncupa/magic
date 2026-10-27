@@ -943,3 +943,11 @@ input:focus-visible,textarea:focus-visible,select:focus-visible{border-color:var
 .bs-flt-n{margin:0 0 var(--s3)}
 .bs-boxscroll{display:flex;flex-direction:column;max-height:calc(15 * var(--tap, 44px));overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--line2) transparent}
 .bs-keepmark{display:inline-grid;place-items:center;color:var(--ink2)}
+
+/* EDHPlay games in the EDHplay panel (2026-10-28) */
+.bs-edhg-h{margin:var(--s4) 0 var(--s2)}
+.bs-edhg{width:100%;border-collapse:collapse;font-size:var(--t2);color:var(--ink2)}
+.bs-edhg th{font-family:var(--disp);font-weight:600;color:var(--ink3);text-align:right;padding:0 0 var(--s2) var(--s2);white-space:nowrap}
+.bs-edhg td{padding:var(--s2) 0 var(--s2) var(--s2);border-top:1px solid var(--line);text-align:right;font-family:var(--disp);color:var(--ink);white-space:nowrap}
+.bs-edhg th:first-child,.bs-edhg td:first-child{text-align:left;padding-left:0;font-family:inherit;white-space:normal;overflow-wrap:anywhere}
+.bs-edhg + .bs-btn{margin-top:var(--s2)}

@@ -3504,9 +3504,56 @@ function edhplayPanelHtml(){
   var cmds = [S.cmd, S.partner].filter(Boolean).map(function(c){ return '<b>' + esc(c.n) + '</b>'; }).join(' and ');
   return '<section class="bs-panel"><div class="bs-panel-head"><h3 class="bs-panel-title">EDHplay</h3></div>' +
     '<p class="bs-panel-note">On EDHplay: make a new Commander deck with ' + cmds + ' as commander' + (S.partner ? 's' : '') + (S.companion ? ' and ' + esc(S.companion) + ' as companion' : '') +
-    ', press Import and paste. The paste is the 99 with your Moxfield printings.</p>' +
+    ', press Import and paste. The paste is the 99 with your Moxfield printings.</p>' + edhGamesHtml() +
     '<div class="bs-stack" style="--gap:var(--s2);margin-top:var(--s4)"><button class="bs-btn bs-primary bs-block" type="button" data-edhplay>' + ico('copy', 'bs-i16') + 'Copy for EDHplay</button>' +
     '<a class="bs-btn bs-quiet bs-block" href="https://edhplay.com" target="_blank" rel="noopener">' + ico('ext', 'bs-i16') + 'Open EDHplay</a></div></section>';
+}
+
+/* EDHPlay games (2026-10-28): GRAB's overlay sends every finished EDHPlay game to the PC server, which keeps them in
+   a file on this PC (never the repo). The deck's own numbers sit in the EDHplay panel when the page runs from the
+   PC server: games, win rate, mulligans and the kept hand's lands, and each card's win rate when drawn.
+   A game belongs to this deck when EDHPlay's commander is this deck's commander. */
+var EDHG = { list:null, busy:false, all:false };
+function edhGamesLoad(){
+  if(EDHG.list || EDHG.busy || !PC.on) return;
+  EDHG.busy = true;
+  fetch('/api/edhplay/games', { cache:'no-store' }).then(function(r){ return r.ok ? r.json() : { games:[] }; }).then(function(j){
+    EDHG.list = (j && j.games) || []; EDHG.busy = false;
+    if(EDHG.list.length && APP.view === 'deck' && S.page === 'deck') drawDeckSide();
+  }, function(){ EDHG.list = []; EDHG.busy = false; });
+}
+function edhGamesHtml(){
+  edhGamesLoad();
+  if(!EDHG.list || !S.cmd) return '';
+  var cmds = [S.cmd, S.partner].filter(Boolean);
+  var gs = EDHG.list.filter(function(g){ return !g.solo && g.commander && cmds.some(function(c){ return String(g.commander).split(/\s*(?:\/\/|,? and |&)\s*/).some(function(n){ return n && (sameName(c.n, n) || sameName(n, c.n)); }); }); });
+  if(!gs.length) return '<p class="bs-panel-note" style="margin-top:var(--s4)">No EDHPlay table games with ' + esc(shortName(S.cmd.n)) + ' yet.</p>';
+  var told = gs.filter(function(g){ return g.result; }), won = told.filter(function(g){ return g.result === 'win'; }).length;
+  var rate = function(a){ var t = a.filter(function(g){ return g.result; }); return t.length ? Math.round(t.filter(function(g){ return g.result === 'win'; }).length / t.length * 100) + '%' : '-'; };
+  var avgM = gs.reduce(function(s, g){ return s + (g.mulls || 0); }, 0) / gs.length;
+  var h = '<div class="bs-lines" style="margin-top:var(--s4)">' +
+    '<div class="bs-line"><span>Table games on EDHPlay</span><b>' + gs.length + '</b></div>' +
+    '<div class="bs-line"><span>Won' + (told.length < gs.length ? ', of ' + told.length + ' with a result' : '') + '</span><b>' + (told.length ? Math.round(won / told.length * 100) + '%' : '-') + '</b></div>' +
+    '<div class="bs-line"><span>Mulligans a game</span><b>' + avgM.toFixed(1) + '</b></div></div>';
+  // Kept hand: win rate by the lands in it.
+  var byL = {};
+  gs.forEach(function(g){ if(g.keptLands != null) (byL[g.keptLands] = byL[g.keptLands] || []).push(g); });
+  var ls = Object.keys(byL).map(Number).sort(function(a, b){ return a - b; });
+  if(ls.length) h += '<h4 class="bs-panel-title bs-edhg-h">Lands in the kept hand</h4><div class="bs-lines">' + ls.map(function(n){
+    return '<div class="bs-line"><span>' + n + ' land' + (n === 1 ? '' : 's') + ', ' + byL[n].length + ' game' + (byL[n].length === 1 ? '' : 's') + '</span><b>' + rate(byL[n]) + '</b></div>'; }).join('') + '</div>';
+  // Each card: win rate in the games it reached his hand, beside the games it did not.
+  var dg = told.filter(function(g){ return g.drawn && g.drawn.length; }), per = {};
+  dg.forEach(function(g){ g.drawn.forEach(function(n){ (per[n] = per[n] || []).push(g); }); });
+  var cards = Object.keys(per).sort(function(a, b){ return per[b].length - per[a].length || a.localeCompare(b); });
+  if(cards.length){
+    var shown = EDHG.all ? cards : cards.slice(0, 10);
+    h += '<h4 class="bs-panel-title bs-edhg-h">Won when drawn</h4><table class="bs-edhg"><thead><tr><th>Card</th><th>Games</th><th>Drawn</th><th>Not</th></tr></thead><tbody>' +
+      shown.map(function(n){ var not = dg.filter(function(g){ return g.drawn.indexOf(n) < 0; });
+        return '<tr><td>' + nameSpan(n) + '</td><td>' + per[n].length + '</td><td>' + rate(per[n]) + '</td><td>' + rate(not) + '</td></tr>'; }).join('') + '</tbody></table>' +
+      (cards.length > 10 ? '<button class="bs-btn bs-quiet bs-block" type="button" data-edhgall>' + (EDHG.all ? 'Show the 10 drawn most' : 'Show all ' + cards.length + ' cards') + '</button>' : '') +
+      '<p class="bs-panel-note">From ' + dg.length + ' game' + (dg.length === 1 ? '' : 's') + ' with a result. Drawn means it reached your hand, opening hand included.</p>';
+  }
+  return h;
 }
 
 /* ---------- the Moxfield feed (contract 1) ---------- */
@@ -5959,6 +6006,7 @@ function onDeckClick(e){
   var bas = t.closest('[data-bas]'); if(bas){ basicStep(bas.getAttribute('data-bas'), +bas.getAttribute('data-d')); return; }
   var lvb = t.closest('[data-lv]'); if(lvb){ var kv = lvb.getAttribute('data-lv').split(':'); setListView(kv[0], kv[1]); drawDeckPage(); return; }
   if(t.closest('[data-addcard]')){ addCardSheet(); return; }
+  if(t.closest('[data-edhgall]')){ EDHG.all = !EDHG.all; drawDeckSide(); return; }
   if(t.closest('[data-catnew]')){ catNew(); return; }
   var cm = t.closest('[data-catmenu]'); if(cm){ catMenu(cm, cm.getAttribute('data-catmenu')); return; }
   var cd = t.closest('[data-card]'); if(cd){ openCardSheet(cd.getAttribute('data-card'), { board:cd.getAttribute('data-board') || '' }); return; }

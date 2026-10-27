@@ -276,6 +276,50 @@ def store_write(set_keys, del_keys):
         return len(keys)
 
 
+# EDHPlay games from GRAB's overlay (2026-10-28), kept beside the store on this PC, never in the repo.
+# Only these fields are kept, so nothing about the other players (their names, their seats) is saved.
+EDH_FILE = os.path.join(os.path.dirname(STORE), "edhplay-games.json")
+EDH_KEYS = {"id": str, "start": (int, float), "end": (int, float), "mins": (int, float), "turns": int, "myTurns": int,
+            "players": int, "solo": bool, "deck": str, "commander": str, "result": str, "auto": bool, "mulls": int,
+            "keptLands": int, "keptSize": int, "drawn": list, "cmdTurn": int, "unspent": (int, float), "missed": int,
+            "mySecs": (int, float), "otherSecs": (int, float), "oppCmd": list, "open": bool}
+edh_lock = threading.Lock()
+
+
+def edh_clean(g):
+    out = {}
+    for k, t in EDH_KEYS.items():
+        v = g.get(k)
+        if isinstance(v, t) and not (t is int and isinstance(v, bool)):
+            if isinstance(v, list):
+                v = [str(x)[:120] for x in v if isinstance(x, str)][:200]
+            elif isinstance(v, str):
+                v = v[:200]
+            out[k] = v
+    if out.get("result") not in ("win", "loss", "draw"):
+        out.pop("result", None)
+    return out if out.get("id") else None
+
+
+def edh_read():
+    try:
+        with open(EDH_FILE, encoding="utf-8") as f:
+            return json.load(f).get("games", [])
+    except (OSError, ValueError):
+        return []
+
+
+def edh_write(games):
+    clean = [g for g in (edh_clean(x) for x in games[-3000:] if isinstance(x, dict)) if g]
+    with edh_lock:
+        os.makedirs(os.path.dirname(EDH_FILE), exist_ok=True)
+        tmp = EDH_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"at": time.time(), "games": clean}, f, ensure_ascii=False)
+        os.replace(tmp, EDH_FILE)
+    return len(clean)
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *a, **k):
         super().__init__(*a, directory=ROOT, **k)
@@ -294,7 +338,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         ok_host = host in ("127.0.0.1", "localhost")
         ok_origin = not origin or origin in (f"http://127.0.0.1:{PORT}", f"http://localhost:{PORT}")
         # GRAB, his Chrome extension, fetches the Moxfield sync jobs; no web page can send a chrome-extension Origin.
-        grab = origin.startswith("chrome-extension://") and self.route().startswith("/api/moxsync/") and self.headers.get("X-Grab") == "1"
+        grab = origin.startswith("chrome-extension://") and self.route().startswith(("/api/moxsync/", "/api/edhplay/")) and self.headers.get("X-Grab") == "1"
         if grab:
             return ok_host
         # Other sites' <img>/<script> tags send no Origin, but browsers mark them cross-site.
@@ -340,6 +384,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.send_json(claude_status())
         if path == "/api/store":
             return self.send_json(store_read())
+        if path == "/api/edhplay/games":
+            return self.send_json({"games": edh_read()})
         if path == "/api/moxfield/decks":
             try:
                 q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
@@ -396,6 +442,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 if not isinstance(ops, list) or not DECK_ID_OK.fullmatch(str(data.get("publicId") or "")):
                     raise RuntimeError("Nothing to send to Moxfield.")
                 return self.send_json({"id": moxq_put({"publicId": str(data["publicId"]), "ops": ops[:300], "count": len(ops), "dry": bool(data.get("dry"))})})
+            if path == "/api/edhplay/games":
+                games = data.get("games")
+                if not isinstance(games, list):
+                    raise RuntimeError("No games.")
+                return self.send_json({"ok": True, "n": edh_write(games)})
             if path == "/api/moxsync/done":
                 return self.send_json({"ok": moxq_done(data)})
             if path == "/api/store":
