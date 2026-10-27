@@ -3476,6 +3476,37 @@ function moxPaste(board){
   }
   return countLines(L[board === 'deck' ? 'main' : board] || []).join('\n') + '\n';
 }
+/* Copy for EDHplay (Tom, 2026-10-27: "an export option for EDHplay specifically"). EDHplay's Import takes one card a line,
+   quantity first, "1 Sol Ring (C18) 222" for a printing; the commander is picked by search when the deck is made there,
+   so the paste is the 99 only. Printings are his Moxfield ones, set and number read from Scryfall by id and kept here. */
+var EDHP = {};
+async function edhplayTxt(){
+  var pr = deckPrints(S), need = [];
+  (S.deck || []).forEach(function(d){ var sid = pr[moxKey(d.n)]; if(sid && !EDHP[sid] && need.indexOf(sid) < 0) need.push(sid); });
+  for(var i = 0; i < need.length; i += 75){
+    try{
+      var ac = window.AbortController ? new AbortController() : null, tm = ac ? setTimeout(function(){ ac.abort(); }, 6000) : 0;
+      var r = await fetch('https://api.scryfall.com/cards/collection', { method:'POST', headers:{ 'Content-Type':'application/json' }, signal:ac ? ac.signal : undefined,
+        body:JSON.stringify({ identifiers:need.slice(i, i + 75).map(function(id){ return { id:id }; }) }) });
+      clearTimeout(tm);
+      ((await r.json()).data || []).forEach(function(c){ EDHP[c.id] = c.set.toUpperCase() + ') ' + c.collector_number; });
+    }catch(e){ break; }   // offline or slow: those cards go by name alone
+  }
+  var m = {}, order = [];
+  (S.deck || []).forEach(function(d){
+    var sid = pr[moxKey(d.n)], line = d.n.split(' // ')[0] + (sid && EDHP[sid] ? ' (' + EDHP[sid] : '');
+    if(!m[line]){ m[line] = 0; order.push(line); } m[line]++;
+  });
+  return order.sort(function(a, b){ return a.localeCompare(b); }).map(function(l){ return m[l] + ' ' + l; }).join('\n') + '\n';
+}
+function edhplayPanelHtml(){
+  var cmds = [S.cmd, S.partner].filter(Boolean).map(function(c){ return '<b>' + esc(c.n) + '</b>'; }).join(' and ');
+  return '<section class="bs-panel"><div class="bs-panel-head"><h3 class="bs-panel-title">EDHplay</h3></div>' +
+    '<p class="bs-panel-note">On EDHplay: make a new Commander deck with ' + cmds + ' as commander' + (S.partner ? 's' : '') + (S.companion ? ' and ' + esc(S.companion) + ' as companion' : '') +
+    ', press Import and paste. The paste is the 99 with your Moxfield printings.</p>' +
+    '<div class="bs-stack" style="--gap:var(--s2);margin-top:var(--s4)"><button class="bs-btn bs-primary bs-block" type="button" data-edhplay>' + ico('copy', 'bs-i16') + 'Copy for EDHplay</button>' +
+    '<a class="bs-btn bs-quiet bs-block" href="https://edhplay.com" target="_blank" rel="noopener">' + ico('ext', 'bs-i16') + 'Open EDHplay</a></div></section>';
+}
 
 /* ---------- the Moxfield feed (contract 1) ---------- */
 var FEED = { p:null, data:null, src:'', at:0, err:'', busy:false, tried:false };
@@ -4179,6 +4210,7 @@ function drawPage(id){
 /* ---------- the Decks page ---------- */
 var BASIC_CARDS = {};
 // Sort and "hide Moxfield notes" on Your decks (Tom, 2026-10-19). Both are views, kept on this device.
+var SHOW_REMOTE = false;
 var DK_SORTS = [['name', 'Name'], ['at', 'Last changed'], ['br', 'Bracket'], ['ci', 'Colours']];
 function dkSort(){ var s = lsGet('brew.dksort'); return DK_SORTS.some(function(x){ return x[0] === s; }) ? s : 'name'; }
 function moxQuiet(){ return lsGet('brew.moxquiet') === '1'; }
@@ -4248,7 +4280,9 @@ function drawDecks(){
   // Decks started and left without a commander are not worth a tile.
   var all = shelf(), rows = all.filter(function(r){ return r.cmd; });
   if(rows.length < all.length){ all.forEach(function(r){ if(!r.cmd && r.id !== CUR) lsDel('forge.deck.' + r.id); }); putShelf(all.filter(function(r){ return r.cmd || r.id === CUR; })); }
-  var f = FEED.data, remote = f ? f.decks.filter(function(d){ return !rows.some(function(r){ return r.mox && r.mox.id === d.id; }); }) : [];
+  // Only decks he brought in show (Tom, 2026-10-27: "I don't want to see decks I specifically haven't brought in"). A Moxfield
+  // deck comes in through Import a deck, From a link, linked. SHOW_REMOTE = true brings the "Not brought in yet" tiles back.
+  var f = FEED.data, remote = f && SHOW_REMOTE ? f.decks.filter(function(d){ return !rows.some(function(r){ return r.mox && r.mox.id === d.id; }); }) : [];
   var items = rows.map(function(r){ return { k:deckTitle(r), h:deckTile(r), at:r.at || 0, br:r.bracket || 0, ci:ciKey(r.ci) }; })
     .concat(remote.map(function(d){ return { k:d.name, h:remoteTile(d), at:Date.parse(d.updated) || 0, br:d.bracket || 0, ci:ciKey(d.ci) }; }));
   var srt = dkSort(), quiet = moxQuiet(), notes = rows.reduce(function(s, r){ return s + moxNotes(r); }, 0);
@@ -4258,7 +4292,7 @@ function drawDecks(){
     return d || a.k.localeCompare(b.k, undefined, { numeric:true, sensitivity:'base' });
   });
   var sub = rows.length ? rows.length + ' deck' + (rows.length > 1 ? 's' : '') + (PC.on ? ' on this PC' : ' on this device') + (remote.length ? ', ' + remote.length + ' more on Moxfield' : '') + '. Open a deck to see it.'
-    : remote.length ? remote.length + ' deck' + (remote.length > 1 ? 's' : '') + ' on Moxfield. Open one to bring it in.' : 'Bring your decks in from Moxfield, or start a new one from a commander.';
+    : remote.length ? remote.length + ' deck' + (remote.length > 1 ? 's' : '') + ' on Moxfield. Open one to bring it in.' : 'Import a deck from a list or a Moxfield link, or start a new one from a commander.';
   var h = '<div class="bs-pagehead"><div><h1 class="bs-title">Your decks</h1><p class="bs-sub">' + sub + '</p></div><div class="bs-acts">' +
     '<button class="bs-btn" type="button" id="dkRefresh"' + (FEED.busy || IMPORT.busy ? ' disabled' : '') + '>' + (FEED.busy ? '<span class="bs-spin"></span>Checking Moxfield' : ico('refresh', 'bs-i16') + 'Refresh from Moxfield') + '</button>' +
     (PG('compare') ? '<a class="bs-btn" href="#compare">Compare</a>' : '') + importBtnHtml() +
@@ -4269,11 +4303,11 @@ function drawDecks(){
     '</div>';
   if(FEED.tried && !f && !quiet) h += '<div class="bs-callout bs-warn" style="margin-bottom:var(--s5)">' + ico('warn') + '<div class="sh-err"><p><b>' + (/no deck list/.test(FEED.err) ? 'No Moxfield decks for this name yet.' : 'Could not reach Moxfield.') + '</b> Showing the decks already on this device. ' + esc(FEED.err) + '.</p><button class="bs-btn bs-sm" type="button" id="dkRetry">Try again</button></div></div>';
   if(!items.length && FEED.tried && !FEED.busy){
-    h += '<div class="bs-empty">' + ico('deck') + '<h3 class="bs-empty-title">No decks yet</h3><p>Bring your decks in from Moxfield, import a list, or start a new one from a commander.</p>' +
+    h += '<div class="bs-empty">' + ico('deck') + '<h3 class="bs-empty-title">No decks yet</h3><p>Import a deck from a list or a Moxfield link, or start a new one from a commander.</p>' +
       '<div class="bs-acts">' + importBtnHtml('dkImport2') + '<button class="bs-btn bs-primary" type="button" id="dkNew2">New deck</button></div></div>';
   } else {
     h += '<div class="bs-grid" style="--grid-min:300px">' + items.map(function(x){ return x.h; }).join('');
-    if(!f && (FEED.busy || !FEED.tried)) h += '<article class="bs-dtile" aria-busy="true" aria-label="Loading decks from Moxfield"><span class="bs-skel bs-skel-art"></span><div class="bs-dtile-body"><span class="bs-skel bs-skel-title" style="--w:70%"></span><span class="bs-skel bs-skel-line" style="--w:45%"></span><span class="bs-skel bs-skel-line"></span></div></article>';
+    if(SHOW_REMOTE && !f && (FEED.busy || !FEED.tried)) h += '<article class="bs-dtile" aria-busy="true" aria-label="Loading decks from Moxfield"><span class="bs-skel bs-skel-art"></span><div class="bs-dtile-body"><span class="bs-skel bs-skel-title" style="--w:70%"></span><span class="bs-skel bs-skel-line" style="--w:45%"></span><span class="bs-skel bs-skel-line"></span></div></article>';
     h += '</div>';
   }
   main.innerHTML = h;
@@ -5922,6 +5956,9 @@ function onDeckClick(e){
     var heads = ['Commander', 'Deck'].concat(S.companion ? ['Companion'] : [], (Bh.side || []).length ? ['Sideboard'] : [], (Bh.maybe || []).length ? ['Maybeboard (Considering)'] : []);
     copy(moxPaste(b), { all:'Copied the whole deck with ' + heads.slice(0, -1).join(', ') + ' and ' + heads[heads.length - 1] + ' headings, for a new Moxfield deck or another site.',
     deck:'Copied the 99 for the Main Deck tab, no commander line.', side:'Copied the side deck for the Sideboard tab.', maybe:'Copied Considering for the Considering tab.' }[b] || 'Copied.'); return; }
+  var ep = t.closest('[data-edhplay]'); if(ep){ if(ep.disabled) return; ep.disabled = true; var eh = ep.innerHTML; ep.innerHTML = '<span class="bs-spin"></span>Reading your printings';
+    edhplayTxt().then(function(tx){ ep.disabled = false; ep.innerHTML = eh; var n = tx.trim().split('\n').reduce(function(s, l){ return s + (parseInt(l, 10) || 0); }, 0);
+      copy(tx, 'Copied ' + n + ' cards for EDHplay. Pick the commander there, then Import and paste.'); }); return; }
   if(t.closest('#moxNewer')){ refreshOpenDeck(); return; }
   if(t.closest('[data-mcompare]')){ moxCompare(); return; }
   if(t.closest('[data-now]')){ openNowSheet(); return; }
@@ -6007,6 +6044,7 @@ function drawDeckSide(){
   // The Moxfield panel is the one that asks for action once he has made changes: then it goes first.
   var mp = moxPanelHtml();
   if(S.mox && moxDiff().count) h = mp + h; else h += mp;
+  if(S.cmd) h += edhplayPanelHtml();
   // Price is a footnote: it never decides anything here.
   if(st.usd != null) h += '<p class="bs-pricefoot">Whole deck: about ' + (php || '$' + Math.round(st.usd).toLocaleString('en-US')) + ' at Scryfall prices (estimate' + (st.unpriced ? ', ' + st.unpriced + ' card' + (st.unpriced === 1 ? '' : 's') + ' without a price' : '') + ').</p>';
   box.innerHTML = h;
