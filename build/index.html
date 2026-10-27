@@ -889,6 +889,7 @@ function save(opts){
   if(S.mox){ row.mox = { id:S.mox.id, upd:S.mox.updated || '', url:S.mox.url || '' }; row.chg = moxDiff().count; }
   else if(S.from && S.from.url) row.from = S.from.url;   // a deck imported from someone else's link
   if(S.sum) row.sum = S.sum;
+  if(old && old.hid) row.hid = 1;   // hidden from Your decks stays hidden
   if(opts && opts.quiet && old){ row.at = old.at; list[i] = row; }
   else { if(i >= 0) list.splice(i, 1); list.unshift(row); }
   putShelf(list);
@@ -4215,9 +4216,15 @@ var DK_SORTS = [['name', 'Name'], ['at', 'Last changed'], ['br', 'Bracket'], ['c
 function dkSort(){ var s = lsGet('brew.dksort'); return DK_SORTS.some(function(x){ return x[0] === s; }) ? s : 'name'; }
 function moxQuiet(){ return lsGet('brew.moxquiet') === '1'; }
 function moxNotes(x){ return (x.chg ? 1 : 0) + (newerOnMox(x) ? 1 : 0) + (x.mox && goneFromMox(x.mox.id) ? 1 : 0); }
+function hideDeck(id, on){
+  putShelf(shelf().map(function(r){ if(r.id === id){ if(on) r.hid = 1; else delete r.hid; } return r; }));
+  drawDecks();
+  var r0 = shelfRow(id);
+  toast('<b>' + esc(r0 ? deckTitle(r0) : 'The deck') + '</b> ' + (on ? 'is hidden.' : 'shows again.'), { undo:function(){ hideDeck(id, !on); } });
+}
 function tileBadges(x, newer){
   var q = moxQuiet();
-  return (x.mox ? '<span class="bs-badge bs-info">Moxfield</span>' : x.src ? '<span class="bs-badge">Imported</span>' : '<span class="bs-badge bs-dashed">Draft</span>') +
+  return (x.hid ? '<span class="bs-badge bs-dashed">Hidden</span>' : '') + (x.mox ? '<span class="bs-badge bs-info">Moxfield</span>' : x.src ? '<span class="bs-badge">Imported</span>' : '<span class="bs-badge bs-dashed">Draft</span>') +
     (q ? '' : (x.chg ? '<span class="bs-badge bs-gold">' + x.chg + ' change' + (x.chg > 1 ? 's' : '') + ' to send</span>' : '') +
     (newer ? '<span class="bs-badge bs-warn">Newer on Moxfield</span>' : '') +
     (x.mox && goneFromMox(x.mox.id) ? '<span class="bs-badge bs-warn" title="Moxfield no longer lists this deck in public">Not on Moxfield now</span>' : ''));
@@ -4283,23 +4290,28 @@ function drawDecks(){
   // Only decks he brought in show (Tom, 2026-10-27: "I don't want to see decks I specifically haven't brought in"). A Moxfield
   // deck comes in through Import a deck, From a link, linked. SHOW_REMOTE = true brings the "Not brought in yet" tiles back.
   var f = FEED.data, remote = f && SHOW_REMOTE ? f.decks.filter(function(d){ return !rows.some(function(r){ return r.mox && r.mox.id === d.id; }); }) : [];
-  var items = rows.map(function(r){ return { k:deckTitle(r), h:deckTile(r), at:r.at || 0, br:r.bracket || 0, ci:ciKey(r.ci) }; })
+  // Hidden decks (Tom, 2026-10-27: "the 4 decks I actually open in BS, and the 2 new ones I made today"): kept, shown only
+  // while Hidden decks is pressed. A deck is hidden or shown from its ⋯ menu.
+  var hidN = rows.filter(function(r){ return r.hid; }).length, showHid = lsGet('brew.showhid') === '1';
+  var vis = showHid ? rows : rows.filter(function(r){ return !r.hid; });
+  var items = vis.map(function(r){ return { k:deckTitle(r), h:deckTile(r), at:r.at || 0, br:r.bracket || 0, ci:ciKey(r.ci) }; })
     .concat(remote.map(function(d){ return { k:d.name, h:remoteTile(d), at:Date.parse(d.updated) || 0, br:d.bracket || 0, ci:ciKey(d.ci) }; }));
-  var srt = dkSort(), quiet = moxQuiet(), notes = rows.reduce(function(s, r){ return s + moxNotes(r); }, 0);
+  var srt = dkSort(), quiet = moxQuiet(), notes = vis.reduce(function(s, r){ return s + moxNotes(r); }, 0);
   items.sort(function(a, b){
     // Newest first; brackets low to high, unset last; colours by how many, then in WUBRG order. Ties go by name.
     var d = srt === 'at' ? b.at - a.at : srt === 'br' ? (a.br || 9) - (b.br || 9) : srt === 'ci' ? (a.ci < b.ci ? -1 : a.ci > b.ci ? 1 : 0) : 0;
     return d || a.k.localeCompare(b.k, undefined, { numeric:true, sensitivity:'base' });
   });
-  var sub = rows.length ? rows.length + ' deck' + (rows.length > 1 ? 's' : '') + (PC.on ? ' on this PC' : ' on this device') + (remote.length ? ', ' + remote.length + ' more on Moxfield' : '') + '. Open a deck to see it.'
+  var sub = vis.length ? vis.length + ' deck' + (vis.length > 1 ? 's' : '') + (PC.on ? ' on this PC' : ' on this device') + (remote.length ? ', ' + remote.length + ' more on Moxfield' : '') + (hidN && !showHid ? ', ' + hidN + ' hidden' : '') + '. Open a deck to see it.'
     : remote.length ? remote.length + ' deck' + (remote.length > 1 ? 's' : '') + ' on Moxfield. Open one to bring it in.' : 'Import a deck from a list or a Moxfield link, or start a new one from a commander.';
   var h = '<div class="bs-pagehead"><div><h1 class="bs-title">Your decks</h1><p class="bs-sub">' + sub + '</p></div><div class="bs-acts">' +
     '<button class="bs-btn" type="button" id="dkRefresh"' + (FEED.busy || IMPORT.busy ? ' disabled' : '') + '>' + (FEED.busy ? '<span class="bs-spin"></span>Checking Moxfield' : ico('refresh', 'bs-i16') + 'Refresh from Moxfield') + '</button>' +
     (PG('compare') ? '<a class="bs-btn" href="#compare">Compare</a>' : '') + importBtnHtml() +
     '<button class="bs-btn" type="button" id="dkNew">' + ico('plus', 'bs-i16') + 'New deck</button></div></div>';
-  if(items.length > 1 || quiet || notes) h += '<div class="bs-dkbar">' +
+  if(items.length > 1 || quiet || notes || hidN) h += '<div class="bs-dkbar">' +
     (items.length > 1 ? '<span class="bs-label">Sort</span><div class="bs-seg" role="group" aria-label="Sort decks">' + DK_SORTS.map(function(s){ var on = srt === s[0]; return '<button type="button" data-dksort="' + s[0] + '" aria-pressed="' + on + '"' + (on ? ' class="on"' : '') + '>' + s[1] + '</button>'; }).join('') + '</div>' : '') +
     (quiet || notes ? '<button class="bs-btn bs-sm bs-dkquiet" type="button" data-moxquiet aria-pressed="' + quiet + '">' + (quiet ? 'Show Moxfield notes' + (notes ? ' <span class="bs-num">(' + notes + ')</span>' : '') : 'Hide Moxfield notes') + '</button>' : '') +
+    (hidN ? '<button class="bs-btn bs-sm bs-dkquiet" type="button" data-showhid aria-pressed="' + showHid + '">' + (showHid ? 'Hide the hidden decks' : 'Hidden decks <span class="bs-num">(' + hidN + ')</span>') + '</button>' : '') +
     '</div>';
   if(FEED.tried && !f && !quiet) h += '<div class="bs-callout bs-warn" style="margin-bottom:var(--s5)">' + ico('warn') + '<div class="sh-err"><p><b>' + (/no deck list/.test(FEED.err) ? 'No Moxfield decks for this name yet.' : 'Could not reach Moxfield.') + '</b> Showing the decks already on this device. ' + esc(FEED.err) + '.</p><button class="bs-btn bs-sm" type="button" id="dkRetry">Try again</button></div></div>';
   if(!items.length && FEED.tried && !FEED.busy){
@@ -4317,6 +4329,7 @@ function onDecksClick(e){
   var t = e.target;
   var so = t.closest('[data-dksort]'); if(so){ lsSet('brew.dksort', so.getAttribute('data-dksort')); drawDecks(); return; }
   if(t.closest('[data-moxquiet]')){ lsSet('brew.moxquiet', moxQuiet() ? '0' : '1'); drawDecks(); return; }
+  if(t.closest('[data-showhid]')){ lsSet('brew.showhid', lsGet('brew.showhid') === '1' ? '0' : '1'); drawDecks(); return; }
   var mn = t.closest('[data-menu]'); if(mn){ deckMenu(mn, mn.getAttribute('data-menu')); return; }
   var im = t.closest('[data-import]'); if(im){ openFromMox(im.getAttribute('data-import')); return; }
   // A deck brought in (Moxfield, a paste, a link) opens on its Deck tab; a deck he is still building
@@ -4400,6 +4413,7 @@ function deckMenu(btn, id){
     var fd = feedDeck(row.mox.id);
     if(fd) items.push({ label:'Bring in the Moxfield version', icon:'refresh', note:newerOnMox(row) ? 'Moxfield has a newer one' : 'Same as the last one brought in', fn:function(){ refreshRow(row, fd); } });
   }
+  items.push({ label:row.hid ? 'Show on Your decks' : 'Hide from Your decks', icon:'side', note:row.hid ? '' : 'Kept here; Hidden decks shows it', fn:function(){ hideDeck(id, !row.hid); } });
   items.push({ label:'Delete from Brewing Station', icon:'trash', kind:'bad', note:row.mox && !goneFromMox(row.mox.id) ? 'Moxfield keeps its copy' : 'You can undo for a few seconds', fn:function(){ deleteDeck(id); } });
   bsMenu(btn, deckTitle(row), items);
 }
