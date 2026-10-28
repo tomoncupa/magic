@@ -893,6 +893,7 @@ function save(opts){
   if(opts && opts.quiet && old){ row.at = old.at; list[i] = row; }
   else { if(i >= 0) list.splice(i, 1); list.unshift(row); }
   putShelf(list);
+  if(S.mox && S.pool) moxAutoSoon();   // a rename or a category change goes to Moxfield like a card change
 }
 function load(){ try{ var j = JSON.parse(lsGet('forge.deck.' + CUR) || 'null'); return j && j.step ? j : null; }catch(e){ return null; } }
 // Another window saved this deck: take its copy (keeping the card data when it still covers every
@@ -3695,7 +3696,7 @@ async function importList(X, onStep, opts){
     S.src = X.source || 'moxfield'; S.page = 'deck';
     if(X.from && X.from.url) S.from = { site:X.from.site || '', url:X.from.url, id:X.from.id || '', author:X.from.author || '' };
     var list = function(a){ return (a || []).map(function(x){ return { n:x.n, q:x.q || 1 }; }); };
-    if(X.moxId) S.mox = { id:X.moxId, name:X.name || '', url:X.url || ('https://moxfield.com/decks/' + X.moxId), updated:X.updated || '',
+    if(X.moxId) S.mox = { id:X.moxId, name:X.name || '', url:X.url || ('https://moxfield.com/decks/' + X.moxId), updated:X.updated || '', tags:X.tags || {},
       snap:{ cmd:cmds.map(function(c){ return { n:c.n, q:1 }; }), main:list(X.main), side:list(X.side), maybe:list(X.maybe) } };
     S.boards = { side:list(X.side), maybe:list(X.maybe) };
     S.prints = printsOf(X);
@@ -6151,7 +6152,7 @@ async function linkMox(id){
   }
   var was = { mox:S.mox, prints:S.prints, pool:S.pool, boards:otherRaw ? JSON.parse(JSON.stringify(S.boards)) : null };
   var list = function(a){ return (a || []).map(function(x){ return { n:x.n, q:x.q || 1 }; }); };
-  S.mox = { id:L.id, name:j.name || '', url:'https://moxfield.com/decks/' + L.id, updated:j.updated || '',
+  S.mox = { id:L.id, name:j.name || '', url:'https://moxfield.com/decks/' + L.id, updated:j.updated || '', tags:j.tags || {},
     snap:{ cmd:(j.commanders || []).map(function(c){ return { n:c.n, q:1 }; }), main:list(j.main), side:list(j.side), maybe:list(j.maybe) } };
   S.prints = printsOf(j);
   S.pool = null; BASIC_CARDS = {};   // the pictures load again with his printings, basics too
@@ -6187,8 +6188,36 @@ function moxOps(){
     if(down.length === 1 && up.length === 1) ops.push({ kind:'move', name:m.n, from:BRD[down[0]], to:BRD[up[0]], fromBase:m.base[down[0]] || 0, fromWant:m.want[down[0]] || 0, toBase:m.base[up[0]] || 0, toWant:m.want[up[0]] || 0 });
     else ch.forEach(function(b){ ops.push({ kind:'set', name:m.n, board:BRD[b], base:m.base[b] || 0, want:m.want[b] || 0 }); });
   });
-  var D = moxDiff();
-  return { ops:ops, cmd:D.cmd.add.length + D.cmd.remove.length, base:snap };
+  var D = moxDiff(), meta = moxMetaOps();
+  return { ops:ops.concat(meta.ops), cmd:D.cmd.add.length + D.cmd.remove.length, base:snap, meta:meta };
+}
+/* The deck's name and his categories go to Moxfield too (Tom, 2026-10-28: "even something like renaming on Bstation
+   gets copied to moxfield", picked A and C). Three-way like the cards: S.mox.name and S.mox.tags are Moxfield's as
+   last read here, so only what changed here goes; a name changed on Moxfield and not here stays. A category is a
+   Moxfield tag: the card's home first, then its extra tags. A deck linked before this has no tags kept yet, so
+   Moxfield's tags in the feed become the base, or none when the feed lacks the deck (tags then only go on, never
+   off). The commanders carry no categories. */
+function moxTagsNow(){
+  var L = nowLists(), out = {};
+  ['main', 'side', 'maybe'].forEach(function(b){ (L[b] || []).forEach(function(x){
+    var k = moxKey(x.n); if(out[k]) return; var h = catOf(x.n); out[k] = { n:x.n, t:(h ? [h] : []).concat(catAlso(x.n)) }; }); });
+  return out;
+}
+function tagsKeyed(T){ var o = {}; Object.keys(T || {}).forEach(function(n){ o[moxKey(n)] = T[n] || []; }); return o; }
+function sameTags(a, b){ var f = function(l){ return l.map(function(t){ return String(t).toLowerCase(); }).sort().join('|'); }; return f(a) === f(b); }
+function moxMetaOps(){
+  var ops = [], name = null, tags = null;
+  if(!S.mox) return { ops:ops, name:name, tags:tags, nTags:0 };
+  if(S.name && S.mox.name != null && S.name !== S.mox.name){ name = S.name; ops.push({ kind:'name', name:S.name, base:S.mox.name, want:S.name }); }
+  if(!S.mox.tags){ var fd = feedDeck(S.mox.id); S.mox.tags = (fd && fd.tags) || {}; }
+  {
+    var B = tagsKeyed(S.mox.tags), T = moxTagsNow(); tags = {};
+    Object.keys(T).forEach(function(k){
+      tags[T[k].n] = T[k].t;
+      var b = B[k] || []; if(!sameTags(T[k].t, b)) ops.push({ kind:'tags', name:T[k].n, base:b, want:T[k].t });
+    });
+  }
+  return { ops:ops, name:name, tags:tags, nTags:ops.filter(function(o){ return o.kind === 'tags'; }).length };
 }
 function countArr(l){ var m = {}; (l || []).forEach(function(x){ var k = String(x.n).toLowerCase(); (m[k] = m[k] || { n:x.n, q:0 }).q += x.q || 1; }); return Object.keys(m).map(function(k){ return m[k]; }); }
 // Moxfield changed since the copy kept here, but this list is the newer one (Tom, 2026-10-21: "Big clex on brewing
@@ -6199,7 +6228,7 @@ function moxKeepMine(){
   var was = { snap:S.mox.snap, updated:S.mox.updated };
   var list = function(a){ return (a || []).map(function(x){ return { n:x.n, q:x.q || 1 }; }); };
   S.mox.snap = { cmd:(fd.commanders || []).map(function(c){ return { n:c.n, q:1 }; }), main:list(fd.main), side:list(fd.side), maybe:list(fd.maybe) };
-  S.mox.updated = fd.updated || S.mox.updated;
+  S.mox.updated = fd.updated || S.mox.updated; S.mox.name = fd.name || S.mox.name; S.mox.tags = fd.tags || {};
   save();
   var y = moxSyncState(), queued = !!(y && y.state === 'waiting'); if(queued) moxSend();   // the waiting job is replaced by the full one
   drawDeckSide();
@@ -6273,7 +6302,7 @@ async function moxCompare(){
     BRD.forEach(function(b){ mox[b] = (fd[b] || []).map(function(x){ return { n:x.n, q:x.q || 1 }; }); });
     try{
       var id = await importList(X, function(t){ if(APP.view === 'deck' && !$('poolMsg')) render(); poolStepUI(t); }, { key:fd.id });
-      if(id && CUR === id && S.mox){ S.mox.snap = mox; S.mox.updated = fd.updated || S.mox.updated; save(); }
+      if(id && CUR === id && S.mox){ S.mox.snap = mox; S.mox.updated = fd.updated || S.mox.updated; S.mox.tags = fd.tags || {}; save(); }
       render(); moxAutoSoon();
       toast(take.length + ' card' + (take.length > 1 ? 's' : '') + ' came in from Moxfield.' + (rows.length - take.length ? ' Your other ' + (rows.length - take.length) + ' go to Moxfield on the next sync.' : ''), { ms:8000 });
     }catch(e){ render(); if(!e.stale) toast('Could not make that list: ' + esc(e.message) + '.', { kind:'bad', ms:8000 }); }
@@ -6284,12 +6313,12 @@ function moxSyncState(){ return (S.mox && S.mox.sync) || null; }
 async function moxSend(){
   if(!LOCAL || !S.mox) return;
   var o = moxOps(); if(!o.ops.length) return;
-  var sent = JSON.parse(JSON.stringify(nowLists())), mine = S;
+  var sent = JSON.parse(JSON.stringify(nowLists())), mine = S, meta = { name:o.meta.name, tags:o.meta.tags };
   try{
     var r = await fetch('/api/moxsync/queue', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ publicId:S.mox.id, ops:o.ops }) });
     var j = await r.json(); if(!r.ok || j.error) throw new Error(j.error || 'the PC server answered ' + r.status);
     if(S !== mine) return;
-    S.mox.sync = { id:j.id, at:Date.now(), state:'waiting', n:o.ops.length, sent:sent, cmd:o.cmd };
+    S.mox.sync = { id:j.id, at:Date.now(), state:'waiting', n:o.ops.length, sent:sent, meta:meta, cmd:o.cmd };
     save({ quiet:true }); drawDeckSide(); moxPoll();
   }catch(e){ toast('Could not queue the Moxfield sync: ' + esc(e.message), { kind:'bad' }); }
 }
@@ -6309,7 +6338,7 @@ function moxPoll(){
         y2.state = job.state;
         // Moxfield's copy kept here becomes what was sent. Its date moves on only when Moxfield had no changes of its
         // own, so changes made there still show as a newer version to bring in.
-        if(job.state === 'done'){ S.mox.snap = y2.sent; if(job.result && job.result.updated && !(job.result.results || []).some(function(r){ return r.theirs; })) S.mox.updated = job.result.updated; y2.doneAt = Date.now(); y2.res = job.result; delete y2.sent; save({ quiet:true }); toast('Moxfield is up to date: ' + y2.n + ' change' + (y2.n > 1 ? 's' : '') + ' made.'); }
+        if(job.state === 'done'){ S.mox.snap = y2.sent; if(y2.meta){ if(y2.meta.name) S.mox.name = y2.meta.name; if(y2.meta.tags) S.mox.tags = y2.meta.tags; delete y2.meta; } if(job.result && job.result.updated && !(job.result.results || []).some(function(r){ return r.theirs; })) S.mox.updated = job.result.updated; y2.doneAt = Date.now(); y2.res = job.result; delete y2.sent; save({ quiet:true }); toast('Moxfield is up to date: ' + y2.n + ' change' + (y2.n > 1 ? 's' : '') + ' made.'); }
         if(job.state === 'failed'){ y2.err = (job.result && job.result.err) || 'GRAB could not make the changes on Moxfield.'; y2.res = job.result; save({ quiet:true }); }
       } else if(!job){ y2.state = 'lost'; }
       // Drawn again only when what it says changed, so a press in the panel is never eaten by a redraw.
@@ -6336,7 +6365,7 @@ function moxSyncHtml(D){
   var nOps = D.count ? moxOps().ops.length : 0;
   if(nOps && !busy) h += '<button class="bs-btn bs-primary bs-block" type="button" data-msync>' + ico('import', 'bs-i16') + 'Send ' + nOps + ' change' + (nOps > 1 ? 's' : '') + ' to Moxfield now</button>';
   h += '<label class="bs-check pg-mt"><input type="checkbox" data-mauto' + (moxAuto() ? ' checked' : '') + '> Send changes on their own</label>' +
-    '<p class="bs-panel-note">Adds, removes and moves cards between boards on Moxfield through GRAB in Chrome. Your art and wishlist there are never touched.</p></div>';
+    '<p class="bs-panel-note">Adds, removes and moves cards between boards on Moxfield through GRAB in Chrome, and sends the deck\'s name and your categories (as Moxfield tags). Your art and wishlist there are never touched.</p></div>';
   return h;
 }
 function moxPanelHtml(){
@@ -6353,8 +6382,12 @@ function moxPanelHtml(){
       '<a class="bs-btn bs-quiet bs-block" href="https://moxfield.com/decks/new" target="_blank" rel="noopener">' + ico('ext', 'bs-i16') + 'Start a new deck on Moxfield</a></div></section>';
   }
   var D = moxDiff(), fd = feedDeck(S.mox.id), newer = fd && isNewer(fd.updated, S.mox.updated), B = S.boards || {}, gone = goneFromMox(S.mox.id);
-  var h = '<section class="bs-panel' + (D.count && !gone ? ' bs-hl' : '') + '" id="moxPanel"><div class="bs-panel-head"><h3 class="bs-panel-title">Moxfield</h3>' +
-    (gone ? '<span class="bs-badge bs-warn" style="margin-left:auto">Not on Moxfield now</span>' : D.count ? '<span class="bs-badge bs-gold" style="margin-left:auto"><span class="bs-num">' + D.count + '</span>&nbsp;change' + (D.count > 1 ? 's' : '') + '</span>' : '<span class="bs-badge bs-good" style="margin-left:auto">Matches</span>') + '</div>';
+  var MM = moxMetaOps(), all = D.count + (MM.name ? 1 : 0) + MM.nTags;
+  var h = '<section class="bs-panel' + (all && !gone ? ' bs-hl' : '') + '" id="moxPanel"><div class="bs-panel-head"><h3 class="bs-panel-title">Moxfield</h3>' +
+    (gone ? '<span class="bs-badge bs-warn" style="margin-left:auto">Not on Moxfield now</span>' : all ? '<span class="bs-badge bs-gold" style="margin-left:auto"><span class="bs-num">' + all + '</span>&nbsp;change' + (all > 1 ? 's' : '') + '</span>' : '<span class="bs-badge bs-good" style="margin-left:auto">Matches</span>') + '</div>';
+  if(!gone && (MM.name || MM.nTags)) h += '<ul class="bs-panel-note" style="margin:0 0 var(--s3);padding-left:1.2em">' +
+    (MM.name ? '<li>Renamed here: Moxfield\'s <b data-nolink>' + esc(S.mox.name || 'deck') + '</b> becomes <b data-nolink>' + esc(MM.name) + '</b>.</li>' : '') +
+    (MM.nTags ? '<li>' + MM.nTags + ' card' + (MM.nTags > 1 ? 's\'' : '\'s') + ' categories go to Moxfield as tags.</li>' : '') + '</ul>';
   if(gone) h += '<div class="bs-callout bs-warn">' + ico('warn') +
     '<p><b>Your Moxfield deck list no longer shows this deck.</b> It was made unlisted, or deleted. Your copy here is kept. If it is unlisted, the Bulk Edit texts below still work. If you deleted it, use Copy for a new Moxfield deck.</p></div>';
   if(newer) h += '<div class="bs-callout bs-warn" style="margin-bottom:var(--s4)">' + ico('warn') + '<div class="sh-err"><p><b>Moxfield has a newer version.</b> Changed there ' + ago(Date.parse(fd.updated)) + '.</p><div class="bs-acts"><button class="bs-btn bs-sm bs-primary" type="button" data-mcompare>' + ico('copy', 'bs-i16') + 'Compare both, pick the master</button>' +
@@ -6373,7 +6406,7 @@ function moxPanelHtml(){
         x.remove.map(function(a){ return '<li class="bs-rm"><span>' + cardLink(a.n, null, { solo:true }) + '</span><small>' + (a.q > 1 ? a.q : '') + '</small><span class="bs-sr">remove</span></li>'; }).join('') + '</ul>';
     });
   } else h += '<p class="bs-panel-note">Brewing Station and Moxfield have the same list' + (S.mox.updated ? ' (Moxfield version of ' + dateStr(S.mox.updated) + ')' : '') + '.</p>';
-  if(!gone) h += moxSyncHtml(D);
+  if(!gone) h += moxSyncHtml({ count:all });
   // Moxfield's Bulk Edit shows one board at a time, and its Main Deck tab holds the 99 without the
   // commander (Tom checked: "Main Deck (99)"). So one text per tab, no headings, no commander line.
   var snap = S.mox.snap || {}, empt = [];
