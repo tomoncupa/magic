@@ -428,6 +428,15 @@ button.bs-crow,.bs-crow.bs-tap{cursor:pointer}
 .bs-asm-head b{color:var(--ink)}
 .bs-gone{display:none!important}
 .bs-cols.bs-asm-wide{grid-template-columns:minmax(0,1fr)}
+.bs-asmgrid{display:flex;flex-wrap:wrap;align-items:flex-start;gap:var(--s5) var(--s6);column-gap:var(--s6)}
+.bs-asmrows{column-gap:var(--s6)}
+.bs-asmgrid.bs-asmflow{display:block}
+.bs-asmflow > .bs-asmcat{break-inside:avoid;margin-bottom:var(--s5)}
+.bs-asmrows > .bs-crow{break-inside:avoid}
+.bs-asmgrid .bs-crow.bs-asm{min-height:var(--asm-h,44px)}
+.bs-asmgrid .bs-crow-thumb{height:calc(var(--asm-h,44px) - 16px);width:calc((var(--asm-h,44px) - 16px) * 1.36)}
+.bs-asmgrid .bs-crow-n{font-size:var(--asm-f,14px)}
+.bs-asmgrid .bs-crow-s{font-size:max(12px, calc(var(--asm-f,14px) * .75))}
 .bs-asm .bs-crow-n,.bs-asm .bs-crow-s{white-space:normal;overflow:visible;text-overflow:clip}
 /* groups flowed into newspaper columns (Moxfield's deck view) */
 .bs-flow{columns:var(--cw,300px);column-gap:var(--s7)}
