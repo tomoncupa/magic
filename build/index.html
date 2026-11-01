@@ -1686,6 +1686,7 @@ function drawList(){
   if(S.importMissing && S.importMissing.length) h += '<p class="bad" style="margin-top:8px">Scryfall did not know these cards from the list you brought in, so they are not in it: ' + esc(S.importMissing.join(', ')) + '.</p>';
   h += '<div class="suggest" style="margin-top:12px"><input type="text" id="addIn" aria-label="Add a card by name" placeholder="Add a card by name" autocomplete="off"><ul id="addList" hidden></ul></div>';
   var lv = listView(); if(lv.g === 'cat') lv.g = 'job';   // his own categories live on the Deck tab only
+  if(lv.p === 2) lv.p = 0;   // Assemble lives on the Deck tab only
   h += '<div class="row" style="gap:var(--s3)"><div class="seg"><button data-lv="g:job"' + (lv.g === 'job' ? ' class="on"' : '') + '>By job</button>' +
     '<button data-lv="g:type"' + (lv.g === 'type' ? ' class="on"' : '') + '>Moxfield types</button></div>' +
     '<div class="seg"><button data-lv="p:0"' + (!lv.p ? ' class="on"' : '') + '>List</button><button data-lv="p:1"' + (lv.p ? ' class="on"' : '') + '>Pictures</button></div></div>';
@@ -1733,7 +1734,7 @@ var GROUP_PLURAL = { Creature:'Creatures', Planeswalker:'Planeswalkers', Instant
 function listView(){
   // s: the order inside each group, per grouping (Tom, 2026-10-19: "manacost, or alphabetical"); each grouping keeps the order it had.
   var v = { g:'type', p:0, s:{ type:'az', job:'mv', cat:'mv' } };
-  try { var s = JSON.parse(localStorage.getItem('forge.listView') || '{}'); if(s.g === 'job' || s.g === 'cat') v.g = s.g; if(s.p) v.p = 1;
+  try { var s = JSON.parse(localStorage.getItem('forge.listView') || '{}'); if(s.g === 'job' || s.g === 'cat') v.g = s.g; if(s.p) v.p = s.p === 2 ? 2 : 1;
     if(s.s && typeof s.s === 'object') Object.keys(v.s).forEach(function(g){ if(s.s[g] === 'mv' || s.s[g] === 'az') v.s[g] = s.s[g]; }); } catch(e){}
   return v;
 }
@@ -5182,6 +5183,44 @@ function crowHtml(it){
   }
   return '<button class="bs-crow' + itCls(it) + '" type="button" data-card="' + esc(n) + '" data-board="' + it.board + '">' + lead + mid + '<span class="bs-crow-end">' + pinMark(it) + keepMark(it) + itemBadges(it) + mv + '</span></button>';
 }
+/* ---------- Assemble (Tom, 2026-11-01: "an assembled mode, mostly the same view but just give a check box", for putting the
+   paper deck together): the Deck tab's list with a tick box on each row. A tap ticks the card and nothing else; the ticks
+   stay with the deck (S.got, card key -> 1) until Untick all. The count is the 100: commander and the 99. */
+function gotOf(n){ return !!(S.got && S.got[moxKey(n)]); }
+function asmCount(){
+  var all = [S.cmd].concat(S.partner ? [S.partner] : []).map(function(c){ return { n:c.n, q:1 }; }).concat(deckItems());
+  return all.reduce(function(a, it){ a.t += it.q; if(gotOf(it.n)) a.g += it.q; return a; }, { g:0, t:0 });
+}
+function asmHead(){
+  var k = asmCount();
+  return '<div class="bs-asm-head" data-asmhead><span class="bs-count"><b>' + k.g + '</b> of ' + k.t + ' pulled</span>' +
+    (k.g ? '<button class="bs-btn bs-sm bs-quiet" type="button" data-gotclear>Untick all</button>' : '') + '</div>';
+}
+function asmRowHtml(it){
+  var c = it.c || {}, n = it.n, on = gotOf(n), k = moxKey(n);
+  var art = it.thumb || (faceImg(c, n) || '').replace('/normal/', '/art_crop/');
+  var lead = art ? '<img class="bs-crow-thumb" src="' + esc(art) + '" alt="" loading="lazy">' : '<span class="bs-crow-thumb" aria-hidden="true"></span>';
+  var mv = it.board !== 'cmd' && !it.basic && c.mv != null && !(c.type && isLand(c)) ? '<span class="bs-crow-mv" title="Mana value">' + c.mv + '</span>' : '';
+  return '<button class="bs-crow bs-asm' + (on ? ' bs-got' : '') + (it.echo ? ' bs-echo' : '') + '" type="button" role="checkbox" aria-checked="' + on + '" data-got="' + esc(k) + '">' +
+    '<span class="bs-asm-box" aria-hidden="true">' + ico('check', 'bs-i16') + '</span>' + lead +
+    '<span class="bs-crow-main"><span class="bs-crow-n">' + (it.q > 1 ? '<span class="bs-crow-q">' + it.q + '</span>' : '') + esc(n) + '</span>' + (it.sub ? '<span class="bs-crow-s">' + esc(it.sub) + '</span>' : '') + '</span>' +
+    '<span class="bs-crow-end">' + mv + '</span></button>';
+}
+// Ticks change the rows in place, so the list never jumps under his finger.
+function gotPaint(){
+  main.querySelectorAll('[data-got]').forEach(function(b){ var on = !!(S.got && S.got[b.getAttribute('data-got')]); b.classList.toggle('bs-got', on); b.setAttribute('aria-checked', on); });
+  var hd = main.querySelector('[data-asmhead]'); if(hd) hd.outerHTML = asmHead();
+}
+function gotToggle(k){
+  S.got = S.got || {};
+  if(S.got[k]) delete S.got[k]; else S.got[k] = 1;
+  save({ quiet:true }); gotPaint();
+}
+function gotClear(){
+  var was = Object.assign({}, S.got || {});
+  S.got = {}; save({ quiet:true }); gotPaint();
+  toast('Unticked every card.', { undo:function(){ S.got = was; save({ quiet:true }); if(APP.view === 'deck' && S.page === 'deck') gotPaint(); return true; } });
+}
 function ctileHtml(it){
   var c = it.c || {}, bad = itemBadges(it), img = faceImg(c, it.n), back = !!FLIP[moxKey(it.n)] && twoFaced(c);
   return '<div class="bs-ctile' + itCls(it) + '"><button class="bs-ctile-pic" type="button" tabindex="-1" data-card="' + esc(it.n) + '" data-board="' + it.board + '" aria-label="' + esc(it.n) + '">' +
@@ -5667,7 +5706,7 @@ function deckGroups(lv){
   var items = deckItems(), groups = [];
   var cmds = [S.cmd].concat(S.partner ? [S.partner] : []).map(function(c){
     var pc = poolCard(c.n) || c;
-    return { n:c.n, q:1, c:pc, board:'cmd', thumb:lv.p ? '' : (c.img || '').replace('/normal/', '/art_crop/'), sub:typeLine(c) };
+    return { n:c.n, q:1, c:pc, board:'cmd', thumb:lv.p === 1 ? '' : (c.img || '').replace('/normal/', '/art_crop/'), sub:typeLine(c) };
   });
   groups.push({ t:S.partner ? 'Commanders' : 'Commander', items:cmds });
   if(lv.g === 'job'){
@@ -5798,13 +5837,14 @@ function drawDeckPage(){
   if(!moxQuiet() && total !== 100 && snapN >= 0 && snapN + (S.partner ? 2 : 1) === total && !moxDiff().count) h += '<div class="bs-callout bs-warn">' + ico('warn') + '<p><b>Moxfield\'s Main Deck had ' + snapN + ' cards when this copy came in,</b> so the deck has ' + total + '. ' +
     (total > 100 ? 'Cut ' + (total - 100) + ' here or on Moxfield.' : 'Add ' + (100 - total) + ' here or on Moxfield.') + ' If you were still changing it on Moxfield, bring in the newer version once it shows.</p></div>';
   h += '<section data-zone="main"><div class="bs-section-head"><h2 class="bs-h2">The deck</h2>' + cnt + '<div class="bs-acts">' +
-    '<div class="bs-seg" role="group" aria-label="Show as"><button type="button" data-lv="p:0"' + (!lv.p ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>List</button><button type="button" data-lv="p:1"' + (lv.p ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Pictures</button></div>' +
+    '<div class="bs-seg" role="group" aria-label="Show as"><button type="button" data-lv="p:0"' + (!lv.p ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>List</button><button type="button" data-lv="p:1"' + (lv.p === 1 ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Pictures</button>' +
+    '<button type="button" data-lv="p:2"' + (lv.p === 2 ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Assemble</button></div>' +
     '<div class="bs-seg" role="group" aria-label="Group by"><button type="button" data-lv="g:type"' + (lv.g === 'type' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>By type</button><button type="button" data-lv="g:job"' + (lv.g === 'job' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>By job</button>' +
     '<button type="button" data-lv="g:cat"' + (lv.g === 'cat' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>My categories</button></div>' +
     '<div class="bs-seg" role="group" aria-label="Sort"><button type="button" data-lv="s:mv"' + (lv.s[lv.g] === 'mv' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Mana value</button><button type="button" data-lv="s:az"' + (lv.s[lv.g] === 'az' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>A to Z</button></div>' +
     '<button class="bs-btn bs-sm' + (lv.g === 'cat' ? '' : ' bs-primary') + '" type="button" data-addcard>' + ico('plus', 'bs-i16') + 'Add a card</button>' +
     (lv.g === 'cat' ? '<button class="bs-btn bs-sm bs-primary" type="button" data-catnew>' + ico('plus', 'bs-i16') + 'New category</button>' : '') +
-    '</div></div>' + fltBar() + (shown >= 0 ? '<p class="pg-fine bs-flt-n">' + (shown ? shown + (shown === 1 ? ' card' : ' cards') + ' in the 99 match.' : 'No card in the 99 matches.') + '</p>' : '');
+    '</div></div>' + (lv.p === 2 ? asmHead() : '') + fltBar() + (shown >= 0 ? '<p class="pg-fine bs-flt-n">' + (shown ? shown + (shown === 1 ? ' card' : ' cards') + ' in the 99 match.' : 'No card in the 99 matches.') + '</p>' : '');
   var isCat = lv.g === 'cat', touch = phone();
   // A deck with no categories, when another deck here with the same commander has some: bring them across.
   if(!cats().list.length){
@@ -5830,12 +5870,12 @@ function drawDeckPage(){
     return '<p class="bs-catdrop">' + (g.none ? 'Every card has a category.' + (touch ? '' : ' Drop a card here to take it out of its category.') : touch ? 'Tap a card and pick ' + esc(g.t) + '.' : 'Drag cards here, or tap a card and pick ' + esc(g.t) + '.') + '</p>';
   }
   // In My categories a box of more than 15 cards scrolls inside itself (Tom, 2026-10-20: "let anything longer than 15 be a scroll").
-  function rows(g){ var h = g.items.map(crowHtml).join(''); return isCat && g.items.length > 15 ? '<div class="bs-boxscroll">' + h + '</div>' : h; }
+  function rows(g){ var h = g.items.map(lv.p === 2 ? asmRowHtml : crowHtml).join(''); return isCat && g.items.length > 15 ? '<div class="bs-boxscroll">' + h + '</div>' : h; }
   function drawGroups(gs, board){
     if(!gs.length) return '';
     if(board) return '<div class="bs-board" data-bview="' + esc(lv.g) + '" style="--cw:' + BOARD.cw + 'px">' + gs.map(function(g){
       return '<div class="bs-clist" data-box="' + esc(boxKey(g)) + '"' + zone(g) + '>' + head(g, true) + rows(g) + empty(g) + '</div>'; }).join('') + '</div>';
-    if(lv.p) return '<div class="sh-pics">' + gs.map(function(g){ return '<section' + zone(g) + '>' + head(g) + '<div class="bs-cgrid" style="--card-min:140px">' + g.items.map(ctileHtml).join('') + '</div>' + empty(g) + '</section>'; }).join('') + '</div>';
+    if(lv.p === 1) return '<div class="sh-pics">' + gs.map(function(g){ return '<section' + zone(g) + '>' + head(g) + '<div class="bs-cgrid" style="--card-min:140px">' + g.items.map(ctileHtml).join('') + '</div>' + empty(g) + '</section>'; }).join('') + '</div>';
     return '<div class="bs-flow" style="--cw:300px">' + gs.map(function(g){ return '<div class="bs-clist"' + zone(g) + '>' + head(g) + rows(g) + empty(g) + '</div>'; }).join('') + '</div>';
   }
   var inGs = groups.filter(function(g){ return !g.board; }), outGs = groups.filter(function(g){ return g.board; });
@@ -6004,6 +6044,8 @@ function loadBasicPics(){
 function onDeckClick(e){
   var t = e.target;
   var fl = t.closest('[data-flip]'); if(fl){ flipCard(fl.getAttribute('data-flip')); return; }
+  var gt = t.closest('[data-got]'); if(gt){ gotToggle(gt.getAttribute('data-got')); return; }
+  if(t.closest('[data-gotclear]')){ gotClear(); return; }
   var bas = t.closest('[data-bas]'); if(bas){ basicStep(bas.getAttribute('data-bas'), +bas.getAttribute('data-d')); return; }
   var lvb = t.closest('[data-lv]'); if(lvb){ var kv = lvb.getAttribute('data-lv').split(':'); setListView(kv[0], kv[1]); drawDeckPage(); return; }
   if(t.closest('[data-addcard]')){ addCardSheet(); return; }
