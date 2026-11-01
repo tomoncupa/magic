@@ -5188,7 +5188,16 @@ function crowHtml(it){
    stay with the deck (S.got, card key -> 1) until Untick all. The count is the 100: commander and the 99.
    A ticked card leaves the list (Tom, 2026-11-01: "ticking a card should hide it from view"), with Undo; Show pulled
    brings them back for this visit, and a group with nothing left to pull goes too. */
-var ASM = { show:false };
+var ASM = { show:false, away:{} };
+/* A ticked card is in that deck's box (Tom, 2026-11-01: "if I assemble a card in a deck, that means its there. This is
+   meant to help me see if a card is currently in another deck"). ASM.away: card key -> the other decks it is ticked in,
+   read from every other deck on this PC when the Deck tab draws. */
+function gotElsewhere(){
+  var m = {};
+  shelf().forEach(function(r){ if(r.id === CUR) return; var d = deckOf(r.id), g = d && d.got; if(!g) return;
+    Object.keys(g).forEach(function(k){ (m[k] = m[k] || []).push(deckTitle(r)); }); });
+  return m;
+}
 function gotOf(n){ return !!(S.got && S.got[moxKey(n)]); }
 function asmCount(){
   var all = [S.cmd].concat(S.partner ? [S.partner] : []).map(function(c){ return { n:c.n, q:1 }; }).concat(deckItems());
@@ -5203,12 +5212,13 @@ function asmHead(){
 }
 function asmRowHtml(it){
   var c = it.c || {}, n = it.n, on = gotOf(n), k = moxKey(n);
-  var art = it.thumb || (faceImg(c, n) || '').replace('/normal/', '/art_crop/');
+  var art = it.thumb || (faceImg(c, n) || '').replace('/normal/', '/art_crop/'), away = it.basic ? null : ASM.away[k];
   var lead = art ? '<img class="bs-crow-thumb" src="' + esc(art) + '" alt="" loading="lazy">' : '<span class="bs-crow-thumb" aria-hidden="true"></span>';
   var mv = it.board !== 'cmd' && !it.basic && c.mv != null && !(c.type && isLand(c)) ? '<span class="bs-crow-mv" title="Mana value">' + c.mv + '</span>' : '';
   return '<button class="bs-crow bs-asm' + (on ? ' bs-got' + (ASM.show ? '' : ' bs-gone') : '') + (it.echo ? ' bs-echo' : '') + '" type="button" role="checkbox" aria-checked="' + on + '" data-got="' + esc(k) + '" data-n="' + esc(n) + '">' +
     '<span class="bs-asm-box" aria-hidden="true">' + ico('check', 'bs-i16') + '</span>' + lead +
-    '<span class="bs-crow-main"><span class="bs-crow-n">' + (it.q > 1 ? '<span class="bs-crow-q">' + it.q + '</span>' : '') + esc(n) + '</span>' + (it.sub ? '<span class="bs-crow-s">' + esc(it.sub) + '</span>' : '') + '</span>' +
+    '<span class="bs-crow-main"><span class="bs-crow-n">' + (it.q > 1 ? '<span class="bs-crow-q">' + it.q + '</span>' : '') + esc(n) + '</span>' + (it.sub ? '<span class="bs-crow-s">' + esc(it.sub) + '</span>' : '') +
+    (away ? '<span class="bs-asm-in">' + ico('deck', 'bs-i16') + '<span>In ' + esc(away.join(', ')) + '</span></span>' : '') + '</span>' +
     '<span class="bs-crow-end">' + mv + '</span></button>';
 }
 /* Every category heads its own columns along the top (Tom, 2026-11-01: "look at all the blank space that could be used,
@@ -5873,6 +5883,7 @@ function drawDeckPage(){
     (total > 100 && typeof window.openTrim === 'function' ? '<button class="bs-btn bs-sm bs-primary" type="button" data-trimopen>' + ico('cut', 'bs-i16') + 'Trim to 100</button>' : '');
   // Assemble is for finding cards on the table: the 99 across the whole window, no side deck, no side panel (Tom, 2026-11-01).
   var asm = lv.p === 2;
+  if(asm) ASM.away = gotElsewhere();
   var h = '<div class="bs-cols' + (asm ? ' bs-asm-wide' : '') + '"><div class="bs-main">';
   if(S.importMissing && S.importMissing.length) h += '<div class="bs-callout bs-bad">' + ico('warn') + '<p><b>Scryfall did not know ' + S.importMissing.length + ' card' + (S.importMissing.length > 1 ? 's' : '') + ' from the list,</b> so they are left out: ' + esc(S.importMissing.join(', ')) + '. ' +
     (S.mox ? 'Check the spelling on Moxfield, then bring it in again.' : 'Import the list again with the names fixed.') + '</p></div>';
