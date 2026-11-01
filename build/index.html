@@ -5836,7 +5836,9 @@ function drawDeckPage(){
   }
   var cnt = total === 100 ? '<span class="bs-count">100 cards</span>' : '<span class="bs-badge bs-warn">' + total + ' cards, ' + (total < 100 ? (100 - total) + ' short' : (total - 100) + ' too many') + '</span>' +
     (total > 100 && typeof window.openTrim === 'function' ? '<button class="bs-btn bs-sm bs-primary" type="button" data-trimopen>' + ico('cut', 'bs-i16') + 'Trim to 100</button>' : '');
-  var h = '<div class="bs-cols"><div class="bs-main">';
+  // Assemble is for finding cards on the table: the 99 across the whole window, no side deck, no side panel (Tom, 2026-11-01).
+  var asm = lv.p === 2;
+  var h = '<div class="bs-cols' + (asm ? ' bs-asm-wide' : '') + '"><div class="bs-main">';
   if(S.importMissing && S.importMissing.length) h += '<div class="bs-callout bs-bad">' + ico('warn') + '<p><b>Scryfall did not know ' + S.importMissing.length + ' card' + (S.importMissing.length > 1 ? 's' : '') + ' from the list,</b> so they are left out: ' + esc(S.importMissing.join(', ')) + '. ' +
     (S.mox ? 'Check the spelling on Moxfield, then bring it in again.' : 'Import the list again with the names fixed.') + '</p></div>';
   // Brought in while Moxfield's own list was not 99 (he was halfway through an edit there): say so,
@@ -5889,9 +5891,9 @@ function drawDeckPage(){
   var inGs = groups.filter(function(g){ return !g.board; }), outGs = groups.filter(function(g){ return g.board; });
   h += drawGroups(inGs, onBoard) + '</section>';
   // Cards that are with the deck but not in it: a line and a heading of their own, so the 99 ends clearly.
-  if(outGs.length) h += '<section class="sh-boards"><div class="bs-section-head"><h2 class="bs-h2">Not in the 99</h2><span class="bs-count">' +
+  if(outGs.length && !asm) h += '<section class="sh-boards"><div class="bs-section-head"><h2 class="bs-h2">Not in the 99</h2><span class="bs-count">' +
     outGs.map(function(g){ return esc(g.t) + ' ' + cnt2(g); }).join(', ') + '</span></div>' + drawGroups(outGs) + '</section>';
-  h += '</div><aside class="bs-side bs-sticky" id="deckSide"></aside></div>';
+  h += '</div>' + (asm ? '' : '<aside class="bs-side bs-sticky" id="deckSide"></aside>') + '</div>';
   main.innerHTML = h;
   main.onclick = function(e){ if(fltClick(e)) return; if(e.target.closest && e.target.closest('[data-trimopen]')){ window.openTrim(); return; }
     var cf = e.target.closest && e.target.closest('[data-catsfrom]'); if(cf){ catsFrom(cf.getAttribute('data-catsfrom')); return; }
