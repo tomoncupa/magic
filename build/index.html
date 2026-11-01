@@ -4357,6 +4357,7 @@ function drawDecks(){
     '<button class="bs-btn" type="button" id="dkRefresh"' + (FEED.busy || IMPORT.busy ? ' disabled' : '') + '>' + (FEED.busy ? '<span class="bs-spin"></span>Checking Moxfield' : ico('refresh', 'bs-i16') + 'Refresh from Moxfield') + '</button>' +
     (PG('compare') ? '<a class="bs-btn" href="#compare">Compare</a>' : '') + importBtnHtml() +
     '<button class="bs-btn" type="button" id="dkNew">' + ico('plus', 'bs-i16') + 'New deck</button></div></div>';
+  if(rows.length) h += findHtml();
   if(items.length > 1 || quiet || notes || hidN) h += '<div class="bs-dkbar">' +
     (items.length > 1 ? '<span class="bs-label">Sort</span><div class="bs-seg" role="group" aria-label="Sort decks">' + DK_SORTS.map(function(s){ var on = srt === s[0]; return '<button type="button" data-dksort="' + s[0] + '" aria-pressed="' + on + '"' + (on ? ' class="on"' : '') + '>' + s[1] + '</button>'; }).join('') + '</div>' : '') +
     (quiet || notes ? '<button class="bs-btn bs-sm bs-dkquiet" type="button" data-moxquiet aria-pressed="' + quiet + '">' + (quiet ? 'Show Moxfield notes' + (notes ? ' <span class="bs-num">(' + notes + ')</span>' : '') : 'Hide Moxfield notes') + '</button>' : '') +
@@ -4371,8 +4372,49 @@ function drawDecks(){
     if(SHOW_REMOTE && !f && (FEED.busy || !FEED.tried)) h += '<article class="bs-dtile" aria-busy="true" aria-label="Loading decks from Moxfield"><span class="bs-skel bs-skel-art"></span><div class="bs-dtile-body"><span class="bs-skel bs-skel-title" style="--w:70%"></span><span class="bs-skel bs-skel-line" style="--w:45%"></span><span class="bs-skel bs-skel-line"></span></div></article>';
     h += '</div>';
   }
+  // A redraw (Moxfield answering, an import step) keeps the find box's cursor where he was typing.
+  var ae = document.activeElement, at = ae && ae.matches && ae.matches('[data-find]') ? ae.selectionStart : null;
   main.innerHTML = h;
+  if(at != null){ var fi = main.querySelector('[data-find]'); if(fi){ fi.focus(); fi.setSelectionRange(at, at); } }
   main.onclick = onDecksClick;
+  main.oninput = function(e){ if(!e.target.matches('[data-find]')) return; FIND.q = e.target.value; clearTimeout(FIND.t);
+    FIND.t = setTimeout(function(){ var box = $('findOut'); if(box) box.innerHTML = findResults(); }, 120); };
+}
+/* Find a card in every deck (Tom, 2026-11-01: "add a search function, so I know what deck has what cards"). Every deck
+   on this PC, hidden ones too, read when he types: where the card sits in each (the 99, commander, side deck,
+   Considering) and whether it is ticked in that deck's Assemble, which means the paper card is in that box. */
+var FIND = { q:'', t:0 };
+function findHtml(){
+  return '<div class="bs-find"><input class="bs-swm-q bs-flt-q" type="search" data-find autocomplete="off" spellcheck="false" placeholder="Find a card in your decks" aria-label="Find a card in your decks" value="' + esc(FIND.q) + '">' +
+    '<div id="findOut" aria-live="polite">' + findResults() + '</div></div>';
+}
+function findResults(){
+  var q = FIND.q.trim().toLowerCase(); if(q.length < 2) return '';
+  var cards = {};
+  shelf().forEach(function(r){
+    if(!r.cmd) return; var d = deckOf(r.id); if(!d) return;
+    var got = d.got || {}, put = function(n, where){
+      if(!n || String(n).toLowerCase().indexOf(q) < 0) return;
+      var k = moxKey(n), c = cards[k] || (cards[k] = { n:n, decks:[] });
+      if(!c.decks.some(function(x){ return x.id === r.id && x.w === where; })) c.decks.push({ id:r.id, t:deckTitle(r), w:where, got:!!got[k], hid:!!r.hid });
+    };
+    [d.cmd, d.partner].forEach(function(c){ if(c) put(c.n, 'Commander'); });
+    (d.deck || []).forEach(function(x){ if(!x.basic) put(x.n, ''); });
+    [['side', 'Side deck'], ['maybe', 'Considering']].forEach(function(b){ ((d.boards || {})[b[0]] || []).forEach(function(x){ if(!isBasicName(x.n)) put(x.n, b[1]); }); });
+  });
+  var list = Object.keys(cards).map(function(k){ return cards[k]; }).sort(function(a, b){
+    var x = a.n.toLowerCase().indexOf(q) === 0, y = b.n.toLowerCase().indexOf(q) === 0; return y - x || a.n.localeCompare(b.n); });
+  if(!list.length) return '<p class="pg-fine bs-find-none">No deck here has a card called ' + esc(FIND.q.trim()) + '.</p>';
+  var more = list.length - 30;
+  return '<div class="bs-find-list">' + list.slice(0, 30).map(function(c){
+    c.decks.sort(function(a, b){ return b.got - a.got || a.hid - b.hid || a.t.localeCompare(b.t, undefined, { numeric:true }); });
+    var own = ownedOf(moxKey(c.n)), inBox = c.decks.filter(function(x){ return x.got; }).length;
+    return '<div class="bs-find-row"><div class="bs-find-n">' + esc(c.n) +
+      '<span class="bs-find-s">' + c.decks.length + (c.decks.length > 1 ? ' decks' : ' deck') + (inBox ? ', ' + inBox + ' assembled' : '') + (own > 1 ? ', you own ' + own : '') + '</span></div>' +
+      '<div class="bs-chips">' + c.decks.map(function(x){
+        return '<button class="bs-chip' + (x.got ? ' on' : '') + '" type="button" data-open="' + esc(x.id) + '">' + (x.got ? ico('check', 'bs-i16') : '') + esc(x.t) +
+          (x.w ? ', ' + x.w : '') + (x.got ? ', assembled' : '') + (x.hid ? ', hidden deck' : '') + '</button>'; }).join('') + '</div></div>';
+  }).join('') + '</div>' + (more > 0 ? '<p class="pg-fine">' + more + ' more cards match. Type more of the name.</p>' : '');
 }
 function onDecksClick(e){
   var t = e.target;

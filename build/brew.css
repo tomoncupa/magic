@@ -427,6 +427,16 @@ button.bs-crow,.bs-crow.bs-tap{cursor:pointer}
 .bs-asm-head{display:flex;align-items:center;gap:var(--s3);min-height:var(--tap);margin-bottom:var(--s2)}
 .bs-asm-head b{color:var(--ink)}
 .bs-gone{display:none!important}
+/* Your decks: find a card in every deck */
+.bs-find{display:flex;flex-direction:column;gap:var(--s3);margin-bottom:var(--s5);max-width:1100px}
+.bs-find > input{flex:none;width:100%;max-width:560px}
+.bs-find-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r);background:var(--bg2)}
+.bs-find-row{display:grid;grid-template-columns:minmax(180px,280px) minmax(0,1fr);gap:var(--s3) var(--s5);align-items:start;padding:var(--s3) var(--s4);border-bottom:1px solid var(--line)}
+.bs-find-row:last-child{border-bottom:0}
+.bs-find-n{display:flex;flex-direction:column;font-weight:600;color:var(--ink);min-height:var(--tap);justify-content:center}
+.bs-find-s{font-weight:400;font-size:var(--t1);color:var(--ink3)}
+.bs-find .bs-chip .bs-i16{margin-right:4px;vertical-align:-3px}
+@media (max-width:640px){ .bs-find-row{grid-template-columns:minmax(0,1fr)} }
 .bs-asm-in{display:flex;align-items:flex-start;gap:4px;margin-top:2px;font-size:max(12px, calc(var(--asm-f,14px) * .8));line-height:1.3;color:var(--ink)}
 .bs-asm-in .bs-i16{flex:none;color:var(--brass);margin-top:1px}
 .bs-asm-free{color:var(--ink3)}
