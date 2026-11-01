@@ -5185,7 +5185,10 @@ function crowHtml(it){
 }
 /* ---------- Assemble (Tom, 2026-11-01: "an assembled mode, mostly the same view but just give a check box", for putting the
    paper deck together): the Deck tab's list with a tick box on each row. A tap ticks the card and nothing else; the ticks
-   stay with the deck (S.got, card key -> 1) until Untick all. The count is the 100: commander and the 99. */
+   stay with the deck (S.got, card key -> 1) until Untick all. The count is the 100: commander and the 99.
+   A ticked card leaves the list (Tom, 2026-11-01: "ticking a card should hide it from view"), with Undo; Show pulled
+   brings them back for this visit, and a group with nothing left to pull goes too. */
+var ASM = { show:false };
 function gotOf(n){ return !!(S.got && S.got[moxKey(n)]); }
 function asmCount(){
   var all = [S.cmd].concat(S.partner ? [S.partner] : []).map(function(c){ return { n:c.n, q:1 }; }).concat(deckItems());
@@ -5194,27 +5197,32 @@ function asmCount(){
 function asmHead(){
   var k = asmCount();
   return '<div class="bs-asm-head" data-asmhead><span class="bs-count"><b>' + k.g + '</b> of ' + k.t + ' pulled</span>' +
-    (k.g ? '<button class="bs-btn bs-sm bs-quiet" type="button" data-gotclear>Untick all</button>' : '') + '</div>';
+    (k.g ? '<button class="bs-btn bs-sm bs-quiet" type="button" data-gotshow aria-pressed="' + ASM.show + '">' + (ASM.show ? 'Hide pulled' : 'Show pulled') + '</button>' +
+      '<button class="bs-btn bs-sm bs-quiet" type="button" data-gotclear>Untick all</button>' : '') + '</div>' +
+    (k.g >= k.t ? '<p class="pg-fine">Every card is pulled.</p>' : '');
 }
 function asmRowHtml(it){
   var c = it.c || {}, n = it.n, on = gotOf(n), k = moxKey(n);
   var art = it.thumb || (faceImg(c, n) || '').replace('/normal/', '/art_crop/');
   var lead = art ? '<img class="bs-crow-thumb" src="' + esc(art) + '" alt="" loading="lazy">' : '<span class="bs-crow-thumb" aria-hidden="true"></span>';
   var mv = it.board !== 'cmd' && !it.basic && c.mv != null && !(c.type && isLand(c)) ? '<span class="bs-crow-mv" title="Mana value">' + c.mv + '</span>' : '';
-  return '<button class="bs-crow bs-asm' + (on ? ' bs-got' : '') + (it.echo ? ' bs-echo' : '') + '" type="button" role="checkbox" aria-checked="' + on + '" data-got="' + esc(k) + '">' +
+  return '<button class="bs-crow bs-asm' + (on ? ' bs-got' + (ASM.show ? '' : ' bs-gone') : '') + (it.echo ? ' bs-echo' : '') + '" type="button" role="checkbox" aria-checked="' + on + '" data-got="' + esc(k) + '" data-n="' + esc(n) + '">' +
     '<span class="bs-asm-box" aria-hidden="true">' + ico('check', 'bs-i16') + '</span>' + lead +
     '<span class="bs-crow-main"><span class="bs-crow-n">' + (it.q > 1 ? '<span class="bs-crow-q">' + it.q + '</span>' : '') + esc(n) + '</span>' + (it.sub ? '<span class="bs-crow-s">' + esc(it.sub) + '</span>' : '') + '</span>' +
     '<span class="bs-crow-end">' + mv + '</span></button>';
 }
 // Ticks change the rows in place, so the list never jumps under his finger.
 function gotPaint(){
-  main.querySelectorAll('[data-got]').forEach(function(b){ var on = !!(S.got && S.got[b.getAttribute('data-got')]); b.classList.toggle('bs-got', on); b.setAttribute('aria-checked', on); });
-  var hd = main.querySelector('[data-asmhead]'); if(hd) hd.outerHTML = asmHead();
+  main.querySelectorAll('[data-got]').forEach(function(b){ var on = !!(S.got && S.got[b.getAttribute('data-got')]); b.classList.toggle('bs-got', on); b.classList.toggle('bs-gone', on && !ASM.show); b.setAttribute('aria-checked', on); });
+  main.querySelectorAll('.bs-clist').forEach(function(g){ if(g.querySelector('[data-got]')) g.classList.toggle('bs-gone', !g.querySelector('[data-got]:not(.bs-gone)')); });
+  var hd = main.querySelector('[data-asmhead]'); if(hd){ var nx = hd.nextElementSibling; if(nx && nx.matches('p.pg-fine') && !nx.classList.contains('bs-flt-n')) nx.remove(); hd.outerHTML = asmHead(); }
 }
 function gotToggle(k){
   S.got = S.got || {};
-  if(S.got[k]) delete S.got[k]; else S.got[k] = 1;
+  var on = !S.got[k]; if(on) S.got[k] = 1; else delete S.got[k];
   save({ quiet:true }); gotPaint();
+  if(on && !ASM.show){ var b = main.querySelector('[data-got="' + CSS.escape(k) + '"]'), nm = b ? b.getAttribute('data-n') : 'the card';
+    toast('Pulled <b>' + esc(nm) + '</b>.', { undo:function(){ if(S.got) delete S.got[k]; save({ quiet:true }); if(APP.view === 'deck' && S.page === 'deck') gotPaint(); return true; } }); }
 }
 function gotClear(){
   var was = Object.assign({}, S.got || {});
@@ -5891,6 +5899,7 @@ function drawDeckPage(){
   main.oninput = fltInput;
   main.onkeydown = function(e){ if((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role=button][data-card]')){ e.preventDefault(); e.target.click(); } };
   catDrag(!touch, onBoard);
+  if(lv.p === 2) gotPaint();
   boardWatch();
   drawDeckSide();
   sumSoon();
@@ -6046,6 +6055,7 @@ function onDeckClick(e){
   var fl = t.closest('[data-flip]'); if(fl){ flipCard(fl.getAttribute('data-flip')); return; }
   var gt = t.closest('[data-got]'); if(gt){ gotToggle(gt.getAttribute('data-got')); return; }
   if(t.closest('[data-gotclear]')){ gotClear(); return; }
+  if(t.closest('[data-gotshow]')){ ASM.show = !ASM.show; gotPaint(); return; }
   var bas = t.closest('[data-bas]'); if(bas){ basicStep(bas.getAttribute('data-bas'), +bas.getAttribute('data-d')); return; }
   var lvb = t.closest('[data-lv]'); if(lvb){ var kv = lvb.getAttribute('data-lv').split(':'); setListView(kv[0], kv[1]); drawDeckPage(); return; }
   if(t.closest('[data-addcard]')){ addCardSheet(); return; }

@@ -426,6 +426,7 @@ button.bs-crow,.bs-crow.bs-tap{cursor:pointer}
 .bs-got .bs-crow-n{text-decoration:line-through;text-decoration-color:var(--ink3)}
 .bs-asm-head{display:flex;align-items:center;gap:var(--s3);min-height:var(--tap);margin-bottom:var(--s2)}
 .bs-asm-head b{color:var(--ink)}
+.bs-gone{display:none!important}
 /* groups flowed into newspaper columns (Moxfield's deck view) */
 .bs-flow{columns:var(--cw,300px);column-gap:var(--s7)}
 .bs-flow > *{break-inside:avoid;margin-bottom:var(--s5)}
