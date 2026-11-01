@@ -5374,7 +5374,10 @@ function catToggleAlso(n, cat){
 function catFromMox(tags){
   var c = cats();
   Object.keys(tags || {}).forEach(function(n){
-    var l = (tags[n] || []).map(catClean).filter(Boolean); if(!l.length) return;
+    // A tag that is one of his categories as sent to Moxfield ("Combos/ Win Cons") comes back as that category.
+    var l = (tags[n] || []).map(catClean).filter(Boolean).map(function(t){
+      var m = moxTagName(t).toLowerCase(), hit = c.list.filter(function(x){ return moxTagName(x).toLowerCase() === m; })[0]; return hit || t; });
+    if(!l.length) return;
     var k = moxKey(n);
     if(!catOf(n)) c.of[k] = catAdd(l[0]);
     l.forEach(function(t){ var nm = catAdd(t); if(nm !== c.of[k]){ var a = c.also[k] || (c.also[k] = []); if(a.indexOf(nm) < 0) a.push(nm); } });
@@ -6312,10 +6315,19 @@ function moxOps(){
    Moxfield tag: the card's home first, then its extra tags. A deck linked before this has no tags kept yet, so
    Moxfield's tags in the feed become the base, or none when the feed lacks the deck (tags then only go on, never
    off). The commanders carry no categories. */
+/* Moxfield takes only letters, numbers, spaces and some marks in a tag: "Combos, Win Cons" came back 400 "Invalid tag
+   specified" (2026-11-01) while "Utility/ Defensive" went through. So a category goes to Moxfield as its tag name: a comma
+   or semicolon becomes "/", any other mark a space. His category keeps its own name here, and a Moxfield tag coming in
+   lands on the category it was made from (catFromMox). */
+function moxTagName(t){
+  return String(t).replace(/\s*[,;]\s*/g, '/ ').replace(/[^\p{L}\p{N} \/]+/gu, ' ').replace(/\s+/g, ' ').trim();
+}
 function moxTagsNow(){
   var L = nowLists(), out = {};
   ['main', 'side', 'maybe'].forEach(function(b){ (L[b] || []).forEach(function(x){
-    var k = moxKey(x.n); if(out[k]) return; var h = catOf(x.n); out[k] = { n:x.n, t:(h ? [h] : []).concat(catAlso(x.n)) }; }); });
+    var k = moxKey(x.n); if(out[k]) return; var h = catOf(x.n), t = [];
+    (h ? [h] : []).concat(catAlso(x.n)).forEach(function(c){ var m = moxTagName(c); if(m && !t.some(function(y){ return y.toLowerCase() === m.toLowerCase(); })) t.push(m); });
+    out[k] = { n:x.n, t:t }; }); });
   return out;
 }
 function tagsKeyed(T){ var o = {}; Object.keys(T || {}).forEach(function(n){ o[moxKey(n)] = T[n] || []; }); return o; }
