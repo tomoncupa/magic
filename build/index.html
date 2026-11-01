@@ -5198,6 +5198,16 @@ function gotElsewhere(){
     Object.keys(g).forEach(function(k){ (m[k] = m[k] || []).push(deckTitle(r)); }); });
   return m;
 }
+/* Copies he owns (Tom, 2026-11-01: "make sure this doesnt make mistakes with cards I own multiple of"). Nothing here
+   knows his collection, so every card counts as one copy until he says otherwise on the row (forge.owned, card key ->
+   copies, on this PC). A card is only called taken when every copy he owns is ticked in other decks. */
+function ownedAll(){ try{ var o = JSON.parse(lsGet('forge.owned') || '{}'); return o && typeof o === 'object' ? o : {}; }catch(e){ return {}; } }
+function ownedOf(k){ return Math.max(1, +ownedAll()[k] || 1); }
+function ownMore(k, name){
+  var o = ownedAll(), was = o[k], used = (ASM.away[k] || []).length;
+  o[k] = Math.max(ownedOf(k), used) + 1; lsSet('forge.owned', JSON.stringify(o)); drawDeckPage();
+  toast('You own ' + o[k] + ' copies of <b>' + esc(name) + '</b>.', { undo:function(){ var u = ownedAll(); if(was) u[k] = was; else delete u[k]; lsSet('forge.owned', JSON.stringify(u)); if(APP.view === 'deck' && S.page === 'deck') drawDeckPage(); return true; } });
+}
 function gotOf(n){ return !!(S.got && S.got[moxKey(n)]); }
 function asmCount(){
   var all = [S.cmd].concat(S.partner ? [S.partner] : []).map(function(c){ return { n:c.n, q:1 }; }).concat(deckItems());
@@ -5212,14 +5222,17 @@ function asmHead(){
 }
 function asmRowHtml(it){
   var c = it.c || {}, n = it.n, on = gotOf(n), k = moxKey(n);
-  var art = it.thumb || (faceImg(c, n) || '').replace('/normal/', '/art_crop/'), away = it.basic ? null : ASM.away[k];
+  var art = it.thumb || (faceImg(c, n) || '').replace('/normal/', '/art_crop/'), away = it.basic ? null : ASM.away[k], own = away ? ownedOf(k) : 0;
   var lead = art ? '<img class="bs-crow-thumb" src="' + esc(art) + '" alt="" loading="lazy">' : '<span class="bs-crow-thumb" aria-hidden="true"></span>';
   var mv = it.board !== 'cmd' && !it.basic && c.mv != null && !(c.type && isLand(c)) ? '<span class="bs-crow-mv" title="Mana value">' + c.mv + '</span>' : '';
-  return '<button class="bs-crow bs-asm' + (on ? ' bs-got' + (ASM.show ? '' : ' bs-gone') : '') + (it.echo ? ' bs-echo' : '') + '" type="button" role="checkbox" aria-checked="' + on + '" data-got="' + esc(k) + '" data-n="' + esc(n) + '">' +
+  // A div, not a button: the row holds a button of its own (I own another copy). Enter and Space tick it (main.onkeydown).
+  return '<div class="bs-crow bs-asm' + (on ? ' bs-got' + (ASM.show ? '' : ' bs-gone') : '') + (it.echo ? ' bs-echo' : '') + '" role="checkbox" tabindex="0" aria-checked="' + on + '" data-got="' + esc(k) + '" data-n="' + esc(n) + '">' +
     '<span class="bs-asm-box" aria-hidden="true">' + ico('check', 'bs-i16') + '</span>' + lead +
     '<span class="bs-crow-main"><span class="bs-crow-n">' + (it.q > 1 ? '<span class="bs-crow-q">' + it.q + '</span>' : '') + esc(n) + '</span>' + (it.sub ? '<span class="bs-crow-s">' + esc(it.sub) + '</span>' : '') +
-    (away ? '<span class="bs-asm-in">' + ico('deck', 'bs-i16') + '<span>In ' + esc(away.join(', ')) + '</span></span>' : '') + '</span>' +
-    '<span class="bs-crow-end">' + mv + '</span></button>';
+    (!away ? '' : own > away.length ? '<span class="bs-asm-in bs-asm-free"><span>' + (away.length > 1 ? 'Other copies are' : 'Another copy is') + ' in ' + esc(away.join(', ')) + '. You own ' + own + '.</span></span>'
+      : '<span class="bs-asm-in">' + ico('deck', 'bs-i16') + '<span>In ' + esc(away.join(', ')) + '</span></span>' +
+        '<button class="bs-btn bs-sm bs-quiet bs-asm-own" type="button" data-own="' + esc(k) + '" data-n="' + esc(n) + '">I own another copy</button>') + '</span>' +
+    '<span class="bs-crow-end">' + mv + '</span></div>';
 }
 /* Every category heads its own columns along the top (Tom, 2026-11-01: "look at all the blank space that could be used,
    ideally categories are at the top"). The fewest rows per column that still fit the window's width, then the rows grow
@@ -5946,7 +5959,7 @@ function drawDeckPage(){
     var cf = e.target.closest && e.target.closest('[data-catsfrom]'); if(cf){ catsFrom(cf.getAttribute('data-catsfrom')); return; }
     onDeckClick(e); };
   main.oninput = fltInput;
-  main.onkeydown = function(e){ if((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role=button][data-card]')){ e.preventDefault(); e.target.click(); } };
+  main.onkeydown = function(e){ if((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role=button][data-card], [role=checkbox][data-got]')){ e.preventDefault(); e.target.click(); } };
   catDrag(!touch, onBoard);
   if(lv.p === 2){ gotPaint(); asmFit(); }
   boardWatch();
@@ -6102,6 +6115,7 @@ function loadBasicPics(){
 function onDeckClick(e){
   var t = e.target;
   var fl = t.closest('[data-flip]'); if(fl){ flipCard(fl.getAttribute('data-flip')); return; }
+  var ow = t.closest('[data-own]'); if(ow){ ownMore(ow.getAttribute('data-own'), ow.getAttribute('data-n')); return; }
   var gt = t.closest('[data-got]'); if(gt){ gotToggle(gt.getAttribute('data-got')); return; }
   if(t.closest('[data-gotclear]')){ gotClear(); return; }
   if(t.closest('[data-gotshow]')){ ASM.show = !ASM.show; gotPaint(); asmFit(); return; }
