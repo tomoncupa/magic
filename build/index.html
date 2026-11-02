@@ -5261,7 +5261,7 @@ function crowHtml(it){
 /* ---------- Assemble (Tom, 2026-11-01: "an assembled mode, mostly the same view but just give a check box", for putting the
    paper deck together): the Deck tab's list with a tick box on each row. A tap ticks the card and nothing else; the ticks
    stay with the deck (S.got, card key -> 1) until Untick all. The count is the 100: commander and the 99.
-   A ticked card leaves the list (Tom, 2026-11-01: "ticking a card should hide it from view"), with Undo; Show pulled
+   A ticked card leaves the list (Tom, 2026-11-01: "ticking a card should hide it from view"), with Undo; Show assembled
    brings them back for this visit, and a group with nothing left to pull goes too. */
 var ASM = { show:false, away:{} };
 /* A ticked card is in that deck's box (Tom, 2026-11-01: "if I assemble a card in a deck, that means its there. This is
@@ -5333,10 +5333,10 @@ function asmCount(){
 }
 function asmHead(){
   var k = asmCount();
-  return '<div class="bs-asm-head" data-asmhead><span class="bs-count"><b>' + k.g + '</b> of ' + k.t + ' pulled</span>' +
-    (k.g ? '<button class="bs-btn bs-sm bs-quiet" type="button" data-gotshow aria-pressed="' + ASM.show + '">' + (ASM.show ? 'Hide pulled' : 'Show pulled') + '</button>' +
+  return '<div class="bs-asm-head" data-asmhead><span class="bs-count"><b>' + k.g + '</b> of ' + k.t + ' assembled</span>' +
+    (k.g ? '<button class="bs-btn bs-sm bs-quiet" type="button" data-gotshow aria-pressed="' + ASM.show + '">' + (ASM.show ? 'Hide assembled' : 'Show assembled') + '</button>' +
       '<button class="bs-btn bs-sm bs-quiet" type="button" data-gotclear>Untick all</button>' : '') + wishBtnHtml() + collHtml() + '</div>' +
-    (k.g >= k.t ? '<p class="pg-fine">Every card is pulled.</p>' : '');
+    (k.g >= k.t ? '<p class="pg-fine">The deck is assembled.</p>' : '');
 }
 function asmRowHtml(it){
   var c = it.c || {}, n = it.n, on = gotOf(n), k = moxKey(n);
@@ -5357,7 +5357,7 @@ function asmRowHtml(it){
 }
 /* Every category heads its own columns along the top (Tom, 2026-11-01: "look at all the blank space that could be used,
    ideally categories are at the top"). The fewest rows per column that still fit the window's width, then the rows grow
-   (44 to 88 px, bigger art and names) to fill the window's height. Fitted on drawing, Show pulled and a resize, not on a
+   (44 to 88 px, bigger art and names) to fill the window's height. Fitted on drawing, Show assembled and a resize, not on a
    tick, so the rest of the list does not jump while he pulls cards. */
 function asmFit(){
   var g = main.querySelector('.bs-asmgrid'); if(!g) return;
@@ -5401,7 +5401,7 @@ function gotToggle(k){
   var on = !S.got[k]; if(on) S.got[k] = 1; else delete S.got[k];
   save({ quiet:true }); gotPaint();
   if(on && !ASM.show){ var b = main.querySelector('[data-got="' + CSS.escape(k) + '"]'), nm = b ? b.getAttribute('data-n') : 'the card';
-    toast('Pulled <b>' + esc(nm) + '</b>.', { undo:function(){ if(S.got) delete S.got[k]; save({ quiet:true }); if(APP.view === 'deck' && S.page === 'deck') gotPaint(); return true; } }); }
+    toast('<b>' + esc(nm) + '</b> assembled.', { undo:function(){ if(S.got) delete S.got[k]; save({ quiet:true }); if(APP.view === 'deck' && S.page === 'deck') gotPaint(); return true; } }); }
 }
 function gotClear(){
   var was = Object.assign({}, S.got || {});
