@@ -5334,9 +5334,10 @@ function asmMissing(n){ return !gotOf(n) && !isBasicName(n) && (freeOf(moxKey(n)
    land"): the copies so far are in S.gotN (card key -> copies), and the row is ticked, S.got, once all of them are in. */
 function gotPart(k){ return +((S.gotN || {})[k]) || 0; }
 function gotHave(n, q){ var k = moxKey(n); return S.got && S.got[k] ? q : Math.min(gotPart(k), q); }
+// A card in To order and put is not counted (Tom, 2026-11-02: "while a card is there dont count it as part of my 99").
 function asmCount(){
-  var all = [S.cmd].concat(S.partner ? [S.partner] : []).map(function(c){ return { n:c.n, q:1 }; }).concat(deckItems());
-  return all.reduce(function(a, it){ a.t += it.q; a.g += gotHave(it.n, it.q); return a; }, { g:0, t:0 });
+  var all = [S.cmd].concat(S.partner ? [S.partner] : []).map(function(c){ return { n:c.n, q:1, cmd:1 }; }).concat(deckItems());
+  return all.reduce(function(a, it){ if(!it.cmd && !it.basic && asmMissing(it.n)){ a.o += it.q; return a; } a.t += it.q; a.g += gotHave(it.n, it.q); return a; }, { g:0, t:0, o:0 });
 }
 // What a basic land's row says: the copies still to go on the count, and how many are in.
 function asmPartHtml(k, q){
@@ -5345,10 +5346,10 @@ function asmPartHtml(k, q){
 }
 function asmHead(){
   var k = asmCount();
-  return '<div class="bs-asm-head" data-asmhead><span class="bs-count"><b>' + k.g + '</b> of ' + k.t + ' assembled</span>' +
+  return '<div class="bs-asm-head" data-asmhead><span class="bs-count"><b>' + k.g + '</b> of ' + k.t + ' assembled' + (k.o ? ', ' + k.o + ' to order' : '') + '</span>' +
     (k.g ? '<button class="bs-btn bs-sm bs-quiet" type="button" data-gotshow aria-pressed="' + ASM.show + '">' + (ASM.show ? 'Hide assembled' : 'Show assembled') + '</button>' +
       '<button class="bs-btn bs-sm bs-quiet" type="button" data-gotclear>Untick all</button>' : '') + wishBtnHtml() + collHtml() + '</div>' +
-    (k.g >= k.t ? '<p class="pg-fine">The deck is assembled.</p>' : '');
+    (k.g >= k.t ? '<p class="pg-fine">' + (k.o ? 'Every card you have is in. ' + k.o + ' to order.' : 'The deck is assembled.') + '</p>' : '');
 }
 function asmRowHtml(it){
   var c = it.c || {}, n = it.n, on = gotOf(n), k = moxKey(n);
@@ -6314,7 +6315,7 @@ function cardMenuItems(n, board, cat){
     }
   }
   if(LOCAL && !basic && !wishPending(c.n)) items.push(wishQ(c.n) ? { label:'Add another copy to the wishlist', icon:'plus', note:'On it now: ' + wishQ(c.n), fn:function(){ wishSend([c.n], true); } }
-    : { label:'Send to wishlist', icon:'plus', fn:function(){ wishSend([c.n]); } });
+    : { label:'Add to order and put', icon:'plus', note:'Goes on your Moxfield wishlist', fn:function(){ wishSend([c.n]); } });
   items.push({ label:'Copy the name', icon:'copy', fn:function(){
     (navigator.clipboard ? navigator.clipboard.writeText(c.n) : Promise.reject()).then(function(){ toast('Copied <b>' + esc(c.n) + '</b>.'); }, function(){ toast('Copy failed.', { kind:'bad' }); }); } });
   if(!ro && !w.cmd && !basic){
