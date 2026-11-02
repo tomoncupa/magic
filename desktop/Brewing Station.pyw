@@ -196,7 +196,8 @@ def moxfield_deck(pid, fresh=False):
 # Moxfield sync mailbox (Tom, 2026-10-21: "automake the sync to moxfield", picked A). Brewing Station (in Edge) queues
 # one job per deck: the card moves that make Moxfield match. GRAB, the extension in his Chrome where he is signed in
 # to Moxfield, asks for the next job every half minute, makes the moves in a Moxfield tab and reports back. Only
-# adds, removes and moves between boards: his printings and wishlist on Moxfield are never touched.
+# adds, removes and moves between boards: his printings on Moxfield are never touched. A job for "wishlist" only adds
+# cards to his Moxfield wishlist (Tom, 2026-11-02: "allow me to have a send to wishlist feature"); GRAB reports the list.
 DECK_ID_OK = re.compile(r"[A-Za-z0-9_-]{5,40}")
 MOXQ = {"jobs": [], "seen": 0.0}
 MOXQ_LOCK = threading.Lock()
@@ -228,7 +229,7 @@ def moxq_done(data):
         for j in MOXQ["jobs"]:
             if j["id"] == str(data.get("id")):
                 j["state"] = "done" if data.get("ok") else "failed"
-                j["result"] = {k: data.get(k) for k in ("ok", "err", "results", "updated", "version", "plan", "dry")}
+                j["result"] = {k: data.get(k) for k in ("ok", "err", "results", "updated", "version", "plan", "dry", "wish")}
                 j["ended"] = time.time()
                 return True
         return False

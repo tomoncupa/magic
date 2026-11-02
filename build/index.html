@@ -5259,7 +5259,7 @@ function asmHead(){
   var k = asmCount();
   return '<div class="bs-asm-head" data-asmhead><span class="bs-count"><b>' + k.g + '</b> of ' + k.t + ' pulled</span>' +
     (k.g ? '<button class="bs-btn bs-sm bs-quiet" type="button" data-gotshow aria-pressed="' + ASM.show + '">' + (ASM.show ? 'Hide pulled' : 'Show pulled') + '</button>' +
-      '<button class="bs-btn bs-sm bs-quiet" type="button" data-gotclear>Untick all</button>' : '') + '</div>' +
+      '<button class="bs-btn bs-sm bs-quiet" type="button" data-gotclear>Untick all</button>' : '') + wishBtnHtml() + '</div>' +
     (k.g >= k.t ? '<p class="pg-fine">Every card is pulled.</p>' : '');
 }
 function asmRowHtml(it){
@@ -5273,7 +5273,7 @@ function asmRowHtml(it){
     '<span class="bs-crow-main"><span class="bs-crow-n">' + (it.q > 1 ? '<span class="bs-crow-q">' + it.q + '</span>' : '') + esc(n) + '</span>' + (it.sub ? '<span class="bs-crow-s">' + esc(it.sub) + '</span>' : '') +
     (!away ? '' : own > away.length ? '<span class="bs-asm-in bs-asm-free"><span>' + (away.length > 1 ? 'Other copies are' : 'Another copy is') + ' in ' + esc(away.join(', ')) + '. You own ' + own + '.</span></span>'
       : '<span class="bs-asm-in">' + ico('deck', 'bs-i16') + '<span>In ' + esc(away.join(', ')) + '</span></span>' +
-        '<button class="bs-btn bs-sm bs-quiet bs-asm-own" type="button" data-own="' + esc(k) + '" data-n="' + esc(n) + '">I own another copy</button>') + '</span>' +
+        '<button class="bs-btn bs-sm bs-quiet bs-asm-own" type="button" data-own="' + esc(k) + '" data-n="' + esc(n) + '">I own another copy</button>') + wishMark(n, it.basic) + '</span>' +
     '<span class="bs-crow-end">' + mv + '</span></div>';
 }
 /* Every category heads its own columns along the top (Tom, 2026-11-01: "look at all the blank space that could be used,
@@ -5328,6 +5328,98 @@ function gotClear(){
   var was = Object.assign({}, S.got || {});
   S.got = {}; save({ quiet:true }); gotPaint();
   toast('Unticked every card.', { undo:function(){ S.got = was; save({ quiet:true }); if(APP.view === 'deck' && S.page === 'deck') gotPaint(); return true; } });
+}
+/* ---------- Send to wishlist (Tom, 2026-11-02: "I use the wishlist feature on Moxfield to determine what goes into my
+   next order. I'm going to add cards to this based on what's missing from my deck") ----------
+   The cards still unticked in Assemble are the ones he does not have to hand: one tap sends them, or one card from
+   its menu. It goes like the deck sync: a job for 'wishlist' on the PC server, made by GRAB in Chrome as him. Each op
+   lifts the card's count on the wishlist to one more than it held when last read here, so a card already on it is not
+   doubled. The wishlist is read back through the PC server (it is unlisted, readable by its link, which GRAB reports)
+   and every card on it is marked. Basic lands are never sent. Kept per PC in brew.wish: { id, at, cards: key -> copies }. */
+var WISH = { pend:{}, job:'', poll:0, read:0 };
+function wishData(){ try{ var w = JSON.parse(lsGet('brew.wish') || 'null'); if(w && w.cards) return w; }catch(e){} return { id:'', at:0, cards:{} }; }
+function wishQ(n){ return wishData().cards[moxKey(n)] || 0; }
+function wishPending(n){ return !!WISH.pend[moxKey(n)]; }
+function wishMark(n, basic){
+  if(!LOCAL || basic) return '';
+  var t = wishPending(n) ? 'Sending to the wishlist' : wishQ(n) ? 'On your wishlist' : '';
+  return t ? '<span class="bs-asm-in" data-wishmark>' + ico('plus', 'bs-i16') + '<span>' + t + '</span></span>' : '';
+}
+// The cards left to pull: the commander and the 99, unticked, not basic lands.
+function wishLeft(){
+  var all = [S.cmd].concat(S.partner ? [S.partner] : []).map(function(c){ return { n:c.n }; }).concat(deckItems().filter(function(it){ return !it.basic; }));
+  var left = all.filter(function(it){ return !gotOf(it.n) && !isBasicName(it.n); });
+  return { left:left.length, send:left.filter(function(it){ return !wishQ(it.n) && !wishPending(it.n); }).map(function(it){ return it.n; }),
+    pend:left.filter(function(it){ return wishPending(it.n); }).length };
+}
+function wishBtnHtml(){
+  if(!LOCAL) return '';
+  wishSoon();
+  var w = wishLeft();
+  if(w.send.length) return '<button class="bs-btn bs-sm" type="button" data-wishsend>' + ico('plus', 'bs-i16') + 'Send ' + w.send.length + ' left to the wishlist</button>';
+  if(w.pend) return '<span class="bs-count">Sending ' + w.pend + ' to the wishlist…</span>';
+  return w.left ? '<span class="bs-count">The ' + w.left + ' left are on your wishlist</span>' : '';
+}
+// Marks and the head change in place, so the list never jumps while he pulls cards.
+function wishPaint(){
+  if(APP.view !== 'deck' || S.page !== 'deck') return;
+  main.querySelectorAll('[data-got]').forEach(function(b){
+    var mid = b.querySelector('.bs-crow-main'); if(!mid) return;
+    var old = mid.querySelector('[data-wishmark]'); if(old) old.remove();
+    var n = b.getAttribute('data-n'), h = wishMark(n, isBasicName(n)); if(h) mid.insertAdjacentHTML('beforeend', h);
+  });
+  if(main.querySelector('[data-asmhead]')) gotPaint();
+}
+// Read the wishlist again when the copy here is over a minute old (the PC server reuses a read for a minute too).
+// Before the first send its link is not known yet: an empty job has GRAB report it.
+function wishSoon(){
+  var w = wishData(); if(!LOCAL || Date.now() - WISH.read < 60000) return;
+  WISH.read = Date.now();
+  if(!w.id){ if(!WISH.job) wishQueue([]); return; }
+  fetch('/api/moxfield/deck?id=' + encodeURIComponent(w.id) + '&fresh=1', { cache:'no-store' }).then(function(r){ return r.json(); }).then(function(j){
+    if(j && Array.isArray(j.main)) wishKeep(w.id, j.main);
+  }, function(){});
+}
+function wishKeep(id, list){
+  var cards = {}; (list || []).forEach(function(x){ var k = moxKey(x.n); cards[k] = (cards[k] || 0) + (x.q || 1); });
+  var was = JSON.stringify(wishData().cards);
+  lsSet('brew.wish', JSON.stringify({ id:id, at:Date.now(), cards:cards }));
+  if(was !== JSON.stringify(cards)) wishPaint();
+}
+function wishSend(names, more){
+  if(!LOCAL || !names.length) return;
+  names.forEach(function(n){ WISH.pend[moxKey(n)] = { n:n, more:!!more }; });
+  wishQueue(Object.keys(WISH.pend).map(function(k){ return WISH.pend[k]; }));
+  wishPaint();
+}
+// One job carries every card waiting to go; a newer one replaces a job GRAB has not picked up yet.
+async function wishQueue(pend){
+  var ops = pend.map(function(p){ var q = wishQ(p.n); return { kind:'set', name:p.n, board:'mainboard', base:q, want:q + 1 }; });
+  try{
+    var r = await fetch('/api/moxsync/queue', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ publicId:'wishlist', ops:ops }) });
+    var j = await r.json(); if(!r.ok || j.error) throw new Error(j.error || 'the PC server answered ' + r.status);
+    WISH.job = j.id; WISH.sent = pend.map(function(p){ return moxKey(p.n); }); wishPoll();
+  }catch(e){ pend.forEach(function(p){ delete WISH.pend[moxKey(p.n)]; }); wishPaint(); if(ops.length) toast('Could not send to the wishlist: ' + esc(e.message), { kind:'bad' }); }
+}
+function wishPoll(){
+  clearTimeout(WISH.poll);
+  WISH.poll = setTimeout(async function(){
+    var st; try{ st = await (await fetch('/api/moxsync/status?id=wishlist', { cache:'no-store' })).json(); }catch(e){ wishPoll(); return; }
+    var job = st.job;
+    if(!job || job.id !== WISH.job){ if(job) wishPoll(); else WISH.job = ''; return; }
+    if(job.state !== 'done' && job.state !== 'failed'){
+      // GRAB in Chrome has not asked for work in a while: say so once, and keep waiting.
+      if(WISH.sent.length && (!st.seen || st.now - st.seen > 90) && !WISH.told){ WISH.told = 1; toast('GRAB in Chrome has not checked in. Open Chrome and the wishlist cards go within a minute.', { ms:8000 }); }
+      wishPoll(); return;
+    }
+    var res = job.result || {}, sent = WISH.sent || [], n = sent.length;
+    WISH.job = ''; WISH.told = 0; sent.forEach(function(k){ delete WISH.pend[k]; });
+    if(res.wish && res.wish.id) wishKeep(res.wish.id, res.wish.cards); else wishPaint();
+    WISH.read = Date.now();
+    if(job.state === 'failed'){ if(n) toast(esc(res.err || 'GRAB could not add the cards to the wishlist.'), { kind:'bad', ms:9000 }); }
+    else if(n) toast(n === 1 ? 'Sent to your Moxfield wishlist.' : 'Sent ' + n + ' cards to your Moxfield wishlist.');
+    if(Object.keys(WISH.pend).length) wishQueue(Object.keys(WISH.pend).map(function(k){ return WISH.pend[k]; }));
+  }, 3000);
 }
 function ctileHtml(it){
   var c = it.c || {}, bad = itemBadges(it), img = faceImg(c, it.n), back = !!FLIP[moxKey(it.n)] && twoFaced(c);
@@ -6102,6 +6194,8 @@ function cardMenuItems(n, board, cat){
       items.push({ label:'Add to the side deck', icon:'side', fn:act('addside') });
     }
   }
+  if(LOCAL && !basic && !wishPending(c.n)) items.push(wishQ(c.n) ? { label:'Add another copy to the wishlist', icon:'plus', note:'On it now: ' + wishQ(c.n), fn:function(){ wishSend([c.n], true); } }
+    : { label:'Send to wishlist', icon:'plus', fn:function(){ wishSend([c.n]); } });
   items.push({ label:'Copy the name', icon:'copy', fn:function(){
     (navigator.clipboard ? navigator.clipboard.writeText(c.n) : Promise.reject()).then(function(){ toast('Copied <b>' + esc(c.n) + '</b>.'); }, function(){ toast('Copy failed.', { kind:'bad' }); }); } });
   if(!ro && !w.cmd && !basic){
@@ -6112,13 +6206,13 @@ function cardMenuItems(n, board, cat){
   return items;
 }
 function cardMenu(el, x, y){
-  var n = el.getAttribute('data-card') || el.getAttribute('data-pg-card'); if(!n) return;
+  var n = el.getAttribute('data-card') || el.getAttribute('data-pg-card') || (el.hasAttribute('data-got') && el.getAttribute('data-n')); if(!n) return;
   hoverHide();
   var box = APP.view === 'deck' && listView().g === 'cat' && el.closest('[data-cat]'), cat = box ? box.getAttribute('data-cat') : '';
   bsMenu(el, n, cardMenuItems(n, el.getAttribute('data-board') || '', cat && cats().list.indexOf(cat) >= 0 ? cat : ''), { x:x, y:y });
 }
 (function(){
-  var cardSel = '[data-card],[data-pg-card]';
+  var cardSel = '[data-card],[data-pg-card],[data-got][data-n]';
   document.addEventListener('contextmenu', function(e){
     clear(); if(Date.now() - held < 1000){ e.preventDefault(); return; }   // Android sends both for one held finger
     if(!e.target.closest || e.target.closest('input,textarea,[contenteditable=true]')) return;
@@ -6163,6 +6257,7 @@ function onDeckClick(e){
   var ow = t.closest('[data-own]'); if(ow){ ownMore(ow.getAttribute('data-own'), ow.getAttribute('data-n')); return; }
   var gt = t.closest('[data-got]'); if(gt){ gotToggle(gt.getAttribute('data-got')); return; }
   if(t.closest('[data-gotclear]')){ gotClear(); return; }
+  if(t.closest('[data-wishsend]')){ wishSend(wishLeft().send); return; }
   if(t.closest('[data-gotshow]')){ ASM.show = !ASM.show; gotPaint(); asmFit(); return; }
   var bas = t.closest('[data-bas]'); if(bas){ basicStep(bas.getAttribute('data-bas'), +bas.getAttribute('data-d')); return; }
   var lvb = t.closest('[data-lv]'); if(lvb){ var kv = lvb.getAttribute('data-lv').split(':'); setListView(kv[0], kv[1]); drawDeckPage(); return; }
@@ -6534,7 +6629,7 @@ function moxSyncHtml(D){
   var nOps = D.count ? moxOps().ops.length : 0;
   if(nOps && !busy) h += '<button class="bs-btn bs-primary bs-block" type="button" data-msync>' + ico('import', 'bs-i16') + 'Send ' + nOps + ' change' + (nOps > 1 ? 's' : '') + ' to Moxfield now</button>';
   h += '<label class="bs-check pg-mt"><input type="checkbox" data-mauto' + (moxAuto() ? ' checked' : '') + '> Send changes on their own</label>' +
-    '<p class="bs-panel-note">Adds, removes and moves cards between boards on Moxfield through GRAB in Chrome, and sends the deck\'s name and your categories (as Moxfield tags). Your art and wishlist there are never touched.</p></div>';
+    '<p class="bs-panel-note">Adds, removes and moves cards between boards on Moxfield through GRAB in Chrome, and sends the deck\'s name and your categories (as Moxfield tags). Your art there is never touched, and the wishlist only gets the cards you send to it.</p></div>';
   return h;
 }
 function moxPanelHtml(){
