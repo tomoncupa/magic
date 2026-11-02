@@ -4340,8 +4340,39 @@ function deckTile(x){
         (x.bracket && BRACKETS[x.bracket] ? '<span class="bs-bracket" title="Bracket ' + x.bracket + ': ' + BRACKETS[x.bracket].name + '"><b>' + x.bracket + '</b><span>' + BRACKETS[x.bracket].name + '</span></span>' : '') +
         '<span class="bs-num">' + x.n + ' cards</span>' + (!x.mox && x.step && x.step < 4 ? '<span>Step ' + x.step + ': ' + STEP_NAMES[x.step - 1] + '</span>' : '') + '</div>' +
       (sum && sum.pillars ? pillarsHtml(sum.pillars) : '<div class="bs-pillars bs-none">Not analysed yet. ' + (PG('compare') ? 'Open it, or use Analyse every deck on Compare.' : 'Open it to see its numbers.') + '</div>') +
+      asmTileHtml(x.id) +
       '<div class="bs-dtile-foot" data-prog="' + x.id + '">' + foot + '</div>' +
     '</div></article>';
+}
+/* Each deck's Assemble count on its tile (Tom, 2026-11-02: "I also want to see from the deck view how assembled each deck
+   is and how many cards are waiting to be ordered"). The same count as Assemble's head, read from the stored deck, with
+   the copies ticked in his other decks held against his collection as there. TILE_GOT: every deck's ticks, read once a draw. */
+var TILE_GOT = null;
+function tileGot(){
+  if(!TILE_GOT){ TILE_GOT = {}; shelf().forEach(function(r){ var d = deckOf(r.id); if(d && d.got) TILE_GOT[r.id] = d.got; }); }
+  return TILE_GOT;
+}
+function asmOf(id, d){
+  var G = tileGot(), ticks = {};
+  Object.keys(G).forEach(function(o){ if(o === id) return; Object.keys(G[o]).forEach(function(k){ k = k.replace(/^temp:/, ''); ticks[k] = (ticks[k] || 0) + 1; }); });
+  var got = d.got || {}, gotN = d.gotN || {}, ord = d.order || {}, a = { g:0, t:0, o:0, tp:0 }, q = {};
+  var have = function(k, n){ return got[k] ? n : Math.min(+gotN[k] || 0, n); };
+  [d.cmd, d.partner].filter(Boolean).forEach(function(c){ a.t++; a.g += have(moxKey(c.n), 1); });
+  (d.deck || []).forEach(function(x){ q[x.n] = (q[x.n] || 0) + 1; });
+  Object.keys(q).forEach(function(n){
+    var k = moxKey(n), miss = !got[k] && !isBasicName(n) && (ownedOf(k) - (ticks[k] || 0) < 1 || ord[k] === 1 || (ord[k] !== 0 && (!!wishQ(n) || wishPending(n))));
+    if(miss){ a.o += q[n]; return; }
+    a.t += q[n]; a.g += have(k, q[n]);
+  });
+  (d.temp || []).forEach(function(t){ var n = t.q || 1; a.tp += n; a.t += n; a.g += have('temp:' + moxKey(t.n), n); });
+  return a;
+}
+function asmTileHtml(id){
+  var d = deckOf(id); if(!d || !d.cmd || !(d.deck || []).length) return '';
+  var a = asmOf(id, d), v = a.t ? Math.round(a.g / a.t * 100) / 10 : 0;
+  return '<div class="bs-dtile-asm"><div class="bs-pl"><span class="bs-pl-k">Assembled</span><span class="bs-pl-v">' + a.g + ' of ' + a.t + '</span>' +
+    '<span class="bs-meter bs-sm" style="--v:' + v + '" role="meter" aria-valuemin="0" aria-valuemax="' + a.t + '" aria-valuenow="' + a.g + '" aria-label="Assembled ' + a.g + ' of ' + a.t + '"></span></div>' +
+    (a.o || a.tp ? '<p class="bs-dtile-asmo">' + (a.o ? '<span class="bs-warnn">' + a.o + ' to order</span>' : '') + (a.tp ? '<span class="bs-warnn">' + a.tp + ' temporary</span>' : '') + '</p>' : '') + '</div>';
 }
 function remoteTile(fd){
   var busy = IMPORT.busy && IMPORT.key === fd.id, c0 = (fd.commanders || [])[0];
@@ -4363,6 +4394,7 @@ function remoteTile(fd){
 // "Import a deck" (SPEC2 A): a pasted list or a deck link. The sheet is openImportSheet() below.
 function importBtnHtml(id){ return '<button class="bs-btn bs-primary" type="button" id="' + (id || 'dkImport') + '">' + ico('import', 'bs-i16') + 'Import a deck</button>'; }
 function drawDecks(){
+  TILE_GOT = null;
   // Start reading Moxfield first, so the page below already shows that it is busy.
   if(!FEED.p && !FEED.tried) feed().then(redrawForFeed, redrawForFeed);
   // Decks started and left without a commander are not worth a tile.

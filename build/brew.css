@@ -372,6 +372,9 @@ button.bs-bracket::after{content:'';position:absolute;left:0;right:0;top:50%;hei
 .bs-dtile-open:focus-visible{outline:none}
 .bs-dtile-open:focus-visible::after{outline:2px solid var(--brass);outline-offset:-2px}
 .bs-dtile-meta{display:flex;align-items:center;flex-wrap:wrap;gap:var(--s2) var(--s3);font-size:var(--t2);color:var(--ink3)}
+.bs-dtile-asm{display:flex;flex-direction:column;gap:var(--s1);margin-top:var(--s3)}
+.bs-dtile-asmo{display:flex;flex-wrap:wrap;gap:var(--s3);margin:0;font-size:var(--t2)}
+.bs-dtile-asmo .bs-warnn{color:var(--warn)}
 .bs-dtile-foot{display:flex;align-items:center;flex-wrap:wrap;gap:var(--s2);margin-top:auto;padding-top:var(--s3);border-top:1px solid var(--line);font-size:var(--t2);color:var(--ink3)}
 .bs-dtile-foot .bs-btn,.bs-dtile-foot a,.bs-dtile-body > .bs-btn{position:relative;z-index:2}
 .bs-dtile.bs-remote .bs-dtile-art img{opacity:.55}
