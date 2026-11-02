@@ -5329,7 +5329,18 @@ function ownMore(k, name){
 function gotOf(n){ return !!(S.got && S.got[moxKey(n)]); }
 /* A card he has to order before it goes in: unticked, not a basic land, and no copy of his free for this deck, or
    on his Moxfield wishlist (Tom, 2026-11-02: "it has to sync to wishlist"), so Send to wishlist puts it there too. */
-function asmMissing(n){ return !gotOf(n) && !isBasicName(n) && (freeOf(moxKey(n)) < 1 || !!wishQ(n) || wishPending(n)); }
+function asmMissing(n){ return !gotOf(n) && !isBasicName(n) && (freeOf(moxKey(n)) < 1 || orderOf(n) || (!orderOut(n) && (!!wishQ(n) || wishPending(n)))); }
+/* Add to order and put is kept with the deck (S.order, card key -> 1), so the card stays there after a reload or when
+   the wishlist send fails (Tom, 2026-11-02: "saves arent changing when I put sphere grid to order and put"). Taken out
+   by hand is 0, which also keeps a card on the wishlist out of it. */
+function orderOf(n){ return !!(S.order && S.order[moxKey(n)] === 1); }
+function orderOut(n){ return !!(S.order && S.order[moxKey(n)] === 0); }
+function orderSet(n, on){
+  var k = moxKey(n); S.order = S.order || {};
+  S.order[k] = on ? 1 : 0;
+  save({ quiet:true }); if(APP.view === 'deck' && S.page === 'deck') drawDeckPage();
+  if(!on) toast('<b>' + esc(n) + '</b> is out of To order and put.', { undo:function(){ orderSet(n, true); return true; } });
+}
 /* A tick on a basic land puts one copy in (Tom, 2026-11-02: "ticking a land should just assemble 1 count of that basic
    land"): the copies so far are in S.gotN (card key -> copies), and the row is ticked, S.got, once all of them are in. */
 function gotPart(k){ return +((S.gotN || {})[k]) || 0; }
@@ -6315,7 +6326,8 @@ function cardMenuItems(n, board, cat){
     }
   }
   if(LOCAL && !basic && !wishPending(c.n)) items.push(wishQ(c.n) ? { label:'Add another copy to the wishlist', icon:'plus', note:'On it now: ' + wishQ(c.n), fn:function(){ wishSend([c.n], true); } }
-    : { label:'Add to order and put', icon:'plus', note:'Goes on your Moxfield wishlist', fn:function(){ wishSend([c.n]); } });
+    : { label:'Add to order and put', icon:'plus', note:'Goes on your Moxfield wishlist', fn:function(){ orderSet(c.n, true); wishSend([c.n]); } });
+  if(!basic && asmMissing(c.n) && freeOf(moxKey(c.n)) >= 1) items.push({ label:'Take out of To order and put', icon:'minus', fn:function(){ orderSet(c.n, false); } });
   items.push({ label:'Copy the name', icon:'copy', fn:function(){
     (navigator.clipboard ? navigator.clipboard.writeText(c.n) : Promise.reject()).then(function(){ toast('Copied <b>' + esc(c.n) + '</b>.'); }, function(){ toast('Copy failed.', { kind:'bad' }); }); } });
   if(!ro && !w.cmd && !basic){
