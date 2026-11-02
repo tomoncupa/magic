@@ -441,6 +441,11 @@ button.bs-crow,.bs-crow.bs-tap{cursor:pointer}
 .bs-asm-in .bs-i16{flex:none;color:var(--brass);margin-top:1px}
 .bs-asm-free{color:var(--ink3)}
 .bs-asm-own{align-self:flex-start;margin-top:var(--s1)}
+/* Temporary: stand-ins in the paper deck until the ordered cards arrive, in the warning colour so none stays in by mistake */
+.bs-asmtemp{padding:var(--s3);border:1px solid var(--warn-line);border-radius:var(--r);background:var(--warn-soft)}
+.bs-asmtemp > .bs-group{color:var(--warn)}
+.bs-asm-in.bs-asm-temp,.bs-asm-in.bs-asm-temp .bs-i16{color:var(--warn)}
+.bs-asm-head .bs-warnn{color:var(--warn)}
 .bs-cols.bs-asm-wide{grid-template-columns:minmax(0,1fr)}
 .bs-asmgrid{display:flex;flex-wrap:wrap;align-items:flex-start;gap:var(--s5) var(--s6);column-gap:var(--s6)}
 .bs-asmrows{column-gap:var(--s6)}

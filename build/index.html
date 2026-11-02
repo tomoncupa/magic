@@ -5388,7 +5388,7 @@ function asmPartHtml(k, q){
 }
 function asmHead(){
   var k = asmCount();
-  return '<div class="bs-asm-head" data-asmhead><span class="bs-count"><b>' + k.g + '</b> of ' + k.t + ' assembled' + (k.o ? ', ' + k.o + ' to order' : '') + (k.tp ? ', ' + k.tp + ' temporary' : '') + '</span>' +
+  return '<div class="bs-asm-head" data-asmhead><span class="bs-count"><b>' + k.g + '</b> of ' + k.t + ' assembled' + (k.o ? ', ' + k.o + ' to order' : '') + (k.tp ? ', <span class="bs-warnn">' + k.tp + ' temporary</span>' : '') + '</span>' +
     (k.g ? '<button class="bs-btn bs-sm bs-quiet" type="button" data-gotshow aria-pressed="' + ASM.show + '">' + (ASM.show ? 'Hide assembled' : 'Show assembled') + '</button>' +
       '<button class="bs-btn bs-sm bs-quiet" type="button" data-gotclear>Untick all</button>' : '') + wishBtnHtml() + collHtml() + '</div>' +
     (k.g >= k.t ? '<p class="pg-fine">' + (k.o ? 'Every card you have is in. ' + k.o + ' to order.' : 'The deck is assembled.') + '</p>' : '');
@@ -5408,7 +5408,8 @@ function asmRowHtml(it){
       : '<span class="bs-asm-in">' + ico('deck', 'bs-i16') + '<span>In ' + esc(away.join(', ')) + '</span></span>' +
         '<button class="bs-btn bs-sm bs-quiet bs-asm-own" type="button" data-own="' + esc(ck) + '" data-n="' + esc(n) + '">I own another copy</button>') +
     (none ? '<span class="bs-asm-in">' + ico('warn', 'bs-i16') + '<span>Not in your collection</span></span>' +
-      '<button class="bs-btn bs-sm bs-quiet bs-asm-own" type="button" data-own="' + esc(ck) + '" data-n="' + esc(n) + '">I own a copy</button>' : '') + wishMark(n, it.basic || it.temp) + '</span>' +
+      '<button class="bs-btn bs-sm bs-quiet bs-asm-own" type="button" data-own="' + esc(ck) + '" data-n="' + esc(n) + '">I own a copy</button>' : '') + wishMark(n, it.basic || it.temp) +
+    (it.temp ? '<span class="bs-asm-in bs-asm-temp">' + ico('warn', 'bs-i16') + '<span>Stand-in. Take it out when your order arrives.</span></span>' : '') + '</span>' +
     '<span class="bs-crow-end">' + mv + '</span></div>';
 }
 /* Every category heads its own columns along the top (Tom, 2026-11-01: "look at all the blank space that could be used,
@@ -6250,7 +6251,7 @@ function drawDeckPage(){
   function rows(g){ var h = g.items.map(lv.p === 2 ? asmRowHtml : crowHtml).join(''); return isCat && g.items.length > 15 ? '<div class="bs-boxscroll">' + h + '</div>' : h; }
   function drawGroups(gs, board){
     if(!gs.length) return '';
-    if(lv.p === 2) return '<div class="bs-asmgrid">' + gs.map(function(g){ return '<div class="bs-clist bs-asmcat"' + zone(g) + (g.order ? ' data-order' : '') + '>' + head(g) + '<div class="bs-asmrows">' + g.items.map(asmRowHtml).join('') + '</div>' + (g.temp ? tempFoot(g) : '') + '</div>'; }).join('') + '</div>';
+    if(lv.p === 2) return '<div class="bs-asmgrid">' + gs.map(function(g){ return '<div class="bs-clist bs-asmcat' + (g.temp ? ' bs-asmtemp' : '') + '"' + zone(g) + (g.order ? ' data-order' : '') + '>' + head(g) + '<div class="bs-asmrows">' + g.items.map(asmRowHtml).join('') + '</div>' + (g.temp ? tempFoot(g) : '') + '</div>'; }).join('') + '</div>';
     if(board) return '<div class="bs-board" data-bview="' + esc(lv.g) + '" style="--cw:' + BOARD.cw + 'px">' + gs.map(function(g){
       return '<div class="bs-clist" data-box="' + esc(boxKey(g)) + '"' + zone(g) + '>' + head(g, true) + rows(g) + empty(g) + '</div>'; }).join('') + '</div>';
     if(lv.p === 1) return '<div class="sh-pics">' + gs.map(function(g){ return '<section' + zone(g) + '>' + head(g) + '<div class="bs-cgrid" style="--card-min:140px">' + g.items.map(ctileHtml).join('') + '</div>' + empty(g) + '</section>'; }).join('') + '</div>';
