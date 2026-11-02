@@ -5327,9 +5327,18 @@ function ownMore(k, name){
   toast('You own ' + (o[k] > 1 ? o[k] + ' copies' : 'a copy') + ' of <b>' + esc(name) + '</b>.', { undo:function(){ var u = ownedAll(); if(was) u[k] = was; else delete u[k]; lsSet('forge.owned', JSON.stringify(u)); if(APP.view === 'deck' && S.page === 'deck') drawDeckPage(); return true; } });
 }
 function gotOf(n){ return !!(S.got && S.got[moxKey(n)]); }
+/* A tick on a basic land puts one copy in (Tom, 2026-11-02: "ticking a land should just assemble 1 count of that basic
+   land"): the copies so far are in S.gotN (card key -> copies), and the row is ticked, S.got, once all of them are in. */
+function gotPart(k){ return +((S.gotN || {})[k]) || 0; }
+function gotHave(n, q){ var k = moxKey(n); return S.got && S.got[k] ? q : Math.min(gotPart(k), q); }
 function asmCount(){
   var all = [S.cmd].concat(S.partner ? [S.partner] : []).map(function(c){ return { n:c.n, q:1 }; }).concat(deckItems());
-  return all.reduce(function(a, it){ a.t += it.q; if(gotOf(it.n)) a.g += it.q; return a; }, { g:0, t:0 });
+  return all.reduce(function(a, it){ a.t += it.q; a.g += gotHave(it.n, it.q); return a; }, { g:0, t:0 });
+}
+// What a basic land's row says: the copies still to go on the count, and how many are in.
+function asmPartHtml(k, q){
+  var have = S.got && S.got[k] ? q : Math.min(gotPart(k), q);
+  return '<span class="bs-asm-in bs-asm-part" data-part' + (have && have < q ? '' : ' hidden') + '><span>' + have + ' of ' + q + ' in</span></span>';
 }
 function asmHead(){
   var k = asmCount();
@@ -5344,10 +5353,11 @@ function asmRowHtml(it){
   var none = !it.basic && !away && !on && collData() && ownedOf(k) < 1;
   var lead = art ? '<img class="bs-crow-thumb" src="' + esc(art) + '" alt="" loading="lazy">' : '<span class="bs-crow-thumb" aria-hidden="true"></span>';
   var mv = it.board !== 'cmd' && !it.basic && c.mv != null && !(c.type && isLand(c)) ? '<span class="bs-crow-mv" title="Mana value">' + c.mv + '</span>' : '';
+  var bq = it.basic && it.q > 1 ? it.q : 0, left = bq ? (on ? bq : bq - gotHave(n, bq)) : it.q;
   // A div, not a button: the row holds a button of its own (I own another copy). Enter and Space tick it (main.onkeydown).
-  return '<div class="bs-crow bs-asm' + (on ? ' bs-got' + (ASM.show ? '' : ' bs-gone') : '') + (it.echo ? ' bs-echo' : '') + '" role="checkbox" tabindex="0" aria-checked="' + on + '" data-got="' + esc(k) + '" data-n="' + esc(n) + '">' +
+  return '<div class="bs-crow bs-asm' + (on ? ' bs-got' + (ASM.show ? '' : ' bs-gone') : '') + (it.echo ? ' bs-echo' : '') + '" role="checkbox" tabindex="0" aria-checked="' + on + '" data-got="' + esc(k) + '" data-n="' + esc(n) + '"' + (bq ? ' data-q="' + bq + '"' : '') + '>' +
     '<span class="bs-asm-box" aria-hidden="true">' + ico('check', 'bs-i16') + '</span>' + lead +
-    '<span class="bs-crow-main"><span class="bs-crow-n">' + (it.q > 1 ? '<span class="bs-crow-q">' + it.q + '</span>' : '') + esc(n) + '</span>' + (it.sub ? '<span class="bs-crow-s">' + esc(it.sub) + '</span>' : '') +
+    '<span class="bs-crow-main"><span class="bs-crow-n">' + (it.q > 1 ? '<span class="bs-crow-q">' + left + '</span>' : '') + esc(n) + '</span>' + (it.sub ? '<span class="bs-crow-s">' + esc(it.sub) + '</span>' : '') + (bq ? asmPartHtml(k, bq) : '') +
     (!away ? '' : own > away.length ? '<span class="bs-asm-in bs-asm-free"><span>' + (away.length > 1 ? 'Other copies are' : 'Another copy is') + ' in ' + esc(away.join(', ')) + '. You own ' + own + '.</span></span>'
       : '<span class="bs-asm-in">' + ico('deck', 'bs-i16') + '<span>In ' + esc(away.join(', ')) + '</span></span>' +
         '<button class="bs-btn bs-sm bs-quiet bs-asm-own" type="button" data-own="' + esc(k) + '" data-n="' + esc(n) + '">I own another copy</button>') +
@@ -5392,21 +5402,33 @@ var ASMFIT_T = 0;
 addEventListener('resize', function(){ clearTimeout(ASMFIT_T); ASMFIT_T = setTimeout(asmFit, 150); });
 // Ticks change the rows in place, so the list never jumps under his finger.
 function gotPaint(){
-  main.querySelectorAll('[data-got]').forEach(function(b){ var on = !!(S.got && S.got[b.getAttribute('data-got')]); b.classList.toggle('bs-got', on); b.classList.toggle('bs-gone', on && !ASM.show); b.setAttribute('aria-checked', on); });
+  main.querySelectorAll('[data-got]').forEach(function(b){ var k = b.getAttribute('data-got'), on = !!(S.got && S.got[k]); b.classList.toggle('bs-got', on); b.classList.toggle('bs-gone', on && !ASM.show); b.setAttribute('aria-checked', on);
+    var q = +b.getAttribute('data-q'); if(!q) return;
+    var qe = b.querySelector('.bs-crow-q'); if(qe) qe.textContent = on ? q : q - Math.min(gotPart(k), q);
+    var pe = b.querySelector('[data-part]'); if(pe) pe.outerHTML = asmPartHtml(k, q); });
   main.querySelectorAll('.bs-clist').forEach(function(g){ if(g.querySelector('[data-got]')) g.classList.toggle('bs-gone', !g.querySelector('[data-got]:not(.bs-gone)')); });
   var hd = main.querySelector('[data-asmhead]'); if(hd){ var nx = hd.nextElementSibling; if(nx && nx.matches('p.pg-fine') && !nx.classList.contains('bs-flt-n')) nx.remove(); hd.outerHTML = asmHead(); }
 }
-function gotToggle(k){
+function gotToggle(k, q){
   S.got = S.got || {};
-  var on = !S.got[k]; if(on) S.got[k] = 1; else delete S.got[k];
+  if(q > 1 && !S.got[k]){
+    // One copy of a basic land: the row ticks itself once the last copy is in.
+    S.gotN = S.gotN || {};
+    var had = gotPart(k), now = Math.min(had + 1, q), b0 = main.querySelector('[data-got="' + CSS.escape(k) + '"]'), nm0 = b0 ? b0.getAttribute('data-n') : 'the card';
+    if(now >= q){ S.got[k] = 1; delete S.gotN[k]; } else S.gotN[k] = now;
+    save({ quiet:true }); gotPaint();
+    toast('1 <b>' + esc(nm0) + '</b> assembled' + (now >= q ? ', all ' + q + ' in.' : ', ' + now + ' of ' + q + ' in.'), { undo:function(){ if(S.got) delete S.got[k]; S.gotN = S.gotN || {}; if(had) S.gotN[k] = had; else delete S.gotN[k]; save({ quiet:true }); if(APP.view === 'deck' && S.page === 'deck') gotPaint(); return true; } });
+    return;
+  }
+  var on = !S.got[k]; if(on) S.got[k] = 1; else{ delete S.got[k]; if(S.gotN) delete S.gotN[k]; }
   save({ quiet:true }); gotPaint();
   if(on && !ASM.show){ var b = main.querySelector('[data-got="' + CSS.escape(k) + '"]'), nm = b ? b.getAttribute('data-n') : 'the card';
     toast('<b>' + esc(nm) + '</b> assembled.', { undo:function(){ if(S.got) delete S.got[k]; save({ quiet:true }); if(APP.view === 'deck' && S.page === 'deck') gotPaint(); return true; } }); }
 }
 function gotClear(){
-  var was = Object.assign({}, S.got || {});
-  S.got = {}; save({ quiet:true }); gotPaint();
-  toast('Unticked every card.', { undo:function(){ S.got = was; save({ quiet:true }); if(APP.view === 'deck' && S.page === 'deck') gotPaint(); return true; } });
+  var was = Object.assign({}, S.got || {}), wasN = Object.assign({}, S.gotN || {});
+  S.got = {}; S.gotN = {}; save({ quiet:true }); gotPaint();
+  toast('Unticked every card.', { undo:function(){ S.got = was; S.gotN = wasN; save({ quiet:true }); if(APP.view === 'deck' && S.page === 'deck') gotPaint(); return true; } });
 }
 /* ---------- Send to wishlist (Tom, 2026-11-02: "I use the wishlist feature on Moxfield to determine what goes into my
    next order. I'm going to add cards to this based on what's missing from my deck") ----------
@@ -6389,7 +6411,7 @@ function onDeckClick(e){
   var t = e.target;
   var fl = t.closest('[data-flip]'); if(fl){ flipCard(fl.getAttribute('data-flip')); return; }
   var ow = t.closest('[data-own]'); if(ow){ ownMore(ow.getAttribute('data-own'), ow.getAttribute('data-n')); return; }
-  var gt = t.closest('[data-got]'); if(gt){ gotToggle(gt.getAttribute('data-got')); return; }
+  var gt = t.closest('[data-got]'); if(gt){ gotToggle(gt.getAttribute('data-got'), +gt.getAttribute('data-q') || 0); return; }
   if(t.closest('[data-gotclear]')){ gotClear(); return; }
   if(t.closest('[data-wishsend]')){ wishSend(wishLeft().send); return; }
   if(t.closest('[data-collread]')){ collRead(); return; }
