@@ -3480,12 +3480,13 @@ function moxPaste(board){
   return countLines(L[board === 'deck' ? 'main' : board] || []).join('\n') + '\n';
 }
 /* Copy for EDHplay (Tom, 2026-10-27: "an export option for EDHplay specifically"). EDHplay's Import takes one card a line,
-   quantity first, "1 Sol Ring (C18) 222" for a printing; the commander is picked by search when the deck is made there,
-   so the paste is the 99 only. Printings are his Moxfield ones, set and number read from Scryfall by id and kept here. */
+   quantity first, "1 Sol Ring (C18) 222" for a printing. The commander leads the paste (Tom, 2026-11-02: "Update the edh
+   export to include the commander"), then the 99. Cards in To order and put are in the 99, so they go; Temporary cards
+   are not, so they never do. Printings are his Moxfield ones, set and number read from Scryfall by id and kept here. */
 var EDHP = {};
 async function edhplayTxt(){
-  var pr = deckPrints(S), need = [];
-  (S.deck || []).forEach(function(d){ var sid = pr[moxKey(d.n)]; if(sid && !EDHP[sid] && need.indexOf(sid) < 0) need.push(sid); });
+  var pr = deckPrints(S), need = [], cmds = [S.cmd, S.partner].filter(Boolean);
+  cmds.concat(S.deck || []).forEach(function(d){ var sid = pr[moxKey(d.n)]; if(sid && !EDHP[sid] && need.indexOf(sid) < 0) need.push(sid); });
   for(var i = 0; i < need.length; i += 75){
     try{
       var ac = window.AbortController ? new AbortController() : null, tm = ac ? setTimeout(function(){ ac.abort(); }, 6000) : 0;
@@ -3495,18 +3496,16 @@ async function edhplayTxt(){
       ((await r.json()).data || []).forEach(function(c){ EDHP[c.id] = c.set.toUpperCase() + ') ' + c.collector_number; });
     }catch(e){ break; }   // offline or slow: those cards go by name alone
   }
+  var lineOf = function(d){ var sid = pr[moxKey(d.n)]; return d.n.split(' // ')[0] + (sid && EDHP[sid] ? ' (' + EDHP[sid] : ''); };
   var m = {}, order = [];
-  (S.deck || []).forEach(function(d){
-    var sid = pr[moxKey(d.n)], line = d.n.split(' // ')[0] + (sid && EDHP[sid] ? ' (' + EDHP[sid] : '');
-    if(!m[line]){ m[line] = 0; order.push(line); } m[line]++;
-  });
-  return order.sort(function(a, b){ return a.localeCompare(b); }).map(function(l){ return m[l] + ' ' + l; }).join('\n') + '\n';
+  (S.deck || []).forEach(function(d){ var line = lineOf(d); if(!m[line]){ m[line] = 0; order.push(line); } m[line]++; });
+  return cmds.map(function(c){ return '1 ' + lineOf(c); }).concat(order.sort(function(a, b){ return a.localeCompare(b); }).map(function(l){ return m[l] + ' ' + l; })).join('\n') + '\n';
 }
 function edhplayPanelHtml(){
   var cmds = [S.cmd, S.partner].filter(Boolean).map(function(c){ return '<b>' + esc(c.n) + '</b>'; }).join(' and ');
   return '<section class="bs-panel"><div class="bs-panel-head"><h3 class="bs-panel-title">EDHplay</h3></div>' +
     '<p class="bs-panel-note">On EDHplay: make a new Commander deck with ' + cmds + ' as commander' + (S.partner ? 's' : '') + (S.companion ? ' and ' + esc(S.companion) + ' as companion' : '') +
-    ', press Import and paste. The paste is the 99 with your Moxfield printings.</p>' + edhGamesHtml() +
+    ', press Import and paste. The paste is the commander and the 99 with your Moxfield printings, cards still to order included, Temporary ones left out.</p>' + edhGamesHtml() +
     '<div class="bs-stack" style="--gap:var(--s2);margin-top:var(--s4)"><button class="bs-btn bs-primary bs-block" type="button" data-edhplay>' + ico('copy', 'bs-i16') + 'Copy for EDHplay</button>' +
     '<a class="bs-btn bs-quiet bs-block" href="https://edhplay.com" target="_blank" rel="noopener">' + ico('ext', 'bs-i16') + 'Open EDHplay</a></div></section>';
 }
@@ -5270,7 +5269,8 @@ var ASM = { show:false, away:{} };
 function gotElsewhere(){
   var m = {};
   shelf().forEach(function(r){ if(r.id === CUR) return; var d = deckOf(r.id), g = d && d.got; if(!g) return;
-    Object.keys(g).forEach(function(k){ (m[k] = m[k] || []).push(deckTitle(r)); }); });
+    // A card standing in as Temporary there is in that box too.
+    Object.keys(g).forEach(function(k){ k = k.replace(/^temp:/, ''); (m[k] = m[k] || []).push(deckTitle(r)); }); });
   return m;
 }
 /* Copies he owns (Tom, 2026-11-01: "make sure this doesnt make mistakes with cards I own multiple of"). Nothing here
@@ -5341,6 +5341,34 @@ function orderSet(n, on){
   save({ quiet:true }); if(APP.view === 'deck' && S.page === 'deck') drawDeckPage();
   if(!on) toast('<b>' + esc(n) + '</b> is out of To order and put.', { undo:function(){ orderSet(n, true); return true; } });
 }
+/* Temporary (Tom, 2026-11-02: "While I have cards in waiting in to order, let me put cards in a temporary category"): cards
+   he plays in the paper deck while the ordered ones are on the way. Kept with the deck (S.temp, [{ n, q, thumb, mv, land }]),
+   outside the 99, so the count, the EDHplay copy and the Moxfield sync never see them. In Assemble they tick like the rest,
+   under their own key ('temp:' + card key), so a Mountain standing in never ticks the deck's own Mountains. */
+function tempList(){ return S.temp || []; }
+function tempKey(n){ return 'temp:' + moxKey(n); }
+function tempItems(){ return tempList().map(function(t){ return { n:t.n, q:t.q || 1, c:{ mv:t.land ? null : t.mv }, thumb:t.thumb, board:'temp', temp:1 }; }); }
+function tempRedraw(){ if(APP.view === 'deck' && S.page === 'deck') drawDeckPage(); }
+function tempAdd(c){
+  var was = JSON.stringify(tempList()), k = moxKey(c.n), L = JSON.parse(was), x = L.filter(function(t){ return moxKey(t.n) === k; })[0];
+  if(x) x.q = (x.q || 1) + 1;
+  else L.push({ n:c.n, q:1, thumb:(faceImg(c, c.n) || '').replace('/normal/', '/art_crop/'), mv:c.mv, land:!!(c.type && isLand(c)) });
+  S.temp = L; save({ quiet:true }); tempRedraw();
+  return function(){ S.temp = JSON.parse(was); save({ quiet:true }); tempRedraw(); return true; };
+}
+function tempOut(n){
+  var was = JSON.stringify(tempList()), k = tempKey(n), g = S.got && S.got[k], gn = S.gotN && S.gotN[k];
+  S.temp = tempList().filter(function(t){ return moxKey(t.n) !== moxKey(n); });
+  if(S.got) delete S.got[k]; if(S.gotN) delete S.gotN[k];
+  save({ quiet:true }); tempRedraw();
+  toast('<b>' + esc(n) + '</b> is out of Temporary.',{ undo:function(){ S.temp = JSON.parse(was); if(g){ S.got = S.got || {}; S.got[k] = g; } if(gn){ S.gotN = S.gotN || {}; S.gotN[k] = gn; } save({ quiet:true }); tempRedraw(); return true; } });
+}
+// The foot of the Temporary box: what it is for while it is empty, the nudge once nothing waits to be ordered, and its button.
+function tempFoot(g){
+  var say = !g.items.length ? 'Cards you play while the ordered ones are on the way. They stay out of the 99 and the EDHplay copy.'
+    : !g.waiting ? 'Nothing is left to order. Take these out once the ordered cards are in.' : '';
+  return (say ? '<p class="bs-catdrop">' + say + '</p>' : '') + '<button class="bs-btn bs-quiet bs-block" type="button" data-tempadd>' + ico('plus', 'bs-i16') + 'Add a temporary card</button>';
+}
 /* A tick on a basic land puts one copy in (Tom, 2026-11-02: "ticking a land should just assemble 1 count of that basic
    land"): the copies so far are in S.gotN (card key -> copies), and the row is ticked, S.got, once all of them are in. */
 function gotPart(k){ return +((S.gotN || {})[k]) || 0; }
@@ -5348,7 +5376,10 @@ function gotHave(n, q){ var k = moxKey(n); return S.got && S.got[k] ? q : Math.m
 // A card in To order and put is not counted (Tom, 2026-11-02: "while a card is there dont count it as part of my 99").
 function asmCount(){
   var all = [S.cmd].concat(S.partner ? [S.partner] : []).map(function(c){ return { n:c.n, q:1, cmd:1 }; }).concat(deckItems());
-  return all.reduce(function(a, it){ if(!it.cmd && !it.basic && asmMissing(it.n)){ a.o += it.q; return a; } a.t += it.q; a.g += gotHave(it.n, it.q); return a; }, { g:0, t:0, o:0 });
+  var k = all.reduce(function(a, it){ if(!it.cmd && !it.basic && asmMissing(it.n)){ a.o += it.q; return a; } a.t += it.q; a.g += gotHave(it.n, it.q); return a; }, { g:0, t:0, o:0, tp:0 });
+  // Temporary cards are in the paper deck, so they count toward what is assembled.
+  tempItems().forEach(function(it){ var tk = tempKey(it.n); k.tp += it.q; k.t += it.q; k.g += S.got && S.got[tk] ? it.q : Math.min(gotPart(tk), it.q); });
+  return k;
 }
 // What a basic land's row says: the copies still to go on the count, and how many are in.
 function asmPartHtml(k, q){
@@ -5357,27 +5388,27 @@ function asmPartHtml(k, q){
 }
 function asmHead(){
   var k = asmCount();
-  return '<div class="bs-asm-head" data-asmhead><span class="bs-count"><b>' + k.g + '</b> of ' + k.t + ' assembled' + (k.o ? ', ' + k.o + ' to order' : '') + '</span>' +
+  return '<div class="bs-asm-head" data-asmhead><span class="bs-count"><b>' + k.g + '</b> of ' + k.t + ' assembled' + (k.o ? ', ' + k.o + ' to order' : '') + (k.tp ? ', ' + k.tp + ' temporary' : '') + '</span>' +
     (k.g ? '<button class="bs-btn bs-sm bs-quiet" type="button" data-gotshow aria-pressed="' + ASM.show + '">' + (ASM.show ? 'Hide assembled' : 'Show assembled') + '</button>' +
       '<button class="bs-btn bs-sm bs-quiet" type="button" data-gotclear>Untick all</button>' : '') + wishBtnHtml() + collHtml() + '</div>' +
     (k.g >= k.t ? '<p class="pg-fine">' + (k.o ? 'Every card you have is in. ' + k.o + ' to order.' : 'The deck is assembled.') + '</p>' : '');
 }
 function asmRowHtml(it){
-  var c = it.c || {}, n = it.n, on = gotOf(n), k = moxKey(n);
-  var art = it.thumb || (faceImg(c, n) || '').replace('/normal/', '/art_crop/'), away = it.basic ? null : ASM.away[k], own = away ? ownedOf(k) : 0;
-  var none = !it.basic && !away && !on && collData() && ownedOf(k) < 1;
+  var c = it.c || {}, n = it.n, k = it.temp ? tempKey(n) : moxKey(n), on = !!(S.got && S.got[k]), ck = moxKey(n);
+  var art = it.thumb || (faceImg(c, n) || '').replace('/normal/', '/art_crop/'), away = it.basic || (it.temp && isBasicName(n)) ? null : ASM.away[ck], own = away ? ownedOf(ck) : 0;
+  var none = !it.basic && !it.temp && !away && !on && collData() && ownedOf(ck) < 1;
   var lead = art ? '<img class="bs-crow-thumb" src="' + esc(art) + '" alt="" loading="lazy">' : '<span class="bs-crow-thumb" aria-hidden="true"></span>';
   var mv = it.board !== 'cmd' && !it.basic && c.mv != null && !(c.type && isLand(c)) ? '<span class="bs-crow-mv" title="Mana value">' + c.mv + '</span>' : '';
-  var bq = it.basic && it.q > 1 ? it.q : 0, left = bq ? (on ? bq : bq - gotHave(n, bq)) : it.q;
+  var bq = (it.basic || it.temp) && it.q > 1 ? it.q : 0, left = bq ? (on ? bq : bq - Math.min(gotPart(k), bq)) : it.q;
   // A div, not a button: the row holds a button of its own (I own another copy). Enter and Space tick it (main.onkeydown).
-  return '<div class="bs-crow bs-asm' + (on ? ' bs-got' + (ASM.show ? '' : ' bs-gone') : '') + (it.echo ? ' bs-echo' : '') + '" role="checkbox" tabindex="0" aria-checked="' + on + '" data-got="' + esc(k) + '" data-n="' + esc(n) + '"' + (bq ? ' data-q="' + bq + '"' : '') + '>' +
+  return '<div class="bs-crow bs-asm' + (on ? ' bs-got' + (ASM.show ? '' : ' bs-gone') : '') + (it.echo ? ' bs-echo' : '') + '" role="checkbox" tabindex="0" aria-checked="' + on + '" data-got="' + esc(k) + '" data-n="' + esc(n) + '"' + (bq ? ' data-q="' + bq + '"' : '') + (it.temp ? ' data-temp data-board="temp"' : '') + '>' +
     '<span class="bs-asm-box" aria-hidden="true">' + ico('check', 'bs-i16') + '</span>' + lead +
     '<span class="bs-crow-main"><span class="bs-crow-n">' + (it.q > 1 ? '<span class="bs-crow-q">' + left + '</span>' : '') + esc(n) + '</span>' + (it.sub ? '<span class="bs-crow-s">' + esc(it.sub) + '</span>' : '') + (bq ? asmPartHtml(k, bq) : '') +
     (!away ? '' : own > away.length ? '<span class="bs-asm-in bs-asm-free"><span>' + (away.length > 1 ? 'Other copies are' : 'Another copy is') + ' in ' + esc(away.join(', ')) + '. You own ' + own + '.</span></span>'
       : '<span class="bs-asm-in">' + ico('deck', 'bs-i16') + '<span>In ' + esc(away.join(', ')) + '</span></span>' +
-        '<button class="bs-btn bs-sm bs-quiet bs-asm-own" type="button" data-own="' + esc(k) + '" data-n="' + esc(n) + '">I own another copy</button>') +
+        '<button class="bs-btn bs-sm bs-quiet bs-asm-own" type="button" data-own="' + esc(ck) + '" data-n="' + esc(n) + '">I own another copy</button>') +
     (none ? '<span class="bs-asm-in">' + ico('warn', 'bs-i16') + '<span>Not in your collection</span></span>' +
-      '<button class="bs-btn bs-sm bs-quiet bs-asm-own" type="button" data-own="' + esc(k) + '" data-n="' + esc(n) + '">I own a copy</button>' : '') + wishMark(n, it.basic) + '</span>' +
+      '<button class="bs-btn bs-sm bs-quiet bs-asm-own" type="button" data-own="' + esc(ck) + '" data-n="' + esc(n) + '">I own a copy</button>' : '') + wishMark(n, it.basic || it.temp) + '</span>' +
     '<span class="bs-crow-end">' + mv + '</span></div>';
 }
 /* Every category heads its own columns along the top (Tom, 2026-11-01: "look at all the blank space that could be used,
@@ -5421,7 +5452,7 @@ function gotPaint(){
     var q = +b.getAttribute('data-q'); if(!q) return;
     var qe = b.querySelector('.bs-crow-q'); if(qe) qe.textContent = on ? q : q - Math.min(gotPart(k), q);
     var pe = b.querySelector('[data-part]'); if(pe) pe.outerHTML = asmPartHtml(k, q); });
-  main.querySelectorAll('.bs-clist').forEach(function(g){ if(g.querySelector('[data-got]')) g.classList.toggle('bs-gone', !g.querySelector('[data-got]:not(.bs-gone)')); });
+  main.querySelectorAll('.bs-clist').forEach(function(g){ if(g.querySelector('[data-got]') && !g.querySelector('[data-tempadd]')) g.classList.toggle('bs-gone', !g.querySelector('[data-got]:not(.bs-gone)')); });
   var hd = main.querySelector('[data-asmhead]'); if(hd){ var nx = hd.nextElementSibling; if(nx && nx.matches('p.pg-fine') && !nx.classList.contains('bs-flt-n')) nx.remove(); hd.outerHTML = asmHead(); }
 }
 function gotToggle(k, q){
@@ -5483,7 +5514,7 @@ function wishPaint(){
   // A card that went on the wishlist (or came off it) changes whether it belongs in To order and put: draw the list again.
   var cmdK = [S.cmd, S.partner].filter(Boolean).map(function(c){ return moxKey(c.n); });
   if([].some.call(main.querySelectorAll('.bs-asmgrid [data-got]'), function(b){ var n = b.getAttribute('data-n');
-    return !gotOf(n) && !b.hasAttribute('data-q') && cmdK.indexOf(b.getAttribute('data-got')) < 0 && !!b.closest('[data-order]') !== asmMissing(n); })){ drawDeckPage(); return; }
+    return !gotOf(n) && !b.hasAttribute('data-q') && !b.hasAttribute('data-temp') && cmdK.indexOf(b.getAttribute('data-got')) < 0 && !!b.closest('[data-order]') !== asmMissing(n); })){ drawDeckPage(); return; }
   main.querySelectorAll('[data-got]').forEach(function(b){
     var mid = b.querySelector('.bs-crow-main'); if(!mid) return;
     var old = mid.querySelector('[data-wishmark]'); if(old) old.remove();
@@ -5669,9 +5700,10 @@ function catNew(forCard){
 // not open the card.
 // Add any card from the Deck tab (Tom, 2026-10-19: "Let me add a card in the deck screen"). The sheet
 // stays open after each add, since he over-adds and culls later.
-function addCardSheet(){
+// temp: the same search, adding to Temporary instead of the 99.
+function addCardSheet(temp){
   var seq = 0, tm = 0;
-  var sh = bsSheet({ title:'Add a card', body:'<label class="bs-sr" for="acQ">Card name</label>' +
+  var sh = bsSheet({ title:temp ? 'Add a temporary card' : 'Add a card', body:(temp ? '<p class="bs-soft">It goes in the paper deck while the ordered cards are on the way. It stays out of the 99 and the EDHplay copy.</p>' : '') +'<label class="bs-sr" for="acQ">Card name</label>' +
     '<input id="acQ" class="bs-swm-q bs-acq" type="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Card name">' +
     '<div class="bs-acdone" id="acDone" aria-live="polite"></div><div class="bs-aclist" id="acList"></div>' });
   var inp = sh.body.querySelector('#acQ'), list = sh.body.querySelector('#acList'), done = sh.body.querySelector('#acDone'), undo = null;
@@ -5695,11 +5727,17 @@ function addCardSheet(){
     var b = e.target.closest('[data-acn]'); if(!b || b.disabled) return;
     var n = b.getAttribute('data-acn'), was = b.innerHTML;
     b.disabled = true; b.textContent = 'Adding…';
-    var c = isBasicName(n) ? basicCardOf(n) : poolCard(n);
-    if(!c){
+    var c = isBasicName(n) && !temp ? basicCardOf(n) : poolCard(n);
+    if(!c || (temp && !c.img)){
       var raw = await sf('/cards/named?exact=' + encodeURIComponent(n)).catch(function(){ return null; });
       if(!raw){ toast('Scryfall did not answer. Try again.', { kind:'bad' }); b.disabled = false; b.innerHTML = was; return; }
       c = slim(raw); c.stats = {}; c.roles = rolesOf(c);
+    }
+    if(temp){
+      undo = tempAdd(c); done.innerHTML = '<p><b>' + esc(c.n) + '</b> is in Temporary.</p><button class="bs-btn bs-sm bs-quiet" type="button" data-acundo>Undo</button>';
+      inp.value = ''; list.innerHTML = ''; seq++;
+      try{ inp.focus({ preventScroll:true }); }catch(x){}
+      return;
     }
     var from = boardQty('side', n) ? 'side' : boardQty('maybe', n) ? 'maybe' : '';
     var r = applyChange(null, c, from === 'side' ? 'From your side deck.' : 'Added by you.', from ? { from:from } : {});
@@ -6164,6 +6202,8 @@ function drawDeckPage(){
       g.items = g.items.filter(function(it){ if(it.board === 'cmd' || it.basic || !asmMissing(it.n)) return true; if(!it.echo) toOrder.push(it); return false; }); });
     groups = groups.filter(function(g){ return g.board || g.items.length; });
     if(toOrder.length) groups.push({ t:'To order and put', items:toOrder, order:true });
+    // Temporary: the cards in the paper deck while those are on the way. Shown while anything waits to be ordered or put.
+    if(toOrder.length || tempList().length) groups.push({ t:'Temporary', items:tempItems(), temp:true, waiting:toOrder.length });
   }
   var h = '<div class="bs-cols' + (asm ? ' bs-asm-wide' : '') + '"><div class="bs-main">';
   if(S.importMissing && S.importMissing.length) h += '<div class="bs-callout bs-bad">' + ico('warn') + '<p><b>Scryfall did not know ' + S.importMissing.length + ' card' + (S.importMissing.length > 1 ? 's' : '') + ' from the list,</b> so they are left out: ' + esc(S.importMissing.join(', ')) + '. ' +
@@ -6210,7 +6250,7 @@ function drawDeckPage(){
   function rows(g){ var h = g.items.map(lv.p === 2 ? asmRowHtml : crowHtml).join(''); return isCat && g.items.length > 15 ? '<div class="bs-boxscroll">' + h + '</div>' : h; }
   function drawGroups(gs, board){
     if(!gs.length) return '';
-    if(lv.p === 2) return '<div class="bs-asmgrid">' + gs.map(function(g){ return '<div class="bs-clist bs-asmcat"' + zone(g) + (g.order ? ' data-order' : '') + '>' + head(g) + '<div class="bs-asmrows">' + g.items.map(asmRowHtml).join('') + '</div></div>'; }).join('') + '</div>';
+    if(lv.p === 2) return '<div class="bs-asmgrid">' + gs.map(function(g){ return '<div class="bs-clist bs-asmcat"' + zone(g) + (g.order ? ' data-order' : '') + '>' + head(g) + '<div class="bs-asmrows">' + g.items.map(asmRowHtml).join('') + '</div>' + (g.temp ? tempFoot(g) : '') + '</div>'; }).join('') + '</div>';
     if(board) return '<div class="bs-board" data-bview="' + esc(lv.g) + '" style="--cw:' + BOARD.cw + 'px">' + gs.map(function(g){
       return '<div class="bs-clist" data-box="' + esc(boxKey(g)) + '"' + zone(g) + '>' + head(g, true) + rows(g) + empty(g) + '</div>'; }).join('') + '</div>';
     if(lv.p === 1) return '<div class="sh-pics">' + gs.map(function(g){ return '<section' + zone(g) + '>' + head(g) + '<div class="bs-cgrid" style="--card-min:140px">' + g.items.map(ctileHtml).join('') + '</div>' + empty(g) + '</section>'; }).join('') + '</div>';
@@ -6290,6 +6330,9 @@ function backsNeeded(){
 }
 /* ---------- right click (and a held finger) on any card: what can be done with it, where it is ---------- */
 function cardMenuItems(n, board, cat){
+  // A Temporary row (Assemble): it is not in the 99, so only these.
+  if(board === 'temp') return [{ label:'Take out of Temporary', icon:'minus', fn:function(){ tempOut(n); } }, { label:'Add a temporary card', icon:'plus', fn:function(){ addCardSheet(true); } },
+    { label:'Copy the name', icon:'copy', fn:function(){ (navigator.clipboard ? navigator.clipboard.writeText(n) : Promise.reject()).then(function(){ toast('Copied <b>' + esc(n) + '</b>.'); }, function(){ toast('Copy failed.', { kind:'bad' }); }); } }];
   var c = csCard(n) || { n:n }, w = cardWhere(c.n), dn = w.d ? w.d.n : c.n, basic = isBasicName(c.n), items = [];
   var ro = APP.view !== 'deck' || !S.cmd || parkedByAnalyse();
   var open = function(o){ return function(){ openCardSheet(n, Object.assign({ board:board || '' }, o || {})); }; };
@@ -6328,6 +6371,7 @@ function cardMenuItems(n, board, cat){
   if(LOCAL && !basic && !wishPending(c.n)) items.push(wishQ(c.n) ? { label:'Add another copy to the wishlist', icon:'plus', note:'On it now: ' + wishQ(c.n), fn:function(){ wishSend([c.n], true); } }
     : { label:'Add to order and put', icon:'plus', note:'Goes on your Moxfield wishlist', fn:function(){ orderSet(c.n, true); wishSend([c.n]); } });
   if(!basic && asmMissing(c.n) && freeOf(moxKey(c.n)) >= 1) items.push({ label:'Take out of To order and put', icon:'minus', fn:function(){ orderSet(c.n, false); } });
+  if(!basic && w.main && asmMissing(c.n)) items.push({ label:'Add a temporary card', icon:'plus', note:'Plays in its place while it is on the way', fn:function(){ addCardSheet(true); } });
   items.push({ label:'Copy the name', icon:'copy', fn:function(){
     (navigator.clipboard ? navigator.clipboard.writeText(c.n) : Promise.reject()).then(function(){ toast('Copied <b>' + esc(c.n) + '</b>.'); }, function(){ toast('Copy failed.', { kind:'bad' }); }); } });
   if(!ro && !w.cmd && !basic){
@@ -6449,6 +6493,7 @@ function onDeckClick(e){
   var bas = t.closest('[data-bas]'); if(bas){ basicStep(bas.getAttribute('data-bas'), +bas.getAttribute('data-d')); return; }
   var lvb = t.closest('[data-lv]'); if(lvb){ var kv = lvb.getAttribute('data-lv').split(':'); setListView(kv[0], kv[1]); drawDeckPage(); return; }
   if(t.closest('[data-addcard]')){ addCardSheet(); return; }
+  if(t.closest('[data-tempadd]')){ addCardSheet(true); return; }
   if(t.closest('[data-edhgall]')){ EDHG.all = !EDHG.all; drawDeckSide(); return; }
   if(t.closest('[data-catnew]')){ catNew(); return; }
   var cm = t.closest('[data-catmenu]'); if(cm){ catMenu(cm, cm.getAttribute('data-catmenu')); return; }
@@ -6463,7 +6508,7 @@ function onDeckClick(e){
     deck:'Copied the 99 for the Main Deck tab, no commander line.', side:'Copied the side deck for the Sideboard tab.', maybe:'Copied Considering for the Considering tab.' }[b] || 'Copied.'); return; }
   var ep = t.closest('[data-edhplay]'); if(ep){ if(ep.disabled) return; ep.disabled = true; var eh = ep.innerHTML; ep.innerHTML = '<span class="bs-spin"></span>Reading your printings';
     edhplayTxt().then(function(tx){ ep.disabled = false; ep.innerHTML = eh; var n = tx.trim().split('\n').reduce(function(s, l){ return s + (parseInt(l, 10) || 0); }, 0);
-      copy(tx, 'Copied ' + n + ' cards for EDHplay. Pick the commander there, then Import and paste.'); }); return; }
+      copy(tx, 'Copied ' + n + ' cards for EDHplay, commander first. On EDHplay, press Import and paste.'); }); return; }
   if(t.closest('#moxNewer')){ refreshOpenDeck(); return; }
   if(t.closest('[data-mcompare]')){ moxCompare(); return; }
   if(t.closest('[data-now]')){ openNowSheet(); return; }
