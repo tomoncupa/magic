@@ -3949,9 +3949,11 @@ function toast(html, opts){
   el.className = 'bs-toast' + (opts.kind ? ' bs-' + opts.kind : '');
   el.innerHTML = '<div class="bs-toast-msg"></div>';
   el.firstChild.innerHTML = html;
+  TOAST.n = (TOAST.n || 0) + 1;
   if(opts.undo){
+    var u = keepUndo(html, opts.undo);
     var b = document.createElement('button'); b.type = 'button'; b.className = 'bs-toast-act'; b.textContent = 'Undo';
-    b.onclick = function(){ clearTimeout(TOAST.t); hideToast(); opts.undo(); };
+    b.onclick = function(){ clearTimeout(TOAST.t); hideToast(); runUndo(u); };
     el.appendChild(b);
   }
   void el.offsetHeight;
@@ -3960,6 +3962,37 @@ function toast(html, opts){
   TOAST.t = setTimeout(hideToast, opts.ms || (opts.undo ? 6000 : 2600));
 }
 function hideToast(){ if(TOAST.el) TOAST.el.classList.remove('on'); }
+/* Ctrl+Z (Tom, 2026-11-02: "add a ctrl z feature"): every change a toast offered Undo for is kept,
+   newest last, and Ctrl+Z presses those Undos one at a time, long after the toast is gone. Each
+   entry belongs to the copy of the deck that was open (S), like SWUNDO, so opening another deck
+   starts a fresh list. An Undo run from here or from its button never adds an entry of its own,
+   or Ctrl+Z would flip a change back and forth. Typing in a box keeps the box's own Ctrl+Z. */
+var UNDOS = [], UNDOING = 0;
+function keepUndo(html, fn){
+  var u = { fn:fn, s:S, said:String(html).replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'") };
+  if(!UNDOING){ UNDOS.push(u); if(UNDOS.length > 60) UNDOS.shift(); }
+  return u;
+}
+function runUndo(u){
+  var i = UNDOS.indexOf(u); if(i >= 0) UNDOS.splice(i, 1);
+  var n = TOAST.n, r;
+  UNDOING++;
+  try{ r = u.fn(); }catch(e){ if(window.console) console.error(e); r = false; toast('That change could not be undone.', { kind:'bad' }); }
+  finally{ UNDOING--; }
+  // Most Undos redraw quietly; say what came back unless the Undo said something itself.
+  if(r !== false && TOAST.n === n) toast('Undone: ' + esc(u.said.length > 90 ? u.said.slice(0, 88) + '…' : u.said));
+  return r;
+}
+function typingIn(t){ return !!(t && t.closest && t.closest('input,textarea,select,[contenteditable]:not([contenteditable=false])')); }
+document.addEventListener('keydown', function(e){
+  if(!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || String(e.key).toLowerCase() !== 'z') return;
+  if(typingIn(e.target) || e.repeat) return;
+  e.preventDefault();
+  UNDOS = UNDOS.filter(function(u){ return u.s === S; });
+  var u = UNDOS[UNDOS.length - 1];
+  if(!u){ toast('Nothing to undo.'); return; }
+  hideToast(); runUndo(u);
+});
 function reducedMotion(){ return !!(window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches); }
 function phone(){ return !!(window.matchMedia && matchMedia('(max-width:640px),(pointer:coarse) and (max-width:900px)').matches); }
 // A sheet adds a history entry so Back closes it. Closing it another way steps back over that
@@ -5244,11 +5277,54 @@ function gotElsewhere(){
    knows his collection, so every card counts as one copy until he says otherwise on the row (forge.owned, card key ->
    copies, on this PC). A card is only called taken when every copy he owns is ticked in other decks. */
 function ownedAll(){ try{ var o = JSON.parse(lsGet('forge.owned') || '{}'); return o && typeof o === 'object' ? o : {}; }catch(e){ return {}; } }
-function ownedOf(k){ return Math.max(1, +ownedAll()[k] || 1); }
+/* His Moxfield collection (Tom, 2026-11-02: "have it read my collection from moxfield"): copies of each card, every
+   printing counted under its name (moxKey), read through GRAB with his sign-in (Moxfield has no public read of it) and
+   kept in forge.coll { at, n, cards: key -> copies }. Once read it replaces the one-copy guess: a card not in it is one
+   he does not own. "I own another copy" (forge.owned) still wins over Moxfield's count. Read only: never written back. */
+var COLL = { job:'', poll:0 };
+function collData(){ try{ var c = JSON.parse(lsGet('forge.coll') || 'null'); if(c && c.cards) return c; }catch(e){} return null; }
+function ownedOf(k){ var m = +ownedAll()[k], c = collData(); if(m) return m; return c ? (c.cards[k] || 0) : 1; }
+// Copies of the card still free for this deck: owned, less the ones ticked in other decks.
+function freeOf(k){ return ownedOf(k) - ((ASM.away || {})[k] || []).length; }
+function collHtml(){
+  if(!LOCAL) return '';
+  var c = collData(), busy = !!COLL.job;
+  if(c && Date.now() - c.at > 864e5 && !busy) collRead(true);   // once a day on its own
+  return '<span class="bs-count">' + (busy ? 'Reading your Moxfield collection…' : c ? 'Collection: ' + c.n.toLocaleString() + ' cards, read ' + esc(ago(c.at)) : 'Your Moxfield collection is not read yet') + '</span>' +
+    (busy ? '' : '<button class="bs-btn bs-sm bs-quiet" type="button" data-collread>' + ico('refresh', 'bs-i16') + (c ? 'Read again' : 'Read it') + '</button>');
+}
+async function collRead(quiet){
+  if(!LOCAL || COLL.job) return;
+  try{
+    var r = await fetch('/api/moxsync/queue', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ publicId:'collection', ops:[] }) });
+    var j = await r.json(); if(!r.ok || j.error) throw new Error(j.error || 'the PC server answered ' + r.status);
+    COLL.job = j.id; COLL.quiet = !!quiet; COLL.told = 0; collPaint(); collPoll();
+  }catch(e){ if(!quiet) toast('Could not ask for your collection: ' + esc(e.message), { kind:'bad' }); }
+}
+function collPaint(){ if(APP.view === 'deck' && S.page === 'deck' && main.querySelector('[data-asmhead]')) gotPaint(); }
+function collPoll(){
+  clearTimeout(COLL.poll);
+  COLL.poll = setTimeout(async function(){
+    var st; try{ st = await (await fetch('/api/moxsync/status?id=collection', { cache:'no-store' })).json(); }catch(e){ collPoll(); return; }
+    var job = st.job;
+    if(!job || job.id !== COLL.job){ COLL.job = ''; collPaint(); return; }
+    if(job.state !== 'done' && job.state !== 'failed'){
+      if(!COLL.quiet && (!st.seen || st.now - st.seen > 90) && !COLL.told){ COLL.told = 1; toast('GRAB in Chrome has not checked in. Open Chrome and your collection is read within a minute.', { ms:8000 }); }
+      collPoll(); return;
+    }
+    var res = job.result || {}, col = res.collection;
+    COLL.job = '';
+    if(job.state === 'failed' || !col || !col.cards){ collPaint(); if(!COLL.quiet) toast(esc(res.err || 'GRAB could not read your collection.'), { kind:'bad', ms:9000 }); return; }
+    var cards = {}; Object.keys(col.cards).forEach(function(n){ var k = moxKey(n); cards[k] = (cards[k] || 0) + (+col.cards[n] || 0); });
+    lsSet('forge.coll', JSON.stringify({ at:Date.now(), n:col.n || 0, cards:cards }));
+    if(APP.view === 'deck' && S.page === 'deck') drawDeckPage();
+    if(!COLL.quiet) toast('Read your Moxfield collection: ' + (col.n || 0).toLocaleString() + ' cards.');
+  }, 3000);
+}
 function ownMore(k, name){
   var o = ownedAll(), was = o[k], used = (ASM.away[k] || []).length;
   o[k] = Math.max(ownedOf(k), used) + 1; lsSet('forge.owned', JSON.stringify(o)); drawDeckPage();
-  toast('You own ' + o[k] + ' copies of <b>' + esc(name) + '</b>.', { undo:function(){ var u = ownedAll(); if(was) u[k] = was; else delete u[k]; lsSet('forge.owned', JSON.stringify(u)); if(APP.view === 'deck' && S.page === 'deck') drawDeckPage(); return true; } });
+  toast('You own ' + (o[k] > 1 ? o[k] + ' copies' : 'a copy') + ' of <b>' + esc(name) + '</b>.', { undo:function(){ var u = ownedAll(); if(was) u[k] = was; else delete u[k]; lsSet('forge.owned', JSON.stringify(u)); if(APP.view === 'deck' && S.page === 'deck') drawDeckPage(); return true; } });
 }
 function gotOf(n){ return !!(S.got && S.got[moxKey(n)]); }
 function asmCount(){
@@ -5259,12 +5335,13 @@ function asmHead(){
   var k = asmCount();
   return '<div class="bs-asm-head" data-asmhead><span class="bs-count"><b>' + k.g + '</b> of ' + k.t + ' pulled</span>' +
     (k.g ? '<button class="bs-btn bs-sm bs-quiet" type="button" data-gotshow aria-pressed="' + ASM.show + '">' + (ASM.show ? 'Hide pulled' : 'Show pulled') + '</button>' +
-      '<button class="bs-btn bs-sm bs-quiet" type="button" data-gotclear>Untick all</button>' : '') + wishBtnHtml() + '</div>' +
+      '<button class="bs-btn bs-sm bs-quiet" type="button" data-gotclear>Untick all</button>' : '') + wishBtnHtml() + collHtml() + '</div>' +
     (k.g >= k.t ? '<p class="pg-fine">Every card is pulled.</p>' : '');
 }
 function asmRowHtml(it){
   var c = it.c || {}, n = it.n, on = gotOf(n), k = moxKey(n);
   var art = it.thumb || (faceImg(c, n) || '').replace('/normal/', '/art_crop/'), away = it.basic ? null : ASM.away[k], own = away ? ownedOf(k) : 0;
+  var none = !it.basic && !away && !on && collData() && ownedOf(k) < 1;
   var lead = art ? '<img class="bs-crow-thumb" src="' + esc(art) + '" alt="" loading="lazy">' : '<span class="bs-crow-thumb" aria-hidden="true"></span>';
   var mv = it.board !== 'cmd' && !it.basic && c.mv != null && !(c.type && isLand(c)) ? '<span class="bs-crow-mv" title="Mana value">' + c.mv + '</span>' : '';
   // A div, not a button: the row holds a button of its own (I own another copy). Enter and Space tick it (main.onkeydown).
@@ -5273,7 +5350,9 @@ function asmRowHtml(it){
     '<span class="bs-crow-main"><span class="bs-crow-n">' + (it.q > 1 ? '<span class="bs-crow-q">' + it.q + '</span>' : '') + esc(n) + '</span>' + (it.sub ? '<span class="bs-crow-s">' + esc(it.sub) + '</span>' : '') +
     (!away ? '' : own > away.length ? '<span class="bs-asm-in bs-asm-free"><span>' + (away.length > 1 ? 'Other copies are' : 'Another copy is') + ' in ' + esc(away.join(', ')) + '. You own ' + own + '.</span></span>'
       : '<span class="bs-asm-in">' + ico('deck', 'bs-i16') + '<span>In ' + esc(away.join(', ')) + '</span></span>' +
-        '<button class="bs-btn bs-sm bs-quiet bs-asm-own" type="button" data-own="' + esc(k) + '" data-n="' + esc(n) + '">I own another copy</button>') + wishMark(n, it.basic) + '</span>' +
+        '<button class="bs-btn bs-sm bs-quiet bs-asm-own" type="button" data-own="' + esc(k) + '" data-n="' + esc(n) + '">I own another copy</button>') +
+    (none ? '<span class="bs-asm-in">' + ico('warn', 'bs-i16') + '<span>Not in your collection</span></span>' +
+      '<button class="bs-btn bs-sm bs-quiet bs-asm-own" type="button" data-own="' + esc(k) + '" data-n="' + esc(n) + '">I own a copy</button>' : '') + wishMark(n, it.basic) + '</span>' +
     '<span class="bs-crow-end">' + mv + '</span></div>';
 }
 /* Every category heads its own columns along the top (Tom, 2026-11-01: "look at all the blank space that could be used,
@@ -5348,7 +5427,7 @@ function wishMark(n, basic){
 // The cards left to pull: the commander and the 99, unticked, not basic lands.
 function wishLeft(){
   var all = [S.cmd].concat(S.partner ? [S.partner] : []).map(function(c){ return { n:c.n }; }).concat(deckItems().filter(function(it){ return !it.basic; }));
-  var left = all.filter(function(it){ return !gotOf(it.n) && !isBasicName(it.n); });
+  var coll = !!collData(), left = all.filter(function(it){ return !gotOf(it.n) && !isBasicName(it.n) && (!coll || freeOf(moxKey(it.n)) < 1); });
   return { left:left.length, send:left.filter(function(it){ return !wishQ(it.n) && !wishPending(it.n); }).map(function(it){ return it.n; }),
     pend:left.filter(function(it){ return wishPending(it.n); }).length };
 }
@@ -5356,9 +5435,10 @@ function wishBtnHtml(){
   if(!LOCAL) return '';
   wishSoon();
   var w = wishLeft();
-  if(w.send.length) return '<button class="bs-btn bs-sm" type="button" data-wishsend>' + ico('plus', 'bs-i16') + 'Send ' + w.send.length + ' left to the wishlist</button>';
+  var what = collData() ? ' missing' : ' left';
+  if(w.send.length) return '<button class="bs-btn bs-sm" type="button" data-wishsend>' + ico('plus', 'bs-i16') + 'Send ' + w.send.length + what + ' to the wishlist</button>';
   if(w.pend) return '<span class="bs-count">Sending ' + w.pend + ' to the wishlist…</span>';
-  return w.left ? '<span class="bs-count">The ' + w.left + ' left are on your wishlist</span>' : '';
+  return w.left ? '<span class="bs-count">' + (w.left === 1 ? 'The 1 card' + what + ' is' : 'The ' + w.left + ' cards' + what + ' are') + ' on your wishlist</span>' : '';
 }
 // Marks and the head change in place, so the list never jumps while he pulls cards.
 function wishPaint(){
@@ -6312,6 +6392,7 @@ function onDeckClick(e){
   var gt = t.closest('[data-got]'); if(gt){ gotToggle(gt.getAttribute('data-got')); return; }
   if(t.closest('[data-gotclear]')){ gotClear(); return; }
   if(t.closest('[data-wishsend]')){ wishSend(wishLeft().send); return; }
+  if(t.closest('[data-collread]')){ collRead(); return; }
   if(t.closest('[data-gotshow]')){ ASM.show = !ASM.show; gotPaint(); asmFit(); return; }
   var bas = t.closest('[data-bas]'); if(bas){ basicStep(bas.getAttribute('data-bas'), +bas.getAttribute('data-d')); return; }
   var lvb = t.closest('[data-lv]'); if(lvb){ var kv = lvb.getAttribute('data-lv').split(':'); setListView(kv[0], kv[1]); drawDeckPage(); return; }
