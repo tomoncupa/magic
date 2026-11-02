@@ -4496,7 +4496,7 @@ async function refreshAll(){
   var linked = shelf().filter(function(r){ return r.mox; }).length;
   toast(!todo.length ? (linked ? 'Moxfield checked. Every deck here matches its Moxfield version.' : 'Moxfield checked: ' + FEED.data.decks.length + ' deck' + (FEED.data.decks.length === 1 ? '' : 's') + ' there.') : done ? 'Brought in ' + done + ' newer deck' + (done > 1 ? 's' : '') + ' from Moxfield.' : 'Nothing was brought in.');
 }
-function deckMenu(btn, id){
+function deckMenu(btn, id, at){
   var row = shelfRow(id); if(!row) return;
   var items = [{ label:'Open', icon:'arrow', fn:function(){ navDeck(id); } }, { label:'Rename', icon:'pencil', fn:function(){ renameDeck(id); } }];
   if(row.mox){
@@ -4506,7 +4506,7 @@ function deckMenu(btn, id){
   }
   items.push({ label:row.hid ? 'Show on Your decks' : 'Hide from Your decks', icon:'side', note:row.hid ? '' : 'Kept here; Hidden decks shows it', fn:function(){ hideDeck(id, !row.hid); } });
   items.push({ label:'Delete from Brewing Station', icon:'trash', kind:'bad', note:row.mox && !goneFromMox(row.mox.id) ? 'Moxfield keeps its copy' : 'You can undo for a few seconds', fn:function(){ deleteDeck(id); } });
-  bsMenu(btn, deckTitle(row), items);
+  bsMenu(btn, deckTitle(row), items, at);
 }
 async function refreshRow(row, fd){
   if(IMPORT.busy){ toast('Wait for <b>' + esc(IMPORT.name) + '</b> to finish coming in.'); return; }
@@ -6211,29 +6211,83 @@ function cardMenu(el, x, y){
   var box = APP.view === 'deck' && listView().g === 'cat' && el.closest('[data-cat]'), cat = box ? box.getAttribute('data-cat') : '';
   bsMenu(el, n, cardMenuItems(n, el.getAttribute('data-board') || '', cat && cats().list.indexOf(cat) >= 0 ? cat : ''), { x:x, y:y });
 }
+/* Right click is always Brewing Station's own menu (Tom, 2026-11-02: "I don't want the typical edge right click. I always
+   want it to be the relevant Brewing Station right click"): a card gets the card's menu, a deck tile the deck's, a
+   category its own, a link Open and Copy, a text box Cut, Copy, Paste and Select all, and anywhere else the main things
+   that view can do. A held finger lands on the same menu (text boxes keep the phone's own). Edge's menu never shows. */
+// The view's own buttons, offered by what they do; only the ones on screen now (a press goes through the button itself).
+var PAGE_ACTS = [
+  ['#dkNew', 'New deck', 'plus'], ['#dkImport', 'Import a deck', 'import'], ['#dkRefresh', 'Refresh from Moxfield', 'refresh'], ['[data-showhid]', null, 'side'],
+  ['[data-addcard]', 'Add a card', 'plus'], ['[data-lv="p:0"]', 'Show as a list', 'deck'], ['[data-lv="p:1"]', 'Show as pictures', 'deck'], ['[data-lv="p:2"]', 'Assemble', 'check'],
+  ['[data-wishsend]', null, 'plus'], ['[data-gotclear]', 'Untick all', 'minus'], ['[data-msync]', null, 'import'], ['#moxNewer', 'Bring in the Moxfield version', 'refresh'],
+  ['[data-copy-board="all"]', 'Copy the whole deck', 'copy']
+];
+function onScreen(el){ var r = el.getBoundingClientRect(); return !el.disabled && r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; }
+function pageMenuItems(inSheet){
+  var items = [];
+  if(inSheet){ items.push({ label:'Close this panel', icon:'close', fn:function(){ var h = SHEETS[SHEETS.length - 1]; if(h) h.close(); } }); return items; }
+  PAGE_ACTS.forEach(function(a){
+    var el = [].slice.call(document.querySelectorAll(a[0])).filter(function(x){ return !x.closest('.bs-menu,.bs-sheet') && onScreen(x); })[0];
+    if(el && !el.matches('.on,[aria-pressed="true"]')) items.push({ label:a[1] || el.textContent.trim(), icon:a[2], fn:function(){ el.click(); } });
+  });
+  if(APP.view !== 'decks') items.push({ label:'Your decks', icon:'back', fn:function(){ location.hash = '#decks'; } });
+  items.push({ label:'Reload', icon:'refresh', fn:function(){ location.reload(); } });
+  return items;
+}
+// A text box: what Edge's own menu would offer, done on the box he right-clicked.
+function textMenu(box, x, y){
+  var ce = !('value' in box), sel = getSelection(), rng = ce && sel.rangeCount ? sel.getRangeAt(0).cloneRange() : null;
+  var s0 = ce ? 0 : box.selectionStart, s1 = ce ? 0 : box.selectionEnd, picked = ce ? sel.toString() : String(box.value).slice(s0, s1);
+  var ro = box.readOnly || box.disabled;
+  var back = function(){ box.focus(); if(ce){ if(rng){ sel.removeAllRanges(); sel.addRange(rng); } } else { try{ box.setSelectionRange(s0, s1); }catch(e){} } };
+  var items = [];
+  if(picked && !ro) items.push({ label:'Cut', icon:'cut', fn:function(){ back(); document.execCommand('cut'); } });
+  if(picked) items.push({ label:'Copy', icon:'copy', fn:function(){ back(); document.execCommand('copy'); } });
+  if(!ro) items.push({ label:'Paste', icon:'import', fn:function(){
+    (navigator.clipboard && navigator.clipboard.readText ? navigator.clipboard.readText() : Promise.reject()).then(function(t){ back(); document.execCommand('insertText', false, t); },
+      function(){ toast('Paste was blocked. Press Ctrl+V.', { kind:'bad' }); }); } });
+  items.push({ label:'Select all', icon:'check', fn:function(){ box.focus(); if(ce){ var r = document.createRange(); r.selectNodeContents(box); sel.removeAllRanges(); sel.addRange(r); } else box.select(); } });
+  bsMenu(box, 'Text', items, { x:x, y:y });
+}
+function rightMenu(t, x, y, held){
+  if(!t || !t.closest || t.closest('.bs-menu')) return true;
+  var box = t.closest('input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=range]),textarea,[contenteditable=""],[contenteditable=true]');
+  if(box){ if(held) return false; textMenu(box, x, y); return true; }
+  var el = t.closest('[data-card],[data-pg-card],[data-got][data-n]');
+  if(el){ cardMenu(el, x, y); return true; }
+  var g = APP.view === 'deck' && t.closest('.bs-group'), cm = g && g.querySelector('[data-catmenu]');
+  if(cm){ catMenu(cm, cm.getAttribute('data-catmenu'), { x:x, y:y }); return true; }
+  var tile = t.closest('.bs-dtile'), dm = tile && tile.querySelector('[data-menu]'), di = tile && tile.querySelector('[data-import]');
+  if(dm){ deckMenu(dm, dm.getAttribute('data-menu'), { x:x, y:y }); return true; }
+  if(di){ var id = di.getAttribute('data-import'), fd = feedDeck(id), its = [{ label:'Open', icon:'arrow', fn:function(){ openFromMox(id); } }];
+    if(fd && fd.url) its.push({ label:'Open on Moxfield', icon:'ext', fn:function(){ openOut(fd.url); } });
+    bsMenu(di, fd ? fd.name : 'Moxfield deck', its, { x:x, y:y }); return true; }
+  var picked = String(getSelection()).trim(), a = t.closest('a[href]'), items = [];
+  if(picked) items.push({ label:'Copy', icon:'copy', fn:function(){ copy(picked, 'Copied.'); } });
+  if(a) items.push({ label:'Open the link', icon:'ext', fn:function(){ openOut(a.href); } }, { label:'Copy the link', icon:'copy', fn:function(){ copy(a.href, 'Copied the link.'); } });
+  else items = items.concat(pageMenuItems(!!t.closest('.bs-sheet')));
+  bsMenu(t, a ? 'Link' : 'Brewing Station', items, { x:x, y:y });
+  return true;
+}
 (function(){
-  var cardSel = '[data-card],[data-pg-card],[data-got][data-n]';
   document.addEventListener('contextmenu', function(e){
-    clear(); if(Date.now() - held < 1000){ e.preventDefault(); return; }   // Android sends both for one held finger
-    if(!e.target.closest || e.target.closest('input,textarea,[contenteditable=true]')) return;
-    var el = e.target.closest(cardSel);
-    if(el && !el.closest('.bs-menu')){ e.preventDefault(); cardMenu(el, e.clientX, e.clientY); return; }
-    var g = APP.view === 'deck' && e.target.closest('.bs-group');
-    var cm = g && g.querySelector('[data-catmenu]');
-    if(cm){ e.preventDefault(); catMenu(cm, cm.getAttribute('data-catmenu'), { x:e.clientX, y:e.clientY }); }
+    clear(); e.preventDefault();
+    if(Date.now() - held < 1000) return;   // Android sends both for one held finger
+    hoverHide(); rightMenu(e.target, e.clientX, e.clientY);
   });
   // A held finger (iPhone and iPad Safari send no contextmenu): the same menu after half a second
   // without moving, and the tap that follows is swallowed.
   var hold = null, held = 0;
   function clear(){ if(hold){ clearTimeout(hold.t); hold = null; } }
   document.addEventListener('pointerdown', function(e){
-    clear(); if(e.pointerType === 'mouse' || !e.target.closest) return;
-    var el = e.target.closest(cardSel); if(!el || el.closest('.bs-menu,[data-flip]')) return;
+    clear(); if(e.pointerType === 'mouse' || !e.target.closest || e.target.closest('.bs-menu,[data-flip]')) return;
+    var tg = e.target;
     hold = { x:e.clientX, y:e.clientY, t:setTimeout(function(){
-      if(!hold) return; hold = null; held = Date.now();
+      if(!hold) return; hold = null;
+      if(!rightMenu(tg, e.clientX, e.clientY, true)) return;
+      held = Date.now();
       var eat = function(ce){ ce.stopPropagation(); ce.preventDefault(); document.removeEventListener('click', eat, true); };
       document.addEventListener('click', eat, true); setTimeout(function(){ document.removeEventListener('click', eat, true); }, 800);
-      cardMenu(el, e.clientX, e.clientY);
     }, 500) };
   }, true);
   document.addEventListener('pointermove', function(e){ if(hold && Math.abs(e.clientX - hold.x) + Math.abs(e.clientY - hold.y) > 10) clear(); }, true);
