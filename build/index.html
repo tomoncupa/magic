@@ -5327,8 +5327,9 @@ function ownMore(k, name){
   toast('You own ' + (o[k] > 1 ? o[k] + ' copies' : 'a copy') + ' of <b>' + esc(name) + '</b>.', { undo:function(){ var u = ownedAll(); if(was) u[k] = was; else delete u[k]; lsSet('forge.owned', JSON.stringify(u)); if(APP.view === 'deck' && S.page === 'deck') drawDeckPage(); return true; } });
 }
 function gotOf(n){ return !!(S.got && S.got[moxKey(n)]); }
-// A card he has to order before it goes in: unticked, not a basic land, and no copy of his free for this deck.
-function asmMissing(n){ return !gotOf(n) && !isBasicName(n) && freeOf(moxKey(n)) < 1; }
+/* A card he has to order before it goes in: unticked, not a basic land, and no copy of his free for this deck, or
+   on his Moxfield wishlist (Tom, 2026-11-02: "it has to sync to wishlist"), so Send to wishlist puts it there too. */
+function asmMissing(n){ return !gotOf(n) && !isBasicName(n) && (freeOf(moxKey(n)) < 1 || !!wishQ(n) || wishPending(n)); }
 /* A tick on a basic land puts one copy in (Tom, 2026-11-02: "ticking a land should just assemble 1 count of that basic
    land"): the copies so far are in S.gotN (card key -> copies), and the row is ticked, S.got, once all of them are in. */
 function gotPart(k){ return +((S.gotN || {})[k]) || 0; }
@@ -5467,6 +5468,10 @@ function wishBtnHtml(){
 // Marks and the head change in place, so the list never jumps while he pulls cards.
 function wishPaint(){
   if(APP.view !== 'deck' || S.page !== 'deck') return;
+  // A card that went on the wishlist (or came off it) changes whether it belongs in To order and put: draw the list again.
+  var cmdK = [S.cmd, S.partner].filter(Boolean).map(function(c){ return moxKey(c.n); });
+  if([].some.call(main.querySelectorAll('.bs-asmgrid [data-got]'), function(b){ var n = b.getAttribute('data-n');
+    return !gotOf(n) && !b.hasAttribute('data-q') && cmdK.indexOf(b.getAttribute('data-got')) < 0 && !!b.closest('[data-order]') !== asmMissing(n); })){ drawDeckPage(); return; }
   main.querySelectorAll('[data-got]').forEach(function(b){
     var mid = b.querySelector('.bs-crow-main'); if(!mid) return;
     var old = mid.querySelector('[data-wishmark]'); if(old) old.remove();
@@ -6146,7 +6151,7 @@ function drawDeckPage(){
     groups.forEach(function(g){ if(g.board) return;
       g.items = g.items.filter(function(it){ if(it.board === 'cmd' || it.basic || !asmMissing(it.n)) return true; if(!it.echo) toOrder.push(it); return false; }); });
     groups = groups.filter(function(g){ return g.board || g.items.length; });
-    if(toOrder.length) groups.push({ t:'To order and put', items:toOrder });
+    if(toOrder.length) groups.push({ t:'To order and put', items:toOrder, order:true });
   }
   var h = '<div class="bs-cols' + (asm ? ' bs-asm-wide' : '') + '"><div class="bs-main">';
   if(S.importMissing && S.importMissing.length) h += '<div class="bs-callout bs-bad">' + ico('warn') + '<p><b>Scryfall did not know ' + S.importMissing.length + ' card' + (S.importMissing.length > 1 ? 's' : '') + ' from the list,</b> so they are left out: ' + esc(S.importMissing.join(', ')) + '. ' +
@@ -6193,7 +6198,7 @@ function drawDeckPage(){
   function rows(g){ var h = g.items.map(lv.p === 2 ? asmRowHtml : crowHtml).join(''); return isCat && g.items.length > 15 ? '<div class="bs-boxscroll">' + h + '</div>' : h; }
   function drawGroups(gs, board){
     if(!gs.length) return '';
-    if(lv.p === 2) return '<div class="bs-asmgrid">' + gs.map(function(g){ return '<div class="bs-clist bs-asmcat"' + zone(g) + '>' + head(g) + '<div class="bs-asmrows">' + g.items.map(asmRowHtml).join('') + '</div></div>'; }).join('') + '</div>';
+    if(lv.p === 2) return '<div class="bs-asmgrid">' + gs.map(function(g){ return '<div class="bs-clist bs-asmcat"' + zone(g) + (g.order ? ' data-order' : '') + '>' + head(g) + '<div class="bs-asmrows">' + g.items.map(asmRowHtml).join('') + '</div></div>'; }).join('') + '</div>';
     if(board) return '<div class="bs-board" data-bview="' + esc(lv.g) + '" style="--cw:' + BOARD.cw + 'px">' + gs.map(function(g){
       return '<div class="bs-clist" data-box="' + esc(boxKey(g)) + '"' + zone(g) + '>' + head(g, true) + rows(g) + empty(g) + '</div>'; }).join('') + '</div>';
     if(lv.p === 1) return '<div class="sh-pics">' + gs.map(function(g){ return '<section' + zone(g) + '>' + head(g) + '<div class="bs-cgrid" style="--card-min:140px">' + g.items.map(ctileHtml).join('') + '</div>' + empty(g) + '</section>'; }).join('') + '</div>';
