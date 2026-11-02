@@ -3511,7 +3511,7 @@ function edhplayPanelHtml(){
     '<a class="bs-btn bs-quiet bs-block" href="https://edhplay.com" target="_blank" rel="noopener">' + ico('ext', 'bs-i16') + 'Open EDHplay</a></div></section>';
 }
 
-/* EDHPlay games (2026-10-28): GRAB's overlay sends every finished EDHPlay game to the PC server, which keeps them in
+/* EDHPlay games (2026-10-28): FOE's overlay sends every finished EDHPlay game to the PC server, which keeps them in
    a file on this PC (never the repo). The deck's own numbers sit in the EDHplay panel when the page runs from the
    PC server: games, win rate, mulligans and the kept hand's lands, and each card's win rate when drawn.
    A game belongs to this deck when EDHPlay's commander is this deck's commander. */
@@ -5278,7 +5278,7 @@ function gotElsewhere(){
    copies, on this PC). A card is only called taken when every copy he owns is ticked in other decks. */
 function ownedAll(){ try{ var o = JSON.parse(lsGet('forge.owned') || '{}'); return o && typeof o === 'object' ? o : {}; }catch(e){ return {}; } }
 /* His Moxfield collection (Tom, 2026-11-02: "have it read my collection from moxfield"): copies of each card, every
-   printing counted under its name (moxKey), read through GRAB with his sign-in (Moxfield has no public read of it) and
+   printing counted under its name (moxKey), read through FOE with his sign-in (Moxfield has no public read of it) and
    kept in forge.coll { at, n, cards: key -> copies }. Once read it replaces the one-copy guess: a card not in it is one
    he does not own. "I own another copy" (forge.owned) still wins over Moxfield's count. Read only: never written back. */
 var COLL = { job:'', poll:0 };
@@ -5309,12 +5309,12 @@ function collPoll(){
     var job = st.job;
     if(!job || job.id !== COLL.job){ COLL.job = ''; collPaint(); return; }
     if(job.state !== 'done' && job.state !== 'failed'){
-      if(!COLL.quiet && (!st.seen || st.now - st.seen > 90) && !COLL.told){ COLL.told = 1; toast('GRAB in Chrome has not checked in. Open Chrome and your collection is read within a minute.', { ms:8000 }); }
+      if(!COLL.quiet && (!st.seen || st.now - st.seen > 90) && !COLL.told){ COLL.told = 1; toast('FOE in Chrome has not checked in. Open Chrome and your collection is read within a minute.', { ms:8000 }); }
       collPoll(); return;
     }
     var res = job.result || {}, col = res.collection;
     COLL.job = '';
-    if(job.state === 'failed' || !col || !col.cards){ collPaint(); if(!COLL.quiet) toast(esc(res.err || 'GRAB could not read your collection.'), { kind:'bad', ms:9000 }); return; }
+    if(job.state === 'failed' || !col || !col.cards){ collPaint(); if(!COLL.quiet) toast(esc(res.err || 'FOE could not read your collection.'), { kind:'bad', ms:9000 }); return; }
     var cards = {}; Object.keys(col.cards).forEach(function(n){ var k = moxKey(n); cards[k] = (cards[k] || 0) + (+col.cards[n] || 0); });
     lsSet('forge.coll', JSON.stringify({ at:Date.now(), n:col.n || 0, cards:cards }));
     if(APP.view === 'deck' && S.page === 'deck') drawDeckPage();
@@ -5411,9 +5411,9 @@ function gotClear(){
 /* ---------- Send to wishlist (Tom, 2026-11-02: "I use the wishlist feature on Moxfield to determine what goes into my
    next order. I'm going to add cards to this based on what's missing from my deck") ----------
    The cards still unticked in Assemble are the ones he does not have to hand: one tap sends them, or one card from
-   its menu. It goes like the deck sync: a job for 'wishlist' on the PC server, made by GRAB in Chrome as him. Each op
+   its menu. It goes like the deck sync: a job for 'wishlist' on the PC server, made by FOE in Chrome as him. Each op
    lifts the card's count on the wishlist to one more than it held when last read here, so a card already on it is not
-   doubled. The wishlist is read back through the PC server (it is unlisted, readable by its link, which GRAB reports)
+   doubled. The wishlist is read back through the PC server (it is unlisted, readable by its link, which FOE reports)
    and every card on it is marked. Basic lands are never sent. Kept per PC in brew.wish: { id, at, cards: key -> copies }. */
 var WISH = { pend:{}, job:'', poll:0, read:0 };
 function wishData(){ try{ var w = JSON.parse(lsGet('brew.wish') || 'null'); if(w && w.cards) return w; }catch(e){} return { id:'', at:0, cards:{} }; }
@@ -5451,7 +5451,7 @@ function wishPaint(){
   if(main.querySelector('[data-asmhead]')) gotPaint();
 }
 // Read the wishlist again when the copy here is over a minute old (the PC server reuses a read for a minute too).
-// Before the first send its link is not known yet: an empty job has GRAB report it.
+// Before the first send its link is not known yet: an empty job has FOE report it.
 function wishSoon(){
   var w = wishData(); if(!LOCAL || Date.now() - WISH.read < 60000) return;
   WISH.read = Date.now();
@@ -5472,7 +5472,7 @@ function wishSend(names, more){
   wishQueue(Object.keys(WISH.pend).map(function(k){ return WISH.pend[k]; }));
   wishPaint();
 }
-// One job carries every card waiting to go; a newer one replaces a job GRAB has not picked up yet.
+// One job carries every card waiting to go; a newer one replaces a job FOE has not picked up yet.
 async function wishQueue(pend){
   var ops = pend.map(function(p){ var q = wishQ(p.n); return { kind:'set', name:p.n, board:'mainboard', base:q, want:q + 1 }; });
   try{
@@ -5488,15 +5488,15 @@ function wishPoll(){
     var job = st.job;
     if(!job || job.id !== WISH.job){ if(job) wishPoll(); else WISH.job = ''; return; }
     if(job.state !== 'done' && job.state !== 'failed'){
-      // GRAB in Chrome has not asked for work in a while: say so once, and keep waiting.
-      if(WISH.sent.length && (!st.seen || st.now - st.seen > 90) && !WISH.told){ WISH.told = 1; toast('GRAB in Chrome has not checked in. Open Chrome and the wishlist cards go within a minute.', { ms:8000 }); }
+      // FOE in Chrome has not asked for work in a while: say so once, and keep waiting.
+      if(WISH.sent.length && (!st.seen || st.now - st.seen > 90) && !WISH.told){ WISH.told = 1; toast('FOE in Chrome has not checked in. Open Chrome and the wishlist cards go within a minute.', { ms:8000 }); }
       wishPoll(); return;
     }
     var res = job.result || {}, sent = WISH.sent || [], n = sent.length;
     WISH.job = ''; WISH.told = 0; sent.forEach(function(k){ delete WISH.pend[k]; });
     if(res.wish && res.wish.id) wishKeep(res.wish.id, res.wish.cards); else wishPaint();
     WISH.read = Date.now();
-    if(job.state === 'failed'){ if(n) toast(esc(res.err || 'GRAB could not add the cards to the wishlist.'), { kind:'bad', ms:9000 }); }
+    if(job.state === 'failed'){ if(n) toast(esc(res.err || 'FOE could not add the cards to the wishlist.'), { kind:'bad', ms:9000 }); }
     else if(n) toast(n === 1 ? 'Sent to your Moxfield wishlist.' : 'Sent ' + n + ' cards to your Moxfield wishlist.');
     if(Object.keys(WISH.pend).length) wishQueue(Object.keys(WISH.pend).map(function(k){ return WISH.pend[k]; }));
   }, 3000);
@@ -6555,13 +6555,13 @@ async function linkMox(id){
 /* ---------- Sync to Moxfield (Tom, 2026-10-21: "automake the sync to moxfield", picked A) ----------
    Brewing Station is his deck editor; Moxfield is where he picks the art and builds the wishlist. The moves that
    make Moxfield's list match this one (adds, removes, moves between boards; never printings) go to the PC server's
-   mailbox, and GRAB in his Chrome makes them on Moxfield as him. Sent on its own 20 s after the last change (Auto,
+   mailbox, and FOE in his Chrome makes them on Moxfield as him. Sent on its own 20 s after the last change (Auto,
    per device, on unless he turns it off) or with Send now. On success the Moxfield copy kept here becomes the list
    that was sent, so the panel shows no changes. The commander is never changed. */
 var MSY = { t:0, poll:0 };
 function moxOps(){
-  // Three lists: base (Moxfield as last read here, S.mox.snap), ours (this deck now), and Moxfield live, which GRAB
-  // reads before each change. Each op says the card, the board, what base had and what this deck wants, so GRAB
+  // Three lists: base (Moxfield as last read here, S.mox.snap), ours (this deck now), and Moxfield live, which FOE
+  // reads before each change. Each op says the card, the board, what base had and what this deck wants, so FOE
   // makes only the changes made here: it skips what Moxfield already has and never removes a card added there.
   var snap = S.mox.snap || {}, now = nowLists(), BRD = { main:'mainboard', side:'sideboard', maybe:'maybeboard' }, ops = [];
   var key = function(n){ return String(n).toLowerCase().split(' // ')[0]; };
@@ -6632,7 +6632,7 @@ function moxKeepMine(){
   var y = moxSyncState(), queued = !!(y && y.state === 'waiting'); if(queued) moxSend();   // the waiting job is replaced by the full one
   drawDeckSide();
   var n = moxOps().ops.length;
-  toast(n ? n + ' change' + (n > 1 ? 's' : '') + ' make Moxfield match this deck' + (queued ? '; sent to GRAB.' : moxAuto() ? '; they go on their own in 20 seconds.' : '. Press Send to Moxfield.') : 'Moxfield already matches this deck.', { ms:8000, undo:function(){ S.mox.snap = was.snap; S.mox.updated = was.updated; save(); drawDeckSide(); } });
+  toast(n ? n + ' change' + (n > 1 ? 's' : '') + ' make Moxfield match this deck' + (queued ? '; sent to FOE.' : moxAuto() ? '; they go on their own in 20 seconds.' : '. Press Send to Moxfield.') : 'Moxfield already matches this deck.', { ms:8000, undo:function(){ S.mox.snap = was.snap; S.mox.updated = was.updated; save(); drawDeckSide(); } });
 }
 /* Both lists side by side when Moxfield has a newer version (Tom, 2026-10-25: "when there's a version discrepancy show
    me both decks so I can pick which one is the master copy", "TYPICALLY it will be brewing stations but I might add
@@ -6738,7 +6738,7 @@ function moxPoll(){
         // Moxfield's copy kept here becomes what was sent. Its date moves on only when Moxfield had no changes of its
         // own, so changes made there still show as a newer version to bring in.
         if(job.state === 'done'){ S.mox.snap = y2.sent; if(y2.meta){ if(y2.meta.name) S.mox.name = y2.meta.name; if(y2.meta.tags) S.mox.tags = y2.meta.tags; delete y2.meta; } if(job.result && job.result.updated && !(job.result.results || []).some(function(r){ return r.theirs; })) S.mox.updated = job.result.updated; y2.doneAt = Date.now(); y2.res = job.result; delete y2.sent; save({ quiet:true }); toast('Moxfield is up to date: ' + y2.n + ' change' + (y2.n > 1 ? 's' : '') + ' made.'); }
-        if(job.state === 'failed'){ y2.err = (job.result && job.result.err) || 'GRAB could not make the changes on Moxfield.'; y2.res = job.result; save({ quiet:true }); }
+        if(job.state === 'failed'){ y2.err = (job.result && job.result.err) || 'FOE could not make the changes on Moxfield.'; y2.res = job.result; save({ quiet:true }); }
       } else if(!job){ y2.state = 'lost'; }
       // Drawn again only when what it says changed, so a press in the panel is never eaten by a redraw.
       if(was !== y2.state + '|' + (y2.grab > 90 || y2.grab < 0) && APP.view === 'deck' && S.page === 'deck') drawDeckSide();
@@ -6758,13 +6758,13 @@ function moxSyncHtml(D){
   if(!LOCAL) return '<p class="bs-panel-note pg-mt">Sync to Moxfield runs in the Brewing Station app on your PC.</p>';
   var y = moxSyncState(), busy = y && (y.state === 'waiting' || y.state === 'working'), h = '<div class="bs-msync">';
   if(busy) h += '<p class="bs-panel-note"><b>' + (y.state === 'working' ? 'Making ' : 'Sending ') + y.n + ' change' + (y.n > 1 ? 's' : '') + ' on Moxfield…</b>' +
-    (y.grab != null && (y.grab < 0 || y.grab > 90) ? ' GRAB in Chrome has not checked in' + (y.grab > 0 ? ' for ' + Math.round(y.grab / 60) + ' min' : '') + ': open Chrome and it picks this up within a minute.' : '') + '</p>';
+    (y.grab != null && (y.grab < 0 || y.grab > 90) ? ' FOE in Chrome has not checked in' + (y.grab > 0 ? ' for ' + Math.round(y.grab / 60) + ' min' : '') + ': open Chrome and it picks this up within a minute.' : '') + '</p>';
   else if(y && y.state === 'failed') h += '<p class="bs-panel-note bs-neg">' + esc(y.err || 'The sync failed.') + '</p>';
   else if(y && y.state === 'done' && !D.count) h += '<p class="bs-panel-note">Sent to Moxfield ' + ago(y.doneAt || y.at) + '.' + (y.cmd ? ' Commander changes are not sent: change the commander on Moxfield.' : '') + '</p>';
   var nOps = D.count ? moxOps().ops.length : 0;
   if(nOps && !busy) h += '<button class="bs-btn bs-primary bs-block" type="button" data-msync>' + ico('import', 'bs-i16') + 'Send ' + nOps + ' change' + (nOps > 1 ? 's' : '') + ' to Moxfield now</button>';
   h += '<label class="bs-check pg-mt"><input type="checkbox" data-mauto' + (moxAuto() ? ' checked' : '') + '> Send changes on their own</label>' +
-    '<p class="bs-panel-note">Adds, removes and moves cards between boards on Moxfield through GRAB in Chrome, and sends the deck\'s name and your categories (as Moxfield tags). Your art there is never touched, and the wishlist only gets the cards you send to it.</p></div>';
+    '<p class="bs-panel-note">Adds, removes and moves cards between boards on Moxfield through FOE in Chrome, and sends the deck\'s name and your categories (as Moxfield tags). Your art there is never touched, and the wishlist only gets the cards you send to it.</p></div>';
   return h;
 }
 function moxPanelHtml(){

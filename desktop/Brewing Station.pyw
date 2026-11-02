@@ -194,11 +194,11 @@ def moxfield_deck(pid, fresh=False):
 
 
 # Moxfield sync mailbox (Tom, 2026-10-21: "automake the sync to moxfield", picked A). Brewing Station (in Edge) queues
-# one job per deck: the card moves that make Moxfield match. GRAB, the extension in his Chrome where he is signed in
+# one job per deck: the card moves that make Moxfield match. FOE, the extension in his Chrome where he is signed in
 # to Moxfield, asks for the next job every half minute, makes the moves in a Moxfield tab and reports back. Only
 # adds, removes and moves between boards: his printings on Moxfield are never touched. A job for "wishlist" only adds
-# cards to his Moxfield wishlist (Tom, 2026-11-02: "allow me to have a send to wishlist feature"); GRAB reports the list.
-# A job for "collection" changes nothing: GRAB reads his Moxfield collection and reports each card's copies.
+# cards to his Moxfield wishlist (Tom, 2026-11-02: "allow me to have a send to wishlist feature"); FOE reports the list.
+# A job for "collection" changes nothing: FOE reads his Moxfield collection and reports each card's copies.
 DECK_ID_OK = re.compile(r"[A-Za-z0-9_-]{5,40}")
 MOXQ = {"jobs": [], "seen": 0.0}
 MOXQ_LOCK = threading.Lock()
@@ -218,7 +218,7 @@ def moxq_next():
     with MOXQ_LOCK:
         MOXQ["seen"] = time.time()
         for j in MOXQ["jobs"]:
-            # A job GRAB took but never finished (Chrome closed) is offered again after 3 minutes.
+            # A job FOE took but never finished (Chrome closed) is offered again after 3 minutes.
             if j["state"] == "waiting" or (j["state"] == "working" and time.time() - j.get("took", 0) > 180):
                 j["state"], j["took"] = "working", time.time()
                 return {k: j.get(k) for k in ("id", "publicId", "ops", "dry")}
@@ -279,7 +279,7 @@ def store_write(set_keys, del_keys):
         return len(keys)
 
 
-# EDHPlay games from GRAB's overlay (2026-10-28), kept beside the store on this PC, never in the repo.
+# EDHPlay games from FOE's overlay (2026-10-28), kept beside the store on this PC, never in the repo.
 # Only these fields are kept, so nothing about the other players (their names, their seats) is saved.
 EDH_FILE = os.path.join(os.path.dirname(STORE), "edhplay-games.json")
 EDH_KEYS = {"id": str, "start": (int, float), "end": (int, float), "mins": (int, float), "turns": int, "myTurns": int,
@@ -340,7 +340,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         origin = self.headers.get("Origin") or ""
         ok_host = host in ("127.0.0.1", "localhost")
         ok_origin = not origin or origin in (f"http://127.0.0.1:{PORT}", f"http://localhost:{PORT}")
-        # GRAB, his Chrome extension, fetches the Moxfield sync jobs; no web page can send a chrome-extension Origin.
+        # FOE, his Chrome extension, fetches the Moxfield sync jobs; no web page can send a chrome-extension Origin.
         grab = origin.startswith("chrome-extension://") and self.route().startswith(("/api/moxsync/", "/api/edhplay/")) and self.headers.get("X-Grab") == "1"
         if grab:
             return ok_host
@@ -374,7 +374,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         global last_hit
         path = self.route()
-        if path != "/api/moxsync/next":   # GRAB asking every half minute must not keep the server up forever
+        if path != "/api/moxsync/next":   # FOE asking every half minute must not keep the server up forever
             last_hit = time.time()
         if not self.local_only():
             return
