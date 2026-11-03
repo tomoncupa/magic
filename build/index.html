@@ -7234,8 +7234,13 @@ function moxPanelHtml(){
   if(!gone && (MM.name || MM.nTags)) h += '<ul class="bs-panel-note" style="margin:0 0 var(--s3);padding-left:1.2em">' +
     (MM.name ? '<li>Renamed here: Moxfield\'s <b data-nolink>' + esc(S.mox.name || 'deck') + '</b> becomes <b data-nolink>' + esc(MM.name) + '</b>.</li>' : '') +
     (MM.nTags ? '<li>' + MM.nTags + ' card' + (MM.nTags > 1 ? 's\'' : '\'s') + ' categories go to Moxfield as tags.</li>' : '') + '</ul>';
-  if(gone) h += '<div class="bs-callout bs-warn">' + ico('warn') +
-    '<p><b>Your Moxfield deck list no longer shows this deck.</b> It was made unlisted, or deleted. Your copy here is kept. If it is unlisted, the Bulk Edit texts below still work. If you deleted it, use Copy for a new Moxfield deck.</p></div>';
+  // Gone from his list: he can point it at the Moxfield deck it lives in now (Tom, 2026-11-03: "give me an option to
+  // link a link"). linkMox keeps this list and takes the new deck's printings; the panel then shows the differences.
+  if(gone){ var gm = moxMatch(); h += '<div class="bs-callout bs-warn">' + ico('warn') +
+    '<div class="sh-err"><p><b>Your Moxfield deck list no longer shows this deck.</b> It was made unlisted, or deleted. Your copy here is kept. If it lives at a new address on Moxfield, link that one.</p>' +
+    '<div class="bs-stack" style="--gap:var(--s2);margin-top:var(--s3)">' +
+    (gm && gm.id !== S.mox.id ? '<button class="bs-btn bs-primary bs-block" type="button" data-moxlink="' + esc(gm.id) + '">' + ico('import', 'bs-i16') + 'Link to ' + esc(gm.name) + (rowForMox(gm.id) ? ' (moves it from your other copy)' : '') + '</button>' : '') +
+    '<button class="bs-btn' + (gm && gm.id !== S.mox.id ? '' : ' bs-primary') + ' bs-block" type="button" data-moxlink="">' + ico('import', 'bs-i16') + 'Link to a Moxfield deck address</button></div></div></div>'; }
   if(newer) h += '<div class="bs-callout bs-warn" style="margin-bottom:var(--s4)">' + ico('warn') + '<div class="sh-err"><p><b>Moxfield has a newer version.</b> Changed there ' + ago(Date.parse(fd.updated)) + '.</p><div class="bs-acts"><button class="bs-btn bs-sm bs-primary" type="button" data-mcompare>' + ico('copy', 'bs-i16') + 'Compare both, pick the master</button>' +
       '<button class="bs-btn bs-sm" type="button" id="moxNewer">' + ico('refresh', 'bs-i16') + 'Bring it in</button>' +
       (LOCAL ? '<button class="bs-btn bs-sm" type="button" data-mkeep>' + ico('import', 'bs-i16') + 'Keep mine, send it to Moxfield</button>' : '') + '</div></div></div>';
