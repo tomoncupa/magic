@@ -6464,6 +6464,7 @@ function deckGroups(lv){
 /* ---------- search and filters on the Deck tab (Tom, 2026-10-19: "Let me set different filter/sort views", picked both) ----------
    FLT lasts this visit. The search matches a card's name or rules text; chips are OR inside a row, AND across
    rows. The commander always shows; groups with nothing left are hidden while a filter is on. */
+var SIDE_MAX = 20;   // the side deck's size on his Moxfield decks (Tom, 2026-11-03)
 var FLT = { q:'', type:[], col:[], mv:[], open:false };
 var FLT_TYPES = ['Creature', 'Instant', 'Sorcery', 'Artifact', 'Enchantment', 'Planeswalker', 'Land', 'Battle'];
 var FLT_COLS = [['W', 'White'], ['U', 'Blue'], ['B', 'Black'], ['R', 'Red'], ['G', 'Green'], ['C', 'Colourless']];
@@ -6585,7 +6586,9 @@ function drawDeckPage(){
   function boxKey(g){ return isCat ? (g.cat == null ? '#cmd' : g.none ? '#none' : g.cat) : g.t; }
   function head(g, grip){
     var menu = isCat && g.cat ? '<span class="bs-acts"><button class="bs-ibtn bs-sm" type="button" data-catmenu="' + esc(g.cat) + '" aria-label="' + (grip ? 'Rename or delete ' : 'Rename, move or delete ') + esc(g.t) + '">' + ico('more', 'bs-i16') + '</button></span>' : '';
-    return '<div class="bs-group"' + (grip ? ' data-boxgrip title="Drag to move this box"' : '') + '>' + esc(g.t) + ' <span class="bs-count">' + cnt2(g) + (echoes(g) ? ' + ' + echoes(g) + ' also here' : '') + '</span>' + menu + '</div>';
+    // His side decks hold 20 (Tom, 2026-11-03, picked warn only): the count says so and turns amber past it; nothing moves on its own.
+    var n = cnt2(g), side = g.board === 'side', over = side && n > SIDE_MAX;
+    return '<div class="bs-group"' + (grip ? ' data-boxgrip title="Drag to move this box"' : '') + '>' + esc(g.t) + ' <span class="bs-count' + (over ? ' bs-warnn' : '') + '">' + n + (side ? ' of ' + SIDE_MAX + (over ? ', ' + (n - SIDE_MAX) + ' over' : '') : '') + (echoes(g) ? ' + ' + echoes(g) + ' also here' : '') + '</span>' + menu + '</div>';
   }
   function zone(g){ return g.board ? ' data-zone="' + g.board + '"' : isCat && g.cat != null ? ' data-cat="' + esc(g.cat) + '"' : ''; }
   function empty(g){
