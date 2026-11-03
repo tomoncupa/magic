@@ -6,7 +6,8 @@ const CARDS = 'ktm-cards-v2';
 // Libraries from the CDN, such as the Sealed helper's card-name reader. Their
 // addresses carry a version, so a cached copy never goes stale.
 const LIB = 'ktm-lib-v1';
-const SHELL_FILES = ['./', './index.html', './table.html', './decks.js', './config.js'];
+const PC_HOST = self.location.hostname === '127.0.0.1' || self.location.hostname === 'localhost';
+const SHELL_FILES =['./', './index.html', './table.html', './decks.js', './config.js'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(SHELL).then(c => c.addAll(SHELL_FILES)).then(() => self.skipWaiting()));
@@ -34,6 +35,17 @@ self.addEventListener('fetch', e => {
   // is false even on success. Store it anyway or nothing is ever cached and
   // offline has no art. A page that reads a picture's pixels (the card
   // scanner) asks in cors mode, and an opaque copy cannot answer that.
+  // On Brewing Station's PC server the pictures come from its copy on the PC's disk, which saves any it has not got
+  // yet (2026-11-03, "a standing copy of every card in my collection as well as their images"). Anywhere else, or
+  // when that fails, the browser's own copy below.
+  if (url.hostname === 'cards.scryfall.io' && PC_HOST) {
+    e.respondWith(
+      fetch('/api/pic?p=' + encodeURIComponent(url.pathname))
+        .then(res => res.ok ? res : Promise.reject(new Error('no picture')))
+        .catch(() => caches.match(e.request.url).then(hit => hit || fetch(e.request)))
+    );
+    return;
+  }
   if (url.hostname === 'cards.scryfall.io') {
     e.respondWith(
       caches.open(CARDS).then(c =>

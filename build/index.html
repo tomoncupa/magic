@@ -4168,6 +4168,7 @@ function render(){
   renderHead();
   if(APP.view === 'decks') drawDecks();
   else if(APP.view === 'compare') drawPage('compare');
+  else if(APP.view === 'collection') drawCollection();
   else if(build) renderBuild();
   else if(S.page === 'deck') drawDeckPage();
   else drawPage(S.page);
@@ -4186,8 +4187,9 @@ function stripsToOn(){
   var st = $('steps'); if(st && !$('subRow').hidden) stripToOn(st, st.querySelector('.on'));
 }
 function renderHead(){
-  var cmp = !!PG('compare'), top = APP.view === 'compare' ? 'compare' : 'decks';
+  var cmp = !!PG('compare'), top = APP.view === 'compare' || APP.view === 'collection' ? APP.view : 'decks';
   $('topTabs').innerHTML = '<a class="bs-tab' + (top === 'decks' ? ' on" aria-current="page' : '') + '" href="#decks">Decks</a>' +
+    (LOCAL ? '<a class="bs-tab' + (top === 'collection' ? ' on" aria-current="page' : '') + '" href="#collection">Collection</a>' : '') +
     (cmp ? '<a class="bs-tab' + (top === 'compare' ? ' on" aria-current="page' : '') + '" href="#compare">Compare</a>' : '');
   drawMoxChip();
   var row = $('deckRow');
@@ -5333,7 +5335,7 @@ async function collRead(quiet){
     COLL.job = j.id; COLL.quiet = !!quiet; COLL.told = 0; collPaint(); collPoll();
   }catch(e){ if(!quiet) toast('Could not ask for your collection: ' + esc(e.message), { kind:'bad' }); }
 }
-function collPaint(){ if(APP.view === 'deck' && S.page === 'deck' && main.querySelector('[data-asmhead]')) gotPaint(); }
+function collPaint(){ if(APP.view === 'deck' && S.page === 'deck' && main.querySelector('[data-asmhead]')) gotPaint(); if(APP.view === 'collection') cvPoll(0); }
 function collPoll(){
   clearTimeout(COLL.poll);
   COLL.poll = setTimeout(async function(){
@@ -5350,8 +5352,143 @@ function collPoll(){
     var cards = {}; Object.keys(col.cards).forEach(function(n){ var k = moxKey(n); cards[k] = (cards[k] || 0) + (+col.cards[n] || 0); });
     lsSet('forge.coll', JSON.stringify({ at:Date.now(), n:col.n || 0, cards:cards }));
     if(APP.view === 'deck' && S.page === 'deck') drawDeckPage();
+    if(APP.view === 'collection') cvPoll(0);
     if(!COLL.quiet) toast('Read your Moxfield collection: ' + (col.n || 0).toLocaleString() + ' cards.');
   }, 3000);
+}
+/* ---------- Collection (Tom, 2026-11-03: "a standing copy of every card in my collection as well as their images",
+   picked both). Every card he owns on Moxfield, from the copy the PC server keeps (/api/cards: cards.json beside the
+   store, pictures on disk), one tile per card name with his copies. PC only: the hosted copy has no server. ---------- */
+var CV = { d:null, p:null, q:'', ci:{}, t:'', sort:'n', cap:120, poll:0, at:-1 };
+var CV_TYPES = [['', 'All'], ['Creature', 'Creatures'], ['Instant', 'Instants'], ['Sorcery', 'Sorceries'], ['Artifact', 'Artifacts'], ['Enchantment', 'Enchantments'], ['Planeswalker', 'Planeswalkers'], ['Land', 'Lands']];
+var CV_SORTS = [['n', 'Name'], ['mv', 'Mana value'], ['q', 'Copies']];
+function cvLoad(){
+  if(!CV.p) CV.p = fetch('/api/cards', { cache:'no-store' }).then(function(r){ return r.json(); })
+    .then(function(d){ CV.d = d; CV.err = ''; CV.p = null; return d; }, function(e){ CV.err = e.message || 'the PC server did not answer'; CV.p = null; return CV.d; });
+  return CV.p;
+}
+// One row per card name: copies added up over his printings; the picture is the printing he has most copies of.
+function cvRows(){
+  var d = CV.d; if(!d) return [];
+  if(CV.rows && CV.rowsAt === d) return CV.rows;
+  var by = {}, inDeck = {};
+  shelf().forEach(function(r){ var x = r.cmd && deckOf(r.id); if(!x) return;
+    var seen = {};
+    [x.cmd, x.partner].concat(x.deck || []).forEach(function(c){ if(!c || !c.n) return; var k = moxKey(c.n); if(seen[k]) return; seen[k] = 1; inDeck[k] = (inDeck[k] || 0) + 1; }); });
+  (d.prints || []).forEach(function(p){
+    var c = d.cards[p.id], k = moxKey(c ? c.n : p.n), row = by[k];
+    if(!row) row = by[k] = { k:k, n:c ? c.n : p.n, q:0, best:0, c:c || null, sets:{} };
+    row.q += p.q || 1;
+    if(c){ row.sets[c.set] = 1; if((p.q || 1) > row.best || !row.c){ row.best = p.q || 1; row.c = c; } }
+  });
+  CV.rowsAt = d;
+  return (CV.rows = Object.keys(by).map(function(k){ var r = by[k]; r.decks = inDeck[k] || 0; r.np = Object.keys(r.sets).length; return r; }));
+}
+function cvFilter(rows){
+  var q = CV.q.trim().toLowerCase(), cols = Object.keys(CV.ci).filter(function(x){ return CV.ci[x]; });
+  return rows.filter(function(r){
+    var c = r.c || {};
+    if(q && (r.n + '\n' + (c.t || '') + '\n' + (c.o || '')).toLowerCase().indexOf(q) < 0) return false;
+    if(CV.t && (c.t || '').indexOf(CV.t) < 0) return false;
+    // Colours picked: the cards a deck of those colours can play (colour identity inside them; colourless always fits).
+    return !cols.length || (c.ci || []).every(function(x){ return CV.ci[x]; });
+  }).sort(function(a, b){
+    var x = a.c || {}, y = b.c || {};
+    var d = CV.sort === 'mv' ? (x.mv || 0) - (y.mv || 0) : CV.sort === 'q' ? b.q - a.q : 0;
+    return d || a.n.localeCompare(b.n, undefined, { sensitivity:'base' });
+  });
+}
+function cvTile(r){
+  var c = r.c || {}, img = c.img || '';
+  return '<div class="bs-ctile" data-k="' + esc(r.k) + '">' +
+    '<button class="bs-ctile-pic" type="button" data-card="' + esc(r.n) + '" data-card-ro aria-label="Open ' + esc(r.n) + '">' +
+      (img ? '<img loading="lazy" src="' + esc(img) + '" alt="">' : '<span class="bs-ctile-noimg">' + esc(r.n) + '</span>') +
+      (r.q > 1 ? '<span class="bs-ctile-br"><span class="bs-badge bs-cv-q">' + r.q + ' copies</span></span>' : '') + '</button>' +
+    '<span class="bs-ctile-n">' + esc(r.n) + '</span>' +
+    '<span class="bs-ctile-s">' + (c.set ? '<span>' + esc(c.set.toUpperCase()) + (r.np > 1 ? ' +' + (r.np - 1) : '') + '</span>' : '') +
+      (r.decks ? '<span>In ' + r.decks + ' deck' + (r.decks > 1 ? 's' : '') + '</span>' : '<span>In no deck</span>') + '</span></div>';
+}
+function cvRunHtml(){
+  var d = CV.d, run = d && d.run || {}, n = d ? Object.keys(d.cards || {}).length : 0;
+  if(COLL.job) return d && (d.prints || []).length ? '<span class="bs-spin"></span><span>Reading your Moxfield collection through FOE in Chrome…</span>' : '';   // the empty page says it once
+  if(run.busy && run.step === 'cards') return '<span class="bs-spin"></span><span>Looking the cards up on Scryfall: ' + (run.done || 0).toLocaleString() + ' of ' + (run.total || 0).toLocaleString() + '</span>';
+  if(run.busy && run.step === 'pictures') return '<span class="bs-spin"></span><span>Saving pictures to this PC: ' + (run.done || 0).toLocaleString() + ' of ' + (run.total || 0).toLocaleString() + '</span>' +
+    '<span class="bs-meter bs-sm" style="--v:' + (run.total ? Math.round(run.done / run.total * 100) / 10 : 0) + '" role="meter" aria-valuemin="0" aria-valuemax="' + run.total + '" aria-valuenow="' + run.done + '" aria-label="Pictures saved"></span>';
+  if(!n) return '';
+  return (run.err ? '<span class="bs-warnn">' + ico('warn', 'bs-i16') + esc(run.err) + '</span>' : '') +
+    '<span>Pictures on this PC: ' + (d.pics || 0).toLocaleString() + ' of ' + n.toLocaleString() + ' printings, ' + cvSize(d.bytes || 0) + '</span>';
+}
+function cvSize(b){ var mb = b / 1048576; return mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : mb >= 10 ? Math.round(mb).toLocaleString() + ' MB' : mb.toFixed(1) + ' MB';
+}
+function cvGridHtml(){
+  var all = cvRows(), rows = cvFilter(all), shown = rows.slice(0, CV.cap);
+  if(!all.length) return '';
+  if(!rows.length) return '<p class="bs-cv-none">No cards match.</p>';
+  return '<p class="bs-count bs-cv-count">' + (rows.length === all.length ? all.length.toLocaleString() + ' cards' : rows.length.toLocaleString() + ' of ' + all.length.toLocaleString() + ' cards') + '</p>' +
+    '<div class="bs-cgrid" style="--card-min:160px">' + shown.map(cvTile).join('') + '</div>' +
+    (rows.length > shown.length ? '<button class="bs-btn bs-block bs-cv-more" type="button" data-cvmore>Show more <span class="bs-num">(' + (rows.length - shown.length).toLocaleString() + ' left)</span></button>' : '');
+}
+function cvHeadSub(){
+  var d = CV.d, rows = cvRows(), copies = rows.reduce(function(s, r){ return s + r.q; }, 0);
+  if(!rows.length) return 'Every card you own on Moxfield, with its picture kept on this PC.';
+  return copies.toLocaleString() + ' cards, ' + rows.length.toLocaleString() + ' different. Read from Moxfield ' + esc(ago(d.at * 1000)) + '.';
+}
+function drawCollection(){
+  var c = collData();
+  if(c && Date.now() - c.at > 864e5 && !COLL.job) collRead(true);   // once a day on its own, as the Deck tab does
+  if(!CV.d){
+    main.innerHTML = loadingHtml('Opening your collection');
+    cvLoad().then(function(){ if(APP.view === 'collection'){ CV.at = CV.d ? CV.d.at : -1; drawCollection(); } });
+    return;
+  }
+  CV.at = CV.d.at;
+  var has = (CV.d.prints || []).length, busy = !!COLL.job || (CV.d.run || {}).busy;
+  CV.drawn = cvState(CV.d);
+  var h = '<div class="bs-pagehead"><div><h1 class="bs-title">Your collection</h1><p class="bs-sub" data-cvsub>' + cvHeadSub() + '</p></div><div class="bs-acts">' +
+    (has ? '<button class="bs-btn" type="button" data-collread' + (COLL.job ? ' disabled' : '') + '>' + ico('refresh', 'bs-i16') + 'Read again from Moxfield</button>' : '') + '</div></div>' +
+    '<p class="bs-cv-run" data-cvrun aria-live="polite">' + cvRunHtml() + '</p>';
+  if(CV.err && !has) h += '<div class="bs-callout bs-warn">' + ico('warn') + '<p>Could not reach the PC server: ' + esc(CV.err) + '.</p></div>';
+  if(!has){
+    h += '<div class="bs-empty">' + ico('deck') + '<h3 class="bs-empty-title">' + (busy ? 'Reading your collection' : 'Your collection is not read yet') + '</h3>' +
+      '<p>' + (busy ? 'Cards show here as soon as FOE in Chrome has read them.' : 'FOE reads it from Moxfield in Chrome, where you are signed in.') + '</p>' +
+      (busy ? '' : '<div class="bs-acts"><button class="bs-btn bs-primary" type="button" data-collread>Read my collection</button></div>') + '</div>';
+  } else {
+    h += '<div class="bs-cv-bar">' +
+      '<input class="bs-swm-q bs-flt-q" type="search" data-cvq autocomplete="off" spellcheck="false" placeholder="Find a card by name, type or text" aria-label="Find a card in your collection" value="' + esc(CV.q) + '">' +
+      '<span class="bs-label">Fits</span><div class="bs-seg" role="group" aria-label="Cards a deck of these colours can play">' + ['W', 'U', 'B', 'R', 'G'].map(function(x){ var on = !!CV.ci[x]; return '<button type="button" data-cvci="' + x + '" aria-pressed="' + on + '"' + (on ? ' class="on"' : '') + ' aria-label="' + ({ W:'White', U:'Blue', B:'Black', R:'Red', G:'Green' })[x] + '">' + pipHtml([x]) + '</button>'; }).join('') + '</div>' +
+      '<select data-cvt aria-label="Card type">' + CV_TYPES.map(function(t){ return '<option value="' + t[0] + '"' + (CV.t === t[0] ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('') + '</select>' +
+      '<span class="bs-label">Sort</span><div class="bs-seg" role="group" aria-label="Sort cards">' + CV_SORTS.map(function(s){ var on = CV.sort === s[0]; return '<button type="button" data-cvsort="' + s[0] + '" aria-pressed="' + on + '"' + (on ? ' class="on"' : '') + '>' + s[1] + '</button>'; }).join('') + '</div>' +
+      '</div><div data-cvgrid>' + cvGridHtml() + '</div>';
+  }
+  main.innerHTML = h;
+  main.onclick = function(e){
+    var t = e.target;
+    if(t.closest('[data-collread]')){ collRead(false); return; }
+    if(t.closest('[data-cvmore]')){ CV.cap += 240; cvGrid(); return; }
+    var b = t.closest('[data-cvci]'); if(b){ var x = b.getAttribute('data-cvci'); CV.ci[x] = !CV.ci[x]; CV.cap = 120; b.classList.toggle('on', CV.ci[x]); b.setAttribute('aria-pressed', CV.ci[x]); cvGrid(); return; }
+    b = t.closest('[data-cvsort]'); if(b){ CV.sort = b.getAttribute('data-cvsort'); main.querySelectorAll('[data-cvsort]').forEach(function(x){ var on = x === b; x.classList.toggle('on', on); x.setAttribute('aria-pressed', on); }); cvGrid(); return; }
+  };
+  main.oninput = function(e){ if(e.target.matches('[data-cvq]')){ CV.q = e.target.value; CV.cap = 120; cvGrid(); } };
+  main.onchange = function(e){ if(e.target.matches('[data-cvt]')){ CV.t = e.target.value; CV.cap = 120; cvGrid(); } };
+  cvPoll(busy ? 4000 : 0);   // a quiet look for a newer copy; it keeps looking only while a read or pictures run
+}
+function cvState(d){ return (d.prints || []).length ? 'grid' : COLL.job || (d.run || {}).busy ? 'busy' : 'empty'; }
+function cvGrid(){ var g = main.querySelector('[data-cvgrid]'); if(g) g.innerHTML = cvGridHtml(); }
+// While a read or the pictures run: only the status line changes, and the cards redraw once, when the read lands.
+function cvPoll(ms){
+  clearTimeout(CV.poll);
+  CV.poll = setTimeout(function(){
+    if(APP.view !== 'collection') return;
+    cvLoad().then(function(d){
+      if(APP.view !== 'collection' || !d) return;
+      // Empty, reading or filled: a change between those draws the page again; inside a filled page only parts change.
+      if(cvState(d) !== CV.drawn && CV.drawn !== 'grid'){ drawCollection(); return; }
+      if(d.at !== CV.at){ CV.at = d.at; cvGrid(); var s = main.querySelector('[data-cvsub]'); if(s) s.innerHTML = cvHeadSub(); }
+      var r = main.querySelector('[data-cvrun]'); if(r) r.innerHTML = cvRunHtml();
+      var rb = main.querySelector('[data-collread]'); if(rb) rb.disabled = !!COLL.job;
+      if(COLL.job || (d.run || {}).busy) cvPoll(4000);
+    });
+  }, ms);
 }
 function ownMore(k, name){
   var o = ownedAll(), was = o[k], used = (ASM.away[k] || []).length;
@@ -7920,6 +8057,7 @@ function parseHash(h){
   h = String(h || '').replace(/^#/, '');
   if(h === 'compare') return { view:'compare' };
   if(h === 'decks') return { view:'decks' };
+  if(h === 'collection') return { view:'collection' };
   var m = /^d=([A-Za-z0-9_-]+)(?:&p=([a-z]+))?/.exec(h);
   return m ? { view:'deck', id:m[1], page:m[2] || '' } : null;
 }
@@ -7929,6 +8067,7 @@ function route(){
   var r = parseHash(h) || { view:'decks' }, before = APP.view + '|' + CUR + '|' + S.page;
   closeSwap(); closeMenu(); closeAllSheets();
   if(r.view === 'compare' && !PG('compare')) r = { view:'decks' };
+  if(r.view === 'collection' && !LOCAL) r = { view:'decks' };
   // Opening a deck (even the one Analyse every deck is on right now) stops the analysis first.
   if(r.view === 'deck') stopAnalyse();
   if(r.view === 'deck' && r.id !== CUR){
@@ -7999,9 +8138,9 @@ document.addEventListener('keydown', function(e){
 // engine.js and pages.js load after this script, so the first draw waits for them.
 function boot(){
   var v = lsGet('forge.view');
-  APP.view = v === 'compare' || v === 'deck' ? v : 'decks';
+  APP.view = v === 'compare' || v === 'deck' || (v === 'collection' && LOCAL) ? v : 'decks';
   if(!parseHash(location.hash)){
-    var h = APP.view === 'deck' && S.cmd ? '#d=' + CUR + '&p=' + (pageOk(S.page) ? S.page : 'deck') : APP.view === 'compare' && PG('compare') ? '#compare' : '#decks';
+    var h = APP.view === 'deck' && S.cmd ? '#d=' + CUR + '&p=' + (pageOk(S.page) ? S.page : 'deck') : APP.view === 'compare' && PG('compare') ? '#compare' : APP.view === 'collection' ? '#collection' : '#decks';
     history.replaceState(null, '', h);
   }
   startCardLinks();

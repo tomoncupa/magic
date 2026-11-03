@@ -18,6 +18,10 @@ public repo, in %LOCALAPPDATA%/Brewing Station/store.json. The page mirrors
 every forge.* setting there, so his decks survive Edge's storage being cleared
 and every window on this PC shows one shelf (Tom, 2026-10-18).
 
+It keeps every card in his Moxfield collection beside the store (cards/cards.json,
+GET /api/cards) with its picture on disk, and every card picture the page shows
+comes through GET /api/pic, saved the first time (Tom, 2026-11-03).
+
 The server stops itself after three hours with no requests. Opening the
 shortcut again starts it again.
 """
@@ -232,6 +236,9 @@ def moxq_done(data):
                 j["state"] = "done" if data.get("ok") else "failed"
                 j["result"] = {k: data.get(k) for k in ("ok", "err", "results", "updated", "version", "plan", "dry", "wish", "collection")}
                 j["ended"] = time.time()
+                col = data.get("collection")
+                if j["publicId"] == "collection" and data.get("ok") and isinstance(col, dict):
+                    threading.Thread(target=cards_sync, args=(col,), daemon=True).start()
                 return True
         return False
 
@@ -323,6 +330,198 @@ def edh_write(games):
     return len(clean)
 
 
+# His collection kept on this PC (Tom, 2026-11-03: "a standing copy of every card in my collection as well as their
+# images", picked both). When FOE reports a collection read, every printing he owns is looked up on Scryfall once
+# (cards.json) and its picture saved under cards/img/, beside the store, never in the repo. The page's service worker
+# sends every cards.scryfall.io picture through /api/pic, which answers from disk and saves any it has not got yet,
+# so a picture seen once stays on this PC for good, Edge's storage cleared or not.
+CARDS_DIR = os.path.join(os.path.dirname(STORE), "cards")
+CARDS_FILE = os.path.join(CARDS_DIR, "cards.json")
+PIC_PATH = re.compile(r"/(small|normal|large|png|art_crop|border_crop)/(front|back)/[0-9a-f]/[0-9a-f]/([0-9a-f-]{36})\.(jpg|png)")
+SCRYFALL = {"User-Agent": "BrewingStation/1.0", "Accept": "application/json"}
+DISK_FLOOR = 2 * 1024 ** 3      # pictures stop while the disk has under 2 GB free
+cards_lock = threading.Lock()
+CARDS_RUN = {"busy": False, "step": "", "done": 0, "total": 0, "err": ""}
+
+
+def pic_file(path):
+    m = PIC_PATH.fullmatch(path)
+    return os.path.join(CARDS_DIR, "img", m.group(1), m.group(2), m.group(3) + "." + m.group(4)) if m else None
+
+
+def pic_get(path):
+    """A Scryfall picture by its path on cards.scryfall.io: from disk, or fetched once and kept."""
+    file = pic_file(path)
+    if not file:
+        raise ValueError("Not a card picture.")
+    try:
+        with open(file, "rb") as f:
+            return f.read()
+    except OSError:
+        pass
+    import urllib.request
+    with urllib.request.urlopen(urllib.request.Request("https://cards.scryfall.io" + path, headers=SCRYFALL), timeout=30) as r:
+        body = r.read()
+    if not (body[:3] == b"\xff\xd8\xff" or body[:4] == b"\x89PNG"):
+        raise RuntimeError("Scryfall did not send a picture.")
+    os.makedirs(os.path.dirname(file), exist_ok=True)
+    if shutil.disk_usage(CARDS_DIR).free > DISK_FLOOR:
+        tmp = file + ".%d.tmp" % threading.get_ident()
+        with open(tmp, "wb") as f:
+            f.write(body)
+        os.replace(tmp, file)
+    return body
+
+
+def cards_read():
+    try:
+        with open(CARDS_FILE, encoding="utf-8") as f:
+            d = json.load(f)
+        if isinstance(d, dict) and isinstance(d.get("cards"), dict):
+            return d
+    except (OSError, ValueError):
+        pass
+    return {"at": 0, "n": 0, "prints": [], "cards": {}}
+
+
+def cards_write(d):
+    with cards_lock:
+        os.makedirs(CARDS_DIR, exist_ok=True)
+        tmp = CARDS_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(d, f, ensure_ascii=False)
+        os.replace(tmp, CARDS_FILE)
+
+
+def card_slim(c):
+    f = c.get("card_faces") or []
+    iu = c.get("image_uris") or (f[0].get("image_uris") if f and f[0].get("image_uris") else {}) or {}
+    bk = f[1]["image_uris"].get("normal", "") if not c.get("image_uris") and len(f) > 1 and f[1].get("image_uris") else ""
+    both = lambda k: c.get(k) or " // ".join(x.get(k, "") for x in f if x.get(k))
+    return {"id": c.get("id", ""), "n": c.get("name", ""), "set": c.get("set", ""), "sn": c.get("set_name", ""),
+            "cn": c.get("collector_number", ""), "r": c.get("rarity", ""), "mv": c.get("cmc", 0) or 0,
+            "t": both("type_line"), "mc": both("mana_cost"), "o": both("oracle_text"),
+            "ci": c.get("color_identity") or [], "img": iu.get("normal", ""), "bk": bk}
+
+
+def scryfall_post(url, body):
+    import urllib.request
+    req = urllib.request.Request(url, data=json.dumps(body).encode("utf-8"), method="POST",
+                                 headers=dict(SCRYFALL, **{"Content-Type": "application/json"}))
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return json.loads(r.read().decode("utf-8"))
+
+
+def cards_sync(col):
+    """A collection FOE just read: keep its printings, look up the ones not known yet, then save their pictures."""
+    global last_hit
+    if CARDS_RUN["busy"]:
+        CARDS_RUN["again"] = col
+        return
+    CARDS_RUN.update(busy=True, step="cards", done=0, total=0, err="")
+    try:
+        d = cards_read()
+        prints = col.get("prints")
+        if not isinstance(prints, list) or not prints:   # FOE before 1.8.1 sends names only: Scryfall's own printing
+            prints = [{"n": n, "q": q, "id": ""} for n, q in (col.get("cards") or {}).items()]
+        prints = [{"n": str(p.get("n") or "")[:200], "q": int(p.get("q") or 1), "id": str(p.get("id") or "")[:36],
+                   "set": str(p.get("set") or "")[:10], "cn": str(p.get("cn") or "")[:12], "foil": bool(p.get("foil"))}
+                  for p in prints if isinstance(p, dict) and p.get("n")]
+        d.update(at=time.time(), n=int(col.get("n") or sum(p["q"] for p in prints)), prints=prints)
+        known, by_name = d["cards"], {}
+        for c in known.values():
+            by_name.setdefault(c["n"].lower(), c["id"])
+        for p in prints:
+            if not p["id"] or p["id"] not in known:
+                p["id"] = p["id"] if p["id"] else by_name.get(p["n"].lower(), "")
+        want = [p for p in prints if not p["id"] or p["id"] not in known]
+        asks, seen = [], set()
+        for p in want:
+            key = p["id"] or p["n"].lower()
+            if key not in seen:
+                seen.add(key)
+                asks.append({"id": p["id"]} if p["id"] else {"name": p["n"].split(" // ")[0]})
+        CARDS_RUN["total"] = len(asks)
+        for i in range(0, len(asks), 75):
+            last_hit = time.time()
+            got = scryfall_post("https://api.scryfall.com/cards/collection", {"identifiers": asks[i:i + 75]})
+            for c in got.get("data") or []:
+                s = card_slim(c)
+                known[s["id"]] = s
+                by_name.setdefault(s["n"].lower(), s["id"])
+                for face in (c.get("card_faces") or []):
+                    by_name.setdefault(str(face.get("name", "")).lower(), s["id"])
+            CARDS_RUN["done"] = min(len(asks), i + 75)
+            time.sleep(0.12)
+        for p in prints:
+            if not p["id"]:
+                p["id"] = by_name.get(p["n"].lower()) or by_name.get(p["n"].split(" // ")[0].lower(), "")
+        cards_write(d)
+        cards_pics(d)
+    except Exception as e:   # the Collection page shows it; the next read tries again
+        CARDS_RUN["err"] = str(e)[:200] or "Scryfall could not be read."
+    finally:
+        CARDS_RUN.update(busy=False, step="")
+        again = CARDS_RUN.pop("again", None)
+        if again:
+            threading.Thread(target=cards_sync, args=(again,), daemon=True).start()
+
+
+def cards_pics(d):
+    """Saves the picture of every printing he owns that is not on disk yet, front and back."""
+    global last_hit
+    paths = []
+    for p in d.get("prints", []):
+        c = d["cards"].get(p.get("id"))
+        for u in ((c["img"], c["bk"]) if c else ()):
+            if u:
+                path = urllib.parse.urlsplit(u).path
+                f = pic_file(path)
+                if f and not os.path.exists(f) and path not in paths:
+                    paths.append(path)
+    CARDS_RUN.update(step="pictures", done=0, total=len(paths))
+    for i, path in enumerate(paths):
+        if shutil.disk_usage(CARDS_DIR).free < DISK_FLOOR:
+            CARDS_RUN["err"] = "The disk has under 2 GB free, so pictures stopped."
+            return
+        last_hit = time.time()   # the server stays up until every picture is saved
+        try:
+            pic_get(path)
+        except Exception:
+            pass   # one picture failing leaves it for the next read
+        CARDS_RUN["done"] = i + 1
+        time.sleep(0.05)
+
+
+def cards_resume():
+    if CARDS_RUN["busy"]:
+        return
+    CARDS_RUN.update(busy=True, err="")
+    try:
+        cards_pics(cards_read())
+    finally:
+        CARDS_RUN.update(busy=False, step="")
+
+
+def cards_view():
+    d = cards_read()
+    have = 0
+    for c in d["cards"].values():
+        f = pic_file(urllib.parse.urlsplit(c.get("img") or "").path)
+        if f and os.path.exists(f):
+            have += 1
+    size = 0
+    for root, _, files in os.walk(os.path.join(CARDS_DIR, "img")):
+        for name in files:
+            try:
+                size += os.path.getsize(os.path.join(root, name))
+            except OSError:
+                pass
+    d["run"] = {k: CARDS_RUN.get(k) for k in ("busy", "step", "done", "total", "err")}
+    d["pics"], d["bytes"] = have, size
+    return d
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *a, **k):
         super().__init__(*a, directory=ROOT, **k)
@@ -387,6 +586,24 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.send_json(claude_status())
         if path == "/api/store":
             return self.send_json(store_read())
+        if path == "/api/cards":
+            return self.send_json(cards_view())
+        if path == "/api/pic":
+            q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+            p = (q.get("p") or [""])[0]
+            try:
+                body = pic_get(p)
+            except ValueError:
+                return self.send_error(400)
+            except Exception:
+                return self.send_error(502)
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png" if p.endswith(".png") else "image/jpeg")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "public, max-age=31536000, immutable")
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if path == "/api/edhplay/games":
             return self.send_json({"games": edh_read()})
         if path == "/api/moxfield/decks":
@@ -532,6 +749,8 @@ def main():
         return
     server = http.server.ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     threading.Thread(target=idle_watch, args=(server,), daemon=True).start()
+    # Pictures left unsaved when the server last stopped are saved now.
+    threading.Thread(target=cards_resume, daemon=True).start()
     if show:
         open_window()
     server.serve_forever()
