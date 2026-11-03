@@ -5933,10 +5933,17 @@ function ctileHtml(it){
    Moxfield lets a card carry several). Keyed by moxKey, so a new printing or a fresh Moxfield copy keeps
    the card's place. Every name he has made, in any deck, sits in forge.catNames and is offered as a
    one-tap pick for a new category. Moxfield's own tags come in on import (catFromMox); nothing goes back. */
+/* Every deck shares one baseline (Tom, 2026-11-03: "each deck will share the same baseline"): the categories his
+   decks with categories had in common that day. Each deck gets the ones it lacks once (c.base); one he deletes from
+   a deck stays deleted there. A name with the same words in another order ("Defensive/Utility") counts as there.
+   Bump CAT_BASE_V when the list changes so every deck gets the new ones. */
+var CAT_BASE = ['Land', 'Ramp', 'Card Draw', 'Tutor', 'Interaction', 'Utility/ Defensive', 'Combos, Win Cons', 'Economics'], CAT_BASE_V = 1;
+function catWords(t){ return String(t || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).sort().join(' '); }
 function cats(){
   var c = S.cats;
   if(!c || typeof c !== 'object') c = S.cats = { list:[], of:{}, also:{} };
   if(!Array.isArray(c.list)) c.list = []; if(!c.of) c.of = {}; if(!c.also) c.also = {};
+  if(c.base !== CAT_BASE_V){ var w = c.list.map(catWords); CAT_BASE.forEach(function(t){ if(w.indexOf(catWords(t)) < 0) c.list.push(t); }); c.base = CAT_BASE_V; }
   if(!c.pos || typeof c.pos !== 'object') c.pos = {};   // where he put each box on the board, per grouping
   if(!c.pin || typeof c.pin !== 'object') c.pin = {};   // category -> card keys pinned to its top, newest first
   return c;
@@ -5962,7 +5969,7 @@ function catPinTidy(n){
 }
 function catOf(n){ var c = cats(), v = c.of[moxKey(n)]; return v && c.list.indexOf(v) >= 0 ? v : ''; }
 function catAlso(n){ var c = cats(), home = catOf(n); return (c.also[moxKey(n)] || []).filter(function(x){ return x !== home && c.list.indexOf(x) >= 0; }); }
-function catFind(t){ var l = cats().list; t = t.toLowerCase(); for(var i = 0; i < l.length; i++) if(l[i].toLowerCase() === t) return l[i]; return ''; }
+function catFind(t){ var l = cats().list; t = catWords(t); if(!t) return ''; for(var i = 0; i < l.length; i++) if(catWords(l[i]) === t) return l[i]; return ''; }
 function catClean(t){ return String(t || '').replace(/\s+/g, ' ').trim().slice(0, 40); }
 function catNamesUsed(){ try{ var l = JSON.parse(lsGet('forge.catNames') || '[]'); return Array.isArray(l) ? l : []; }catch(e){ return []; } }
 function noteCatName(t){ var l = catNamesUsed().filter(function(x){ return x.toLowerCase() !== t.toLowerCase(); }); l.unshift(t); lsSet('forge.catNames', JSON.stringify(l.slice(0, 60))); }
@@ -6016,10 +6023,19 @@ function catFromMox(tags){
     l.forEach(function(t){ var nm = catAdd(t); if(nm !== c.of[k]){ var a = c.also[k] || (c.also[k] = []); if(a.indexOf(nm) < 0) a.push(nm); } });
   });
 }
-// A new category: type a name, or tap one he made in another deck. forCard goes straight into it.
+// How many decks here use each category name (by catWords), this deck as it is now.
+function catDecks(){
+  var n = {};
+  shelf().forEach(function(r){ var d = r.id === CUR ? S : deckOf(r.id), seen = {};
+    ((d && d.cats && d.cats.list) || []).forEach(function(t){ var k = catWords(t); if(!seen[k]){ seen[k] = 1; n[k] = (n[k] || 0) + 1; } }); });
+  return n;
+}
+// A new category: type a name, or tap one his decks share (used in 2 or more, or the baseline). A name only one
+// other deck has is not offered (Tom, 2026-11-03: "I shouldnt see the option to copy unique categories").
 function catNew(forCard){
-  var have = cats().list.map(function(x){ return x.toLowerCase(); });
-  var picks = catNamesUsed().filter(function(x){ return have.indexOf(x.toLowerCase()) < 0; }).slice(0, 18), h;
+  var have = cats().list.map(catWords), used = catDecks(), base = CAT_BASE.map(catWords);
+  var picks = CAT_BASE.concat(catNamesUsed()).filter(function(x, i, a){ var k = catWords(x);
+    return have.indexOf(k) < 0 && (base.indexOf(k) >= 0 || (used[k] || 0) >= 2) && a.map(catWords).indexOf(k) === i; }).slice(0, 18), h;
   function go(v){
     var t = catClean(v); if(!t){ toast('Type a name first.'); return false; }
     var snap = catSnap(), had = catFind(t), nm = catAdd(t);
@@ -6572,7 +6588,9 @@ function drawDeckPage(){
     '</div></div>' + (lv.p === 2 ? asmHead() : '') + fltBar() + (shown >= 0 ? '<p class="pg-fine bs-flt-n">' + (shown ? shown + (shown === 1 ? ' card' : ' cards') + ' in the 99 match.' : 'No card in the 99 matches.') + '</p>' : '');
   var isCat = lv.g === 'cat', touch = phone();
   // A deck with no categories, when another deck here with the same commander has some: bring them across.
-  if(!cats().list.length){
+  // Hidden since every deck shares the baseline (Tom, 2026-11-03); catsFrom stays.
+  var CATS_FROM = false;
+  if(CATS_FROM && !cats().list.length){
     var cfrom = shelf().filter(function(r){ if(r.id === CUR) return false; var d = deckOf(r.id); return d && d.cmd && sameName(d.cmd.n, S.cmd.n) && d.cats && d.cats.list && d.cats.list.length; })[0];
     if(cfrom){ var cd = deckOf(cfrom.id);
       h += '<div class="bs-callout">' + ico('info') + '<div class="sh-err"><p><b>Your other ' + esc(shortName(S.cmd.n)) + ' deck</b> (' + esc(deckTitle(cfrom)) + ') has ' + cd.cats.list.length + ' categories. This one has none.</p>' +
