@@ -228,9 +228,11 @@ var DOCTRINE = [
 ].join('\n');
 window.PRO_DOCTRINE = DOCTRINE;
 var ASK = { busy:'', err:'', draft:'', paste:'', stage:'' };
-// Memory (Tom, 2026-10-21: "increase the memory of brewing station"): the last 10 questions and answers in full
-// (up to 4000 characters each), every older question of the conversation as one line, 100 kept per deck.
-var KEEP = 10, ANSWER_CAP = 4000, NEW_SINCE = '2025-09-01';
+// Memory (Tom, 2026-11-04: "save context of the entire convo, not just the last 3 answers"; it had been the last 10
+// in full and older questions as one line each): every question and answer of the conversation in full, 300 kept
+// per deck. Only past HISTORY_CAP characters (about 100,000 tokens, far past any conversation he has had) do the
+// oldest answers drop to their question.
+var HISTORY_CAP = 400000, KEEP_MSGS = 300, NEW_SINCE = '2025-09-01';
 
 function thread(){ S.ask = S.ask || { msgs:[] }; return S.ask.msgs; }
 function deckSheet(){
@@ -382,7 +384,9 @@ function askPrompt(q){
   var cl = catLines();
   if(cl.length) L.push('', '=== HIS OWN CATEGORIES (how he groups the deck; use his names when you talk about a group) ==='); cl.forEach(function(x){ L.push(x); });
   if((ASK.cmb || []).length) L.push('', '=== COMBOS IN THE DECK (Commander Spellbook) ===', ASK.cmb.join('\n'));
-  var all = thread().filter(function(m){ return m.a; }), t = all.slice(-KEEP), older = all.slice(0, Math.max(0, all.length - KEEP));
+  var all = thread().filter(function(m){ return m.a; }), room = HISTORY_CAP, cut = all.length;
+  for(var hi = all.length - 1; hi >= 0; hi--){ room -= all[hi].q.length + all[hi].a.length + 12; if(room < 0) break; cut = hi; }
+  var t = all.slice(cut), older = all.slice(0, cut);
   if(older.length){ L.push('', '=== EARLIER QUESTIONS IN THIS CONVERSATION (' + older.length + ', questions only) ==='); older.forEach(function(m){ L.push('- ' + String(m.q).replace(/\s+/g, ' ').slice(0, 200)); }); }
   var last = t.length ? t[t.length - 1] : null;
   if(last && last.deck){
@@ -392,8 +396,8 @@ function askPrompt(q){
       : 'Nothing in the 99.');
   }
   if(t.length){
-    L.push('', '=== EARLIER IN THIS CONVERSATION (last ' + t.length + ') ===');
-    t.forEach(function(m){ L.push('Tom: ' + m.q, 'You: ' + (m.a.length > ANSWER_CAP ? m.a.slice(0, ANSWER_CAP) + ' [...]' : m.a), ''); });
+    L.push('', '=== THIS CONVERSATION SO FAR (' + (older.length ? 'the last ' + t.length + ' in full' : 'all ' + t.length + ', in full') + ', oldest first; what he decided earlier still stands unless he changed it) ===');
+    t.forEach(function(m){ L.push('Tom: ' + m.q, 'You: ' + m.a, ''); });
   }
   L.push('', '=== TOM ASKS ===', q);
   return L.join('\n');
@@ -567,7 +571,7 @@ function drawAsk(el){
   var T = thread(), direct = canDirect(), busy = ASK.busy === CUR;
   var h = '<div class="mn-wide"><div class="pg-root mn-ask">';
   h += '<div class="mn-head"><div><h2 class="mn-title">Ask Claude about this deck</h2>' +
-    '<p class="pg-fine">Each question sends Claude one page about this deck and your last ' + KEEP + ' questions, never the whole conversation. Start a new conversation to change subject.</p></div>' +
+    '<p class="pg-fine">Each question sends Claude one page about this deck and this whole conversation, so it remembers what you decided. Start a new conversation to change subject.</p></div>' +
     (T.length ? '<button class="bs-btn bs-sm bs-quiet" type="button" id="askNew">' + ico('refresh', 'bs-i16') + 'New conversation</button>' : '') + '</div>';
   if(!T.length){
     h += '<div class="mn-starts">' + ['What is this deck weakest at?', 'Which 5 cards should I cut first, and for what?', 'How does this deck actually win?', 'Which side deck cards deserve a slot back?'].map(function(q){
@@ -618,7 +622,7 @@ function drawAsk(el){
 }
 async function askSend(q){
   q = String(q || '').trim(); if(!q || ASK.busy) return;
-  var T = thread(); T.push({ q:q, a:'', at:Date.now(), deck:deckNames() }); if(T.length > 100) T.splice(0, T.length - 100);
+  var T = thread(); T.push({ q:q, a:'', at:Date.now(), deck:deckNames() }); if(T.length > KEEP_MSGS) T.splice(0, T.length - KEEP_MSGS);
   ASK.draft = ''; ASK.err = '';
   save({ quiet:true });
   if(!canDirect()){ comboLines(); render(); return; }   // the copy / paste box shows under the question
