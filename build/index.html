@@ -3233,7 +3233,7 @@ function undoChange(want){
     return false;
   }
   SWUNDO.pop();
-  if(u.taste) tasteDrop(u.taste);
+  if(u.taste) [].concat(u.taste).forEach(tasteDrop);   // a list when Ask Claude made a whole cluster
   S.deck = u.deck; if(u.boards) S.boards = u.boards; if(u.roleFix) S.roleFix = u.roleFix;
   S.side = null; save(); afterEdit(); return true;
 }

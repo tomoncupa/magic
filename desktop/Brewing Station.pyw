@@ -112,7 +112,8 @@ SYSTEM = ("You are a Magic: The Gathering Commander player of the highest level,
 # Tom, 2026-10-21: "make the claude in brewing station a lot smarter, like a super pro player" (picked A to E).
 # A: the strongest model, thinking hard. D: Ask Claude may search the web (rulings, EDHREC, current lists).
 # Tom, 2026-10-30: "Make the model in Bstation Opus 5.5": named exactly, so the "opus" alias moving never changes it.
-MODEL, EFFORT = "claude-opus-5-5", "high"
+# Tom, 2026-11-04: "Make sure it's opus 5.5 Medium".
+MODEL, EFFORT = "claude-opus-5-5", "medium"
 WEB_TOOLS = "WebSearch,WebFetch"
 
 

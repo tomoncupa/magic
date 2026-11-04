@@ -354,13 +354,19 @@ function deckDiff(was){
 function askPrompt(q){
   var L = [];
   L.push('You are a Magic: The Gathering Commander deckbuilding expert. Tom is asking about one of his decks in his deck app, Brewing Station.');
-  L.push('Answer his question about the deck below. Plain English, direct, under 250 words unless he asks for more. No em dashes. No tables. Use exact English card names.');
+  L.push('Answer his question about the deck below. Plain English, direct. No em dashes. No tables. Use exact English card names.');
   L.push(DOCTRINE, '');
+  // Tom, 2026-11-04: "have it suggest more than 3 cards". Under a 250-word cap with rule 8's paragraph per swap,
+  // his 70 saved answers averaged 2 changes, and "give me 5 options" came back with 1 button.
+  L.push('LENGTH: a question about the deck, under 250 words. When he asks for cards (what to add, cut or swap, options, upgrades, what would make it better), give 6 to 12 changes, strongest first, or exactly the number he names. Never stop at 2 or 3 to keep the answer short: one line per change (rule 8 in a few words: the job, what it does here, the cost) keeps a long list readable.');
+  // Tom, 2026-11-04: "suggest changes in clusters, since cards don't work in isolation".
+  L.push('CLUSTERS: cards do not work alone, so suggest changes as clusters. A cluster is 2 to 5 changes that do one job together and are worth more together than apart: an engine with its enablers and payoff, a combo with its tutor and protection, a new plan with the cards it needs, mana fixes with the spells they make castable. Say what the cluster does as a whole and what breaks if he takes only part of it. Make every cut in a cluster something the cluster replaces, so the deck stays at 100. A change that stands alone needs no cluster.');
+  L.push('OPTIONS: when he asks for options for one slot, each option gets its own SWAP line with the same card going out, so he can press the one he picks. Every card you recommend gets its own SWAP, CUT or ADD line; a card named only in the text has no button.');
   L.push('Write every card name in double square brackets, like [[Sol Ring]], so his app can show the card.');
   if(canDirect()) L.push('You can search the web (WebSearch, WebFetch) for rulings, current EDHREC pages and recent tournament or high-power lists when that would change your answer. Do not search for what is already given below.');
   L.push('Game Changers and bracket rules: use only the Game Changer list and count given below. Your memory of the list is out of date.');
-  L.push('If you recommend changing cards, end the answer with one line per change in exactly this form, and nothing after them:');
-  L.push('SWAP: <card in the deck> -> <card to put in>', 'CUT: <card in the deck>', 'ADD: <card>');
+  L.push('If you recommend changing cards, end the answer with the changes in exactly this form, and nothing after them. Each cluster starts with its CLUSTER line and its changes follow it; changes that stand alone come last, after a line that says only CLUSTER: On their own.');
+  L.push('CLUSTER: <short name> | <what these changes do together, under 25 words>', 'SWAP: <card in the deck> -> <card to put in>', 'CUT: <card in the deck>', 'ADD: <card>');
   L.push('A card going in must be legal in Commander and inside the colour identity. Prefer cards from his side deck when they do the job, since he owns them.');
   L.push('When you mention a combo, detail it: the pieces, what must be in play first, each step as a numbered list, and what it gets you. For a combo listed below, follow its Commander Spellbook steps.');
   L.push('Tom changes the deck between questions. THE DECK below is the deck as it is right now; earlier answers were about the deck as it was then. Never apologise for or correct an earlier answer because the deck changed, and never say a card count was wrong. When a change matters to the question, say it in one plain line ("Since then you added X").');
@@ -392,18 +398,21 @@ function askPrompt(q){
   L.push('', '=== TOM ASKS ===', q);
   return L.join('\n');
 }
-// Claude's answer -> { text, moves:[{kind:'swap'|'cut'|'add', out, inn}] }
+// Claude's answer -> { text, moves:[{kind:'swap'|'cut'|'add', out, inn, g}], groups:[{name, why}] }. g is the
+// cluster a change belongs to (-1 for one before any CLUSTER line, as every answer before 2026-11-04 has).
 function readAnswer(a){
-  var moves = [], keep = [];
+  var moves = [], keep = [], groups = [], g = -1;
   String(a || '').split(/\r?\n/).forEach(function(line){
+    var cl = /^\s*[-*]?\s*(?:\*\*)?CLUSTER(?:\*\*)?\s*:\s*(.+?)\s*$/i.exec(line);
+    if(cl){ var p0 = cl[1].replace(/\*\*|\[\[|\]\]/g, '').split('|'); groups.push({ name:p0[0].trim(), why:p0.slice(1).join('|').trim() }); g = groups.length - 1; return; }
     var m = /^\s*[-*]?\s*(SWAP|CUT|ADD)\s*:\s*(.+?)\s*$/i.exec(line);
     if(!m){ keep.push(line); return; }
     var k = m[1].toLowerCase(), v = m[2].replace(/\*\*|\[\[|\]\]/g, '');
-    if(k === 'swap'){ var p = v.split(/\s*(?:->|→|=>)\s*/); if(p.length === 2) moves.push({ kind:k, out:p[0].trim(), inn:p[1].trim() }); }
-    else if(k === 'cut') moves.push({ kind:k, out:v.trim() });
-    else moves.push({ kind:k, inn:v.trim() });
+    if(k === 'swap'){ var p = v.split(/\s*(?:->|→|=>)\s*/); if(p.length === 2) moves.push({ kind:k, out:p[0].trim(), inn:p[1].trim(), g:g }); }
+    else if(k === 'cut') moves.push({ kind:k, out:v.trim(), g:g });
+    else moves.push({ kind:k, inn:v.trim(), g:g });
   });
-  return { text:keep.join('\n').trim(), moves:moves };
+  return { text:keep.join('\n').trim(), moves:moves, groups:groups };
 }
 function md(t){
   var out = [], list = null;
@@ -459,10 +468,12 @@ function moveScore(m){
   var inn = m.inn ? moveCard(m.inn) : null; if(m.inn && !inn) return { wait:true };
   var outD = m.out ? S.deck.filter(function(d){ return sameName(d.n, m.out) || sameName(m.out, d.n); })[0] : null;
   if(m.out && !outD) return null;
-  var key = (E.key ? E.key() : S.deck.length) + '|' + (outD ? outD.n : '') + '>' + (inn ? inn.n : '');
+  // Keyed on the score now too: one worked out before the combos loaded read 8.29 against a deck at 8.53.
+  var a = E.score(); if(!a) return null;
+  var key = (E.key ? E.key() : S.deck.length) + '|' + a.raw + '|' + (outD ? outD.n : '') + '>' + (inn ? inn.n : '');
   if(MVS[key]) return MVS[key];
-  var a = E.score(), b = E.scoreWith([{ out:outD ? outD.n : null, inn:inn }]);
-  if(!a || !b) return null;
+  var b = E.scoreWith([{ out:outD ? outD.n : null, inn:inn }]);
+  if(!b) return null;
   return (MVS[key] = { from:a.raw, to:b.raw, d:b.raw - a.raw, kept:!!(outD && typeof isKept === 'function' && isKept(outD.n)), out:outD ? outD.n : '' });
 }
 function moveScoreHtml(m, done){
@@ -478,8 +489,57 @@ function moveHtml(m, i, done){
   var o = cardSpan(esc(m.out || '')), n = cardSpan(esc(m.inn || ''));
   var label = m.kind === 'swap' ? 'Swap ' + o + ' for ' + n : m.kind === 'cut' ? 'Move ' + o + ' to the side deck' : 'Add ' + n;
   var verb = m.kind === 'swap' ? 'Swap' : m.kind === 'cut' ? 'Move' : 'Add';
+  // Another option for the same slot was taken: the card it would replace has already left the deck.
+  if(!done && m.kind === 'swap' && m.out && !inDeck(m.out))
+    return '<div class="mn-move"><span class="mn-move-t">' + label + '<span class="mn-move-s pg-fine">' + esc(m.out) + ' is already out</span></span></div>';
   return '<div class="mn-move"><span class="mn-move-t">' + label + moveScoreHtml(m, done) + '</span>' + (done ? '<span class="bs-badge bs-good">' + ico('check', 'bs-i16 pg-i12') + '<span>Done</span></span>'
     : '<button class="bs-btn bs-sm" type="button" data-mv="' + i + '">' + ico(m.kind === 'swap' ? 'swap' : m.kind === 'cut' ? 'side' : 'plus', 'bs-i16') + verb + '</button>') + '</div>';
+}
+// A change still to make: not done, and (for a swap) its card going out is still in the deck.
+function moveOpen(m){ return !moveDone(m) && !(m.kind === 'swap' && m.out && !inDeck(m.out)); }
+// A cluster's changes made together, and the same changes made one at a time and added up: the gap is
+// what the cards are worth to each other (Tom, 2026-11-04: "cards don't work in isolation").
+function clusterScore(ms){
+  var E = window.ENGINE; if(!E || !E.scoreWith || !E.score) return null;
+  var ch = [], wait = false;
+  ms.forEach(function(m){
+    var inn = m.inn ? moveCard(m.inn) : null; if(m.inn && !inn){ wait = true; return; }
+    var outD = m.out ? S.deck.filter(function(d){ return sameName(d.n, m.out) || sameName(m.out, d.n); })[0] : null;
+    if(m.out && !outD) return;
+    ch.push({ out:outD ? outD.n : null, inn:inn });
+  });
+  if(wait) return { wait:true };
+  if(!ch.length) return null;
+  var a = E.score(); if(!a) return null;
+  var key = 'G|' + (E.key ? E.key() : S.deck.length) + '|' + a.raw + '|' + ch.map(function(c){ return (c.out || '') + '>' + (c.inn ? c.inn.n : ''); }).join(',');
+  if(MVS[key]) return MVS[key];
+  var b = E.scoreWith(ch); if(!b) return null;
+  var alone = ch.reduce(function(t, c){ var s = E.scoreWith([c]); return t + (s ? s.raw - a.raw : 0); }, 0);
+  return (MVS[key] = { from:a.raw, to:b.raw, d:b.raw - a.raw, extra:b.raw - a.raw - alone });
+}
+function clusterHtml(G, ms, id){
+  var todo = ms.filter(moveOpen), r = todo.length > 1 ? clusterScore(todo) : null, E = window.ENGINE, sc = '';
+  if(r && r.wait) sc = '<span class="mn-move-s pg-fine">Working out the deck score…</span>';
+  else if(r) sc = '<span class="mn-move-s ' + (r.d >= E.STEP ? 'bs-pos' : r.d <= -E.STEP ? 'bs-neg' : 'pg-fine') + '">All ' + todo.length + ' together: deck score <b class="bs-num">' + E.scorePair(r.from, r.to) + '</b>' +
+    (r.extra >= 0.05 ? ', ' + r.extra.toFixed(1) + ' more than making them one at a time' : '') + '</span>';
+  var end = todo.length > 1 ? '<button class="bs-btn bs-sm bs-primary" type="button" data-mvg="' + id + '">' + ico('swap', 'bs-i16') + 'Make all ' + todo.length + '</button>'
+    : !todo.length ? '<span class="bs-badge bs-good">' + ico('check', 'bs-i16 pg-i12') + '<span>Done</span></span>' : '';
+  return '<div class="mn-clu-top"><div class="mn-move-t"><p class="mn-clu-h">' + esc(G.name) + '</p>' + (G.why ? '<p class="mn-clu-why">' + esc(G.why) + '</p>' : '') + sc + '</div>' + end + '</div>';
+}
+// The changes under an answer: each cluster in its own box with Make all, then the ones that stand alone.
+function movesHtml(A, k){
+  if(!A.moves.length) return '';
+  var h = '';
+  A.groups.concat([null]).forEach(function(G, gi){
+    var g = G ? gi : -1, ids = [];
+    A.moves.forEach(function(m, i){ if(m.g === g) ids.push(i); });
+    if(!ids.length) return;
+    var rows = ids.map(function(i){ return moveHtml(A.moves[i], k + ':' + i, moveDone(A.moves[i])); }).join('');
+    var lone = !G || /^on (?:their|its) own$/i.test(G.name);
+    h += lone ? (A.groups.length ? '<div class="mn-clu mn-lone">' + (G ? '<p class="mn-clu-h">' + esc(G.name) + '</p>' : '') + rows + '</div>' : rows)
+      : '<div class="mn-clu">' + clusterHtml(G, ids.map(function(i){ return A.moves[i]; }), k + ':' + g) + rows + '</div>';
+  });
+  return '<div class="mn-moves">' + h + '</div>';
 }
 /* On a wide screen the deck sits beside the conversation (Tom, 2026-10-23, ultrawide pass): his categories when
    he has made any, else card types, as the Deck tab's rows. Hidden under 2400px by pages.css. */
@@ -520,8 +580,7 @@ function drawAsk(el){
       var A = readAnswer(m.a);
       // Answers from before the [[ ]] marks: the cards it suggests still turn into names in its text.
       noteCardNames(A.moves.reduce(function(L, mv){ return L.concat(mv.out || [], mv.inn || []); }, []));
-      h += '<div class="mn-a">' + md(A.text) +
-        (A.moves.length ? '<div class="mn-moves">' + A.moves.map(function(mv, i){ return moveHtml(mv, k + ':' + i, moveDone(mv)); }).join('') + '</div>' : '') + '</div>';
+      h += '<div class="mn-a">' + md(A.text) + movesHtml(A, k) + '</div>';
     } else if(busy && k === T.length - 1){
       h += '<div class="mn-a">' + loadingLine(ASK.stage || 'Claude is answering') + '</div>';
     } else if(k === T.length - 1 && !direct){
@@ -547,6 +606,7 @@ function drawAsk(el){
   el.onkeydown = function(e){ if(e.target.id === 'askQ' && e.key === 'Enter' && (e.ctrlKey || e.metaKey)){ e.preventDefault(); askSend(ASK.draft); } };
   el.onclick = function(e){
     var t = e.target, s = t.closest('[data-start]'); if(s){ askSend(s.getAttribute('data-start')); return; }
+    var mg = t.closest('[data-mvg]'); if(mg){ doCluster(mg.getAttribute('data-mvg')); return; }
     var mv = t.closest('[data-mv]'); if(mv){ doMove(mv.getAttribute('data-mv')); return; }
     if(t.closest('#askGo')){ askSend(ASK.draft); return; }
     if(t.closest('#askNew')){ var old = S.ask; S.ask = { msgs:[] }; save({ quiet:true }); render(); toast('New conversation.', { undo:function(){ S.ask = old; save({ quiet:true }); render(); return true; } }); return; }
@@ -594,28 +654,50 @@ async function askSend(q){
 // E: the answer read again by a strict checker, with the whole page it was written from.
 function checkPrompt(prompt, draft){
   return [prompt, '', '=== YOUR DRAFT ANSWER ===', draft, '', '=== NOW CHECK IT ===',
-    'You wrote the draft above. Check every claim in it against the page: card rules text, counts, which cards are in the deck or the side deck, legality, colour identity, Game Changers, bracket rules, combos and their pieces, and the app\'s numbers. Check each swap against the whole deck (rule 8). Fix every mistake, cut anything you cannot back, keep what is right.',
-    'Reply with only the final answer for Tom, in the same format (card names in [[ ]], SWAP / CUT / ADD lines last). Do not mention the checking.'].join('\n');
+    'You wrote the draft above. Check every claim in it against the page: card rules text, counts, which cards are in the deck or the side deck, legality, colour identity, Game Changers, bracket rules, combos and their pieces, and the app\'s numbers. Check each swap against the whole deck (rule 8). Fix every mistake, cut anything you cannot back, keep what is right. Keep the number of suggestions: put a better card in place of a wrong one rather than leaving the list shorter. Check each cluster as a whole: do its cards really work together, does any piece need a card the cluster leaves out, and does it keep the deck at 100.',
+    'Reply with only the final answer for Tom, in the same format (card names in [[ ]], CLUSTER / SWAP / CUT / ADD lines last). Do not mention the checking.'].join('\n');
+}
+// The card a change puts in: a basic by name, else the pool's card, else Scryfall's. null when Scryfall has none.
+async function moveIn(mv){
+  if(!mv.inn) return '';
+  if(isBasicName(mv.inn)) return mv.inn;
+  var c = poolCard(mv.inn); if(c) return c;
+  var raw = await sf('/cards/named?exact=' + encodeURIComponent(mv.inn)) || await sf('/cards/named?fuzzy=' + encodeURIComponent(mv.inn));
+  if(!raw){ toast('Scryfall has no card called ' + esc(mv.inn) + '.', { kind:'bad' }); return null; }
+  c = slim(raw); c.stats = {}; c.roles = rolesOf(c); return c;
+}
+function makeMove(mv, inCard){
+  return applyChange(mv.kind === 'add' ? null : mv.out, mv.kind === 'cut' ? null : inCard, 'Claude, asked in Ask Claude.', mv.kind === 'cut' ? { to:'side' } : mv.kind === 'add' ? { over:true } : undefined);
 }
 async function doMove(id){
   var p = id.split(':'), m = thread()[+p[0]]; if(!m) return;
   var mv = readAnswer(m.a).moves[+p[1]]; if(!mv) return;
-  var inCard = null;
-  if(mv.inn){
-    if(isBasicName(mv.inn)) inCard = mv.inn;
-    else {
-      inCard = poolCard(mv.inn);
-      if(!inCard){
-        var raw = await sf('/cards/named?exact=' + encodeURIComponent(mv.inn)) || await sf('/cards/named?fuzzy=' + encodeURIComponent(mv.inn));
-        if(!raw){ toast('Scryfall has no card called ' + esc(mv.inn) + '.', { kind:'bad' }); return; }
-        inCard = slim(raw); inCard.stats = {}; inCard.roles = rolesOf(inCard);
-      }
-    }
-  }
-  var r = applyChange(mv.kind === 'add' ? null : mv.out, mv.kind === 'cut' ? null : inCard, 'Claude, asked in Ask Claude.', mv.kind === 'cut' ? { to:'side' } : mv.kind === 'add' ? { over:true } : undefined);
+  var inCard = await moveIn(mv); if(inCard === null) return;
+  var r = makeMove(mv, inCard);
   if(r !== true){ toast(esc(r), { kind:'bad' }); return; }
   askRedraw();
   toast(changeToast(), { undo:undoTop(askRedraw) });
+}
+// Make all: a cluster's open changes, swaps then cuts then adds so the deck never passes 100 on the way,
+// under one Undo. A change that cannot be made stops the rest and says why.
+async function doCluster(id){
+  var p = id.split(':'), m = thread()[+p[0]]; if(!m) return;
+  var ORDER = { swap:0, cut:1, add:2 };
+  var list = readAnswer(m.a).moves.filter(function(mv){ return mv.g === +p[1] && moveOpen(mv); }).sort(function(a, b){ return ORDER[a.kind] - ORDER[b.kind]; });
+  if(!list.length) return;
+  var cards = [];
+  for(var i = 0; i < list.length; i++){ var c = await moveIn(list[i]); if(c === null) return; cards.push(c); }
+  var n0 = SWUNDO.length, made = [], err = '';
+  for(var j = 0; j < list.length; j++){ var r = makeMove(list[j], cards[j]); if(r !== true){ err = r; break; } made.push(list[j]); }
+  // One Undo for the cluster: the first change's entry holds the deck before any of them.
+  if(SWUNDO.length > n0 + 1){
+    var first = SWUNDO[n0], tastes = SWUNDO.slice(n0).map(function(u){ return u.taste; }).filter(Boolean);
+    SWUNDO.splice(n0 + 1); first.taste = tastes.length ? tastes : null;
+  }
+  askRedraw();
+  var say = made.length ? 'Made ' + made.length + ' change' + (made.length > 1 ? 's' : '') + ': ' + made.map(function(mv){ return esc(mv.kind === 'add' ? '+ ' + mv.inn : mv.kind === 'cut' ? '- ' + mv.out : mv.out + ' for ' + mv.inn); }).join(', ') + '.' : '';
+  if(err) toast((say ? say + ' Stopped there: ' : '') + esc(err), { kind:'bad', ms:9000, undo:made.length ? undoTop(askRedraw) : undefined });
+  else toast(say, { undo:undoTop(askRedraw), ms:9000 });
 }
 
 window.PAGES = window.PAGES || {};
