@@ -5276,6 +5276,25 @@ function toggleKeep(n){
 }
 function keepMark(){ return ''; }   // the pin mark shows it now (pinMark)
 function pinMark(it){ return it.pin || (it.board === 'main' && !it.basic && !it.echo && isKept(it.n)) ? '<span class="bs-pinmark" role="img" aria-label="Pinned to the top">' + ico('pin', 'bs-i16') + '</span>' : ''; }
+/* A land's colours at the row's right end, where a spell's mana value sits (Tom, 2026-11-04: "the lands a land produces
+   should be visible in deck view"). A fetch shows what the lands it can find in this deck make, as the score counts it. */
+var LANDS_NOW = null;
+function landPips(it){
+  var c = it.c || {}; if(it.board === 'cmd' || !(it.basic || (c.type && isLand(c)))) return '';
+  var prod = c.prod && c.prod.length ? c.prod : [], fetch = false;
+  if(!prod.length){
+    if(!LANDS_NOW) LANDS_NOW = deckItems().filter(function(x){ return x.c && (x.basic || (x.c.type && isLand(x.c))); })
+      .map(function(x){ return { n:x.n, c:x.c, basic:!!(x.basic || /\bbasic\b/i.test(x.c.type || '')) }; });
+    var ff = window.ENGINE && ENGINE.fetchProd ? ENGINE.fetchProd(c, LANDS_NOW) : null;
+    if(ff && ff.length) prod = ff;
+    else if(/search your library for a basic land/i.test(c.o || '')) prod = (S.ci || []).slice();
+    fetch = prod.length > 0;
+  }
+  if(!prod.length) return '';
+  prod = 'WUBRGC'.split('').filter(function(k){ return prod.indexOf(k) >= 0; });
+  var say = (fetch ? 'Finds a land that makes ' : 'Makes ') + prod.join(' ');
+  return '<span class="bs-pips bs-landp' + (fetch ? ' bs-fetchp' : '') + '" role="img" aria-label="' + say + '" title="' + say + '">' + pipHtml(prod) + '</span>';
+}
 function crowHtml(it){
   var c = it.c || {}, n = it.n;
   // A small copy of the art leads every row, as on the other tabs (Tom, 2026-10-18); the mana value
@@ -5286,11 +5305,11 @@ function crowHtml(it){
   var alt = altOf(c), sub2 = alt ? '“' + alt + '”' + (it.sub ? ', ' + it.sub : '') : it.sub;
   var mid = '<span class="bs-crow-main"><span class="bs-crow-n">' + (it.q > 1 ? '<span class="bs-crow-q">' + it.q + '</span>' : '') + esc(n) + '</span>' + (sub2 ? '<span class="bs-crow-s">' + esc(sub2) + '</span>' : '') + '</span>';
   if(it.basic && it.board === 'main'){
-    return '<div class="bs-crow bs-tap' + itCls(it) + '" role="button" tabindex="0" data-card="' + esc(n) + '" data-board="main">' + lead + mid + '<span class="bs-crow-end">' + pinMark(it) + '<span class="sh-bas">' +
+    return '<div class="bs-crow bs-tap' + itCls(it) + '" role="button" tabindex="0" data-card="' + esc(n) + '" data-board="main">' + lead + mid + '<span class="bs-crow-end">' + pinMark(it) + landPips(it) + '<span class="sh-bas">' +
       '<button class="bs-ibtn bs-sm" type="button" data-bas="' + esc(n) + '" data-d="-1" aria-label="One fewer ' + esc(n) + '">' + ico('minus', 'bs-i16') + '</button>' +
       '<button class="bs-ibtn bs-sm" type="button" data-bas="' + esc(n) + '" data-d="1" aria-label="One more ' + esc(n) + '">' + ico('plus', 'bs-i16') + '</button></span></span></div>';
   }
-  return '<button class="bs-crow' + itCls(it) + '" type="button" data-card="' + esc(n) + '" data-board="' + it.board + '">' + lead + mid + '<span class="bs-crow-end">' + pinMark(it) + keepMark(it) + itemBadges(it) + mv + '</span></button>';
+  return '<button class="bs-crow' + itCls(it) + '" type="button" data-card="' + esc(n) + '" data-board="' + it.board + '">' + lead + mid + '<span class="bs-crow-end">' + pinMark(it) + keepMark(it) + itemBadges(it) + mv + landPips(it) + '</span></button>';
 }
 /* ---------- Assemble (Tom, 2026-11-01: "an assembled mode, mostly the same view but just give a check box", for putting the
    paper deck together): the Deck tab's list with a tick box on each row. A tap ticks the card and nothing else; the ticks
@@ -5755,7 +5774,7 @@ function asmRowHtml(it){
     (none ? '<span class="bs-asm-in">' + ico('warn', 'bs-i16') + '<span>Not in your collection</span></span>' +
       '<button class="bs-btn bs-sm bs-quiet bs-asm-own" type="button" data-own="' + esc(ck) + '" data-n="' + esc(n) + '">I own a copy</button>' : '') + wishMark(n, it.basic || it.temp) +
     (it.temp ? '<span class="bs-asm-in bs-asm-temp">' + ico('warn', 'bs-i16') + '<span>Stand-in. Take it out when your order arrives.</span></span>' : '') + '</span>' +
-    '<span class="bs-crow-end">' + mv + '</span></div>';
+    '<span class="bs-crow-end">' + mv + landPips(it) + '</span></div>';
 }
 /* Every category heads its own columns along the top (Tom, 2026-11-01: "look at all the blank space that could be used,
    ideally categories are at the top"). The fewest rows per column that still fit the window's width, then the rows grow
@@ -5921,12 +5940,12 @@ function wishPoll(){
   }, 3000);
 }
 function ctileHtml(it){
-  var c = it.c || {}, bad = itemBadges(it), img = faceImg(c, it.n), back = !!FLIP[moxKey(it.n)] && twoFaced(c);
+  var c = it.c || {}, bad = itemBadges(it), img = faceImg(c, it.n), back = !!FLIP[moxKey(it.n)] && twoFaced(c), lp = landPips(it);
   return '<div class="bs-ctile' + itCls(it) + '"><button class="bs-ctile-pic" type="button" tabindex="-1" data-card="' + esc(it.n) + '" data-board="' + it.board + '" aria-label="' + esc(it.n) + '">' +
     (img ? '<img src="' + esc(img) + '" alt="' + esc(it.n) + '" loading="lazy">' : '<span class="bs-ctile-noimg">' + esc(it.n) + '</span>') +
     (it.q > 1 ? '<span class="sh-qty">&times;' + it.q + '</span>' : '') + (bad ? '<span class="bs-ctile-bl">' + bad + '</span>' : '') + (it.pin ? '<span class="bs-ctile-pin">' + pinMark(it) + '</span>' : '') + '</button>' +
     (twoFaced(c) ? '<button class="bs-ctile-flip" type="button" data-flip="' + esc(it.n) + '" aria-pressed="' + back + '" aria-label="' + (back ? 'Show the front of ' : 'Flip ') + esc(it.n) + '" title="' + (back ? 'Show the front' : 'Flip') + '">' + ico('flip', 'bs-i16') + '</button>' : '') +
-    cardLink(it.n, null, { cls:'bs-ctile-n', board:it.board, title:it.n }) + (altOf(c) || it.sub ? '<span class="bs-ctile-s"><span>' + esc(altOf(c) ? '“' + altOf(c) + '”' + (it.sub ? ', ' + it.sub : '') : it.sub) + '</span></span>' : '') + '</div>';
+    cardLink(it.n, null, { cls:'bs-ctile-n', board:it.board, title:it.n }) + (altOf(c) || it.sub || lp ? '<span class="bs-ctile-s">' + lp + '<span>' + esc(altOf(c) ? '“' + altOf(c) + '”' + (it.sub ? ', ' + it.sub : '') : it.sub || '') + '</span></span>' : '') + '</div>';
 }
 /* ---------- his own categories (Tom, 2026-10-17: "create categories and sort my cards into those") ----------
    Per deck in S.cats: list (his order), of (card key -> its one home), also (card key -> extra tags,
@@ -6542,6 +6561,7 @@ function drawDeckPage(){
     });
     return;
   }
+  LANDS_NOW = null;
   var lv = listView(), groups = deckGroups(lv), total = S.deck.length + (S.partner ? 2 : 1);
   var shown = -1;
   if(fltOn()){
