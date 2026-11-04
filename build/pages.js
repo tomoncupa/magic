@@ -713,8 +713,11 @@ function manaHtml(rows, landRows, ci, cb){
   var src = [], landMade = 0, big = [];
   landRows.forEach(function(r){
     var c = r.c || {}, prod = c.prod && c.prod.length ? c.prod.slice() : [];
-    if(!prod.length && /search your library for a basic land|any color/i.test(x(c))) prod = cols.length ? cols.slice() : ['C'];
-    var m = landMana(c); landMade += m * r.q;
+    // A fetch makes what the lands it finds here make (engine.js fetchFinds), the same count as the score.
+    var ff = !prod.length && window.ENGINE && ENGINE.fetchProd ? ENGINE.fetchProd(c, landRows.map(function(l){ return { n:l.n, c:l.c, basic:!!(l.basic || (l.c && /\bbasic\b/i.test(l.c.type || ''))) }; })) : null;
+    if(ff && ff.length) prod = ff;
+    else if(!prod.length && /search your library for a basic land|any color/i.test(x(c))) prod = cols.length ? cols.slice() : ['C'];
+    var m = landMana(c) || (prod.length ? 1 : 0); landMade += m * r.q;
     if(m > 1) big.push(r.n + ' makes ' + m);
     if(prod.length) src.push({ n:r.n, q:r.q, prod:prod, land:true });
   });

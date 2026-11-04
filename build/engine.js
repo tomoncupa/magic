@@ -827,12 +827,36 @@ function pillarOf(name, parts, raiseFn){
 function namesWhere(X, fn){ return X.rows.filter(function(r){ return !r.basic && !r.missing && fn(r); }).map(function(r){ return r.n; }); }
 function landCount(X){ return X.rows.reduce(function(s, r){ return s + ((!r.cmd && (r.jobs.lands || r.f.land)) ? r.q : 0); }, 0); }
 function spellsOf(X){ return X.rows.filter(function(r){ return !r.cmd && !r.f.land && !r.jobs.lands && !r.missing; }); }
+/* A fetch land makes no mana itself, so it counts for every colour the lands it can find in this deck make
+   (Tom, 2026-11-04: the score said "1 of 5" coloured sources on a deck with 10 fetches; only "basic land"
+   fetches were counted). Polluted Delta finds any Island or Swamp here, Underground Sea and the Triomes too. */
+var LAND_T = { plains:'W', island:'U', swamp:'B', mountain:'R', forest:'G' };
+// lands: the deck's lands as { n, c, basic }. Pages and manaTune ask through E.fetchProd, so every screen counts alike.
+function fetchFinds(lands, o){
+  var m = /search your library for ([^.:]*?) cards?\b/.exec(lc(o)); if(!m) return null;
+  var want = Object.keys(LAND_T).filter(function(t){ return new RegExp('\\b' + t + '\\b').test(m[1]); });
+  if(!want.length) return null;
+  var basic = /\bbasic\b/.test(m[1]), cols = {};
+  lands.forEach(function(r){
+    if(!r.c) return;
+    var t = lc((r.c.type || '') + ' ' + (r.basic ? r.n : ''));
+    if(basic && !r.basic && !/\bbasic\b/.test(t)) return;
+    if(!want.some(function(w){ return new RegExp('\\b' + w + '\\b').test(t); })) return;
+    (r.c.prod && r.c.prod.length ? r.c.prod : want.filter(function(w){ return t.indexOf(w) >= 0; }).map(function(w){ return LAND_T[w]; }))
+      .forEach(function(p){ cols[p] = 1; });
+  });
+  return Object.keys(cols);
+}
+function landsOf(X){ return X.rows.filter(function(r){ return !r.cmd && !r.missing && (r.jobs.lands || r.f.land); }); }
+E.fetchProd = function(c, lands){ try{ return c && !(c.prod && c.prod.length) ? fetchFinds(lands, c.o || '') : null; }catch(e){ return null; } };
 function sourcesOf(X){
-  var out = {};
+  var out = {}, L = landsOf(X);
   X.rows.forEach(function(r){
     if(r.cmd || !(r.jobs.lands || r.f.land)) return;
     var prod = r.c.prod && r.c.prod.length ? r.c.prod : [];
-    if(!prod.length && /search your library for a basic land|any color/.test(tx(r.c))) prod = S.ci || [];
+    if(!prod.length){ var o = tx(r.c), ff = fetchFinds(L, r.c.o || '');
+      if(ff) prod = ff;
+      else if(/search your library for a basic land|any color/.test(o)) prod = S.ci || []; }
     prod.forEach(function(p){ out[p] = (out[p] || 0) + r.q; });
   });
   return out;
@@ -2281,7 +2305,7 @@ E.manaTune = function(){
     var ci = S.ci || [], need = {}, make = {}, nNeed = 0;
     ci.forEach(function(k){ need[k] = 0; make[k] = 0; });
     X.rows.forEach(function(r){ if(r.f.land || !r.c) return; (String(r.c.cost || '').match(/\{([WUBRG])\}/g) || []).forEach(function(m){ var k = m[1]; if(need[k] != null){ need[k] += r.q || 1; nNeed += r.q || 1; } }); });
-    var nMake = 0; lands.forEach(function(r){ (r.c.prod || []).forEach(function(k){ if(make[k] != null){ make[k] += r.q || 1; nMake += r.q || 1; } }); });
+    var nMake = 0; lands.forEach(function(r){ (r.c.prod && r.c.prod.length ? r.c.prod : E.fetchProd(r.c, landsOf(X)) || []).forEach(function(k){ if(make[k] != null){ make[k] += r.q || 1; nMake += r.q || 1; } }); });
     var share = function(m, k, t){ return t ? m[k] / t : 0; };
     var short = ci.filter(function(k){ return share(need, k, nNeed) - share(make, k, nMake) >= 0.08; });
     var over = ci.filter(function(k){ return share(make, k, nMake) - share(need, k, nNeed) >= 0.08; });
