@@ -233,9 +233,12 @@ function reduced(){ return !!(window.matchMedia && matchMedia('(prefers-reduced-
 function jumpTo(id){ var t = document.getElementById(id); if(t) t.scrollIntoView({ behavior:reduced() ? 'auto' : 'smooth', block:'start' }); }
 function onToggle(e){
   var d = e.target, k = d && d.getAttribute && d.getAttribute('data-pg-open'); if(!k) return;
+  var was = !!state().open[k];
   state().open[k] = d.open;
   // A guideline row works out its swaps only when opened, so opening it draws the page again once.
-  if(d.open && d.hasAttribute('data-pg-fix') && !d.querySelector('.pg-gfix, .pg-gfix-none')){ var y = window.pageYOffset || 0; redraw(); keepScroll(y); }
+  // A fold drawn open fires toggle too: only his own opening counts, or a fold with no swaps
+  // ("Nothing obvious") drew the page again forever (Tom's recording, 2026-11-04).
+  if(d.open && !was && d.hasAttribute('data-pg-fix') && !d.querySelector('.pg-gfix, .pg-gfix-none')){ var y = window.pageYOffset || 0; redraw(); keepScroll(y); }
 }
 function run(el, id, draw, top){
   if(!el) return;
