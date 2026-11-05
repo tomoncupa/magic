@@ -4206,6 +4206,8 @@ function renderHead(){
   var cmp = !!PG('compare'), top = APP.view === 'compare' || APP.view === 'collection' || APP.view === 'sets' ? APP.view : 'decks';
   $('topTabs').innerHTML = '<a class="bs-tab' + (top === 'decks' ? ' on" aria-current="page' : '') + '" href="#decks">Decks</a>' +
     (LOCAL ? '<a class="bs-tab' + (top === 'collection' ? ' on" aria-current="page' : '') + '" href="#collection">Collection</a><a class="bs-tab' + (top === 'sets' ? ' on" aria-current="page' : '') + '" href="#sets">Sets</a>' : '') +
+    // Star Trek sealed practice, its own page beside the Commander flow (Tom, 2026-11-05: "Both", PC and phone).
+    '<a class="bs-tab" href="sealed.html">Sealed</a>' +
     (cmp ? '<a class="bs-tab' + (top === 'compare' ? ' on" aria-current="page' : '') + '" href="#compare">Compare</a>' : '');
   drawMoxChip();
   var row = $('deckRow');
