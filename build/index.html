@@ -5737,11 +5737,13 @@ function rtHtml(){
   if(!q.length) return top + '<p class="bs-cv-none">No cards match the filters on this set.</p>';
   if(RT.i >= q.length) return top + '<div class="bs-rt-end"><h2 class="bs-title">That is every card here</h2><p class="bs-sub">' + nr + ' rated, ' + ni + ' on Interesting.</p>' +
     '<a class="bs-btn bs-primary" href="#sets/' + esc(ST.code) + '">Back to the cards</a><button class="bs-btn" type="button" data-rtagain>Go through them again</button></div>';
-  var c = q[RT.i], k = moxKey(c.n), mine = r[k] ? r[k].r : 0, on = !!p[k], own = stOwned(c.n), big = faceImg(c, c.n).replace('/normal/', '/large/');
+  var c = q[RT.i], k = moxKey(c.n), mine = r[k] ? r[k].r : 0, on = !!p[k], own = stOwned(c.n), small = faceImg(c, c.n), big = small.replace('/normal/', '/large/');
   var price = typeof c.usd === 'number' ? (phpOf(c.usd) || '$' + c.usd.toFixed(2)) : '';
   var meta = [c.type, c.r ? c.r.charAt(0).toUpperCase() + c.r.slice(1) : '', price, own ? 'you own ' + own : ''].filter(Boolean).join(', ');
   return top + '<div class="bs-rt-main">' +
-    '<div class="bs-rt-card" data-rtcard>' + (big ? '<img src="' + esc(big) + '" alt="' + esc(c.n) + '" draggable="false">' : '<span class="bs-ctile-noimg">' + esc(c.n) + '</span>') +
+    // the grid's picture shows at once and the sharp one fades in over it: Scryfall can take seconds a picture
+    '<div class="bs-rt-card" data-rtcard><span class="bs-rt-wait">' + esc(c.n) + '</span>' + (small ? '<img src="' + esc(small) + '" alt="' + esc(c.n) + '" draggable="false">' +
+      (big !== small ? '<img class="bs-rt-hi" src="' + esc(big) + '" alt="" draggable="false" onload="this.classList.add(\'on\')">' : '') : '') +
       '<span class="bs-rt-tag bs-rt-yes" aria-hidden="true">Interesting</span><span class="bs-rt-tag bs-rt-no" aria-hidden="true">Skip</span></div>' +
     '<div class="bs-rt-side">' + cardLink(c.n, null, { cls:'bs-rt-n', ro:true }) + '<p class="bs-rt-meta">' + esc(meta) + '</p>' +
       '<div class="bs-rt-rate" role="group" aria-label="Rate ' + esc(c.n) + '">' + [1, 2, 3, 4, 5].map(function(n){ return '<button type="button" class="bs-rt-r' + (mine === n ? ' on' : '') + '" data-rtrate="' + n + '" aria-pressed="' + (mine === n) + '">' + n + '</button>'; }).join('') + '</div>' +
@@ -5755,7 +5757,10 @@ function rtHtml(){
 function rtDraw(){
   var w = main.querySelector('[data-rt]'); if(!w) return;
   w.innerHTML = rtHtml(); rtBind();
-  var nx = RT.q[RT.i + 1]; if(nx){ var im = new Image(); im.src = faceImg(nx, nx.n).replace('/normal/', '/large/'); }   // the next picture is ready when it comes
+  RT.q.slice(RT.i + 1, RT.i + 4).forEach(function(nx){   // the next three are ready when they come
+    var s = faceImg(nx, nx.n); if(!s) return;
+    new Image().src = s; new Image().src = s.replace('/normal/', '/large/');
+  });
 }
 function rtNext(){ var r = stRates(), p = stInts(); RT.i++; if(!RT.all) while(RT.i < RT.q.length && rtSeen(RT.q[RT.i], r, p)) RT.i++; rtDraw(); }
 function rtPrev(){ if(RT.i > 0){ RT.i = Math.min(RT.i, RT.q.length) - 1; rtDraw(); } }
