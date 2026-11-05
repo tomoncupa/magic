@@ -1,0 +1,311 @@
+# Star Trek (TRK) sealed scores, by Claude, 2026-11-05, from each card's rules
+# text and Tolarian Community College's prerelease guide, before any win-rate
+# data existed. Scale: 5 bomb, 4 great, 3.5 very good, 3 good playable,
+# 2.5 fine filler, 2 last cuts, 1.5 or less sideboard. Tag rm = deals with a creature.
+# Format: collector number | score | tags | note
+1|4|rm| Two-mana exile; they get a basic land back
+2|2|| A 3/1; finds its other copies, rare in sealed
+3|3|| Sturdy two-drop; Borg factory with artifacts
+4|2.5|| Two artifact bodies for two
+5|2.5|| Lifelink two-drop; extra counters when tapped
+6|3|| Two-drop that makes Officers off modal spells
+7|4.5|| Team anthem plus a token for every creature
+8|3.5|rm| Kills a big threat or draws; never dead
+9|2|| One-drop; vigilance for artifact creatures
+10|2.5|| Borg token for each artifact you play
+11|3.5|| Every later creature enters bigger
+12|3|| Four-mana 3/3 flyer
+13|2.5|| Grows with life gain; needs lifelink around it
+14|2.5|| Counter on arrival, shields countered creatures
+15|2|| One-drop that hands out a counter
+16|4.5|| A 6/6 plus a team of Officers
+17|2.5|| Value four-drop, often two for one
+18|1.5|| Tutor; only good with a bomb spacecraft
+19|3|| Big body or a land; never dead
+20|3|| Four-mana flyer; reuses an enter ability
+21|3|| Three-mana 3/3 that grows the team at 8 power
+22|3.5|rm| Exiles any nonland permanent
+23|2|rm| Removes a creature for two turns, then a clue
+24|3|| 3/3 that rebuys an enter ability
+25|1|| Costs a creature; a fog at best
+26|2|| Replaces itself with a Plains; slow flyer
+27|1|| Slows both players; rarely wins
+28|2.5|| Cheap 4/3 that needs a partner to attack
+29|2.5|| Two-drop that pumps a friend
+30|3.5|| Double strike for every artifact creature
+31|2|| Two counters, twice with beam me up
+32|2.5|| Digs for an artifact; feeds spacecraft decks
+33|3|rm| Flash removal on a body; scales with types
+34|3.5|rm| One mana: stun anything or kill an attacker
+35|2|| Saves a creature from removal
+36|3|| 4/4 flyer on your turn, gains life
+37|2.5|| First strike two-drop; draws with spacecraft
+38|2.5|| Aggressive two-drop for 8 power
+39|2.5|| Team counters or draw two
+40|2|| Digs for a cheap permanent
+41|2|| Grows forever but never blocks
+42|3|| 4/5 body; first strike at 8 power
+43|5|| Three tokens, then a 5/5 lifelink flyer
+44|3.5|rm| Kills a tapped creature, then a flyer
+45|2.5|| Two-drop that taps a blocker
+46|1.5|| Card filter for spell-heavy decks only
+47|4.5|| 5/6 ward that casts their cards for free
+48|2.5|| Grows with spells; ward 1
+49|2.5|| Two bodies and cards; cheaper with many lands
+50|2.5|| Flash two-drop that loots
+51|3|| Soft counter or stun plus a card
+52|2.5|| Grows with every draw
+53|2|| Big draw if you have many land names
+54|3|| Copies the best creature on the table
+55|2.5|| 3/4 that surveils or rebuys a spacecraft
+56|2|| Tempo bounce, twice with beam me up
+57|2|| 1/5 wall that steals land drops
+58|3|| Stuns a creature, then a flying spacecraft
+59|2|| One-drop flyer; surveil
+60|3.5|rm| Puts a creature on top or bottom; instant
+61|2.5|| Two-drop with a +1/+1 equipment
+62|2.5|| Counters cheap spells, or anything kicked
+63|2.5|| Slow spacecraft; draws when it connects
+64|2.5|| Digs by creature types
+65|3|| 5/6 ward or a land; never dead
+66|3|| 4/3 that bounces their best creature
+67|2.5|| Two-drop that grows with dilemmas
+68|0.5|| You lose on the fourth upkeep
+69|3|| Grows with every noncreature spell
+70|2.5|| Doubles station counters
+71|2.5|| Draw two plus a token
+72|3|rm| Locks down a creature; cheap on a tapped one
+73|3|| Three-mana flyer that grows with dilemmas
+74|4|| Draws two for every draw
+75|2.5|| 2/4 wall that draws on their curve
+76|2|| Cantrip, twice with beam me up
+77|2.5|| Cheap hexproof spacecraft for spell decks
+78|3|rm| Steals their best permanent; they draw three
+79|2.5|| Recasts your spells from the graveyard
+80|2.5|| 0/4 looter; huge with seven land names
+81|2.5|| 3/3 for two that attacks after a spell
+82|3|| Flash, stuns a creature or stops an ability
+83|3|| Draws a card, later a flyer
+84|2.5|| 3/2 that taps blockers
+85|2|| Card filter or a blink
+86|2|| Rebuys a spell; slow
+87|3|| Seven-mana 5/7 flyer with value
+88|1.5|| Random cards; low impact
+89|3|| Flash, two modes of tempo
+90|2.5|| Casts artifacts off the top
+91|4|rm| Instant -4/-4 early, a menace finisher late
+92|2.5|| Artifact lord; 2/4 body
+93|2.5|| Three-mana flyer; sacrifice to draw
+94|3.5|rm| Kills a small creature, then sticks around
+95|2.5|| Menace two-drop that grows on deaths
+96|3|| Flyer, reanimates a small creature for a hit
+97|3|| 4/4 plus a hasty 2/1
+98|1.5|| Needs three artifact creatures to draw
+99|2.5|| Big in an artifact deck; small elsewhere
+100|2.5|| 3/2 with a little value
+101|3|rm| Edict or mini sweep on a body
+102|2|| Eight mana; too slow
+103|3|rm| Board wipe scaled by land names
+104|3|rm| Neuters a creature; exiles it at threshold
+105|3.5|rm| Instant -2/-2, -6/-6 kicked
+106|3.5|| 3/3 menace; drains 2 on every modal spell
+107|2.5|| 3/1 that takes a card from their hand
+108|3|| 5/4 menace that keeps coming back
+109|2|| Sacrifice outlet for Klingons
+110|4.5|| You can't lose at zero; draws every turn
+111|1.5|| Small trick; a card if it dies
+112|2.5|| Grows with Treasure from deaths
+113|3.5|| Seven-mana 6/6 menace; doubles their life loss
+114|4|rm| Instant: destroy any creature
+115|3|| 4/4; your artifact creatures draw on hits
+116|3.5|rm| Instant kill; they get two 1/1s
+117|3.5|rm| Edict, a clue, then two 2/2s
+118|2.5|| Aggressive 3/1 for two
+119|3.5|| 5/3 for four; sacrifice to draw two
+120|2.5|| 2/5 wall; drains on dilemmas
+121|2.5|| 2/3; menace for artifact creatures
+122|3|| 3/3 that recasts artifact creatures
+123|2|| Card selection, twice with beam me up
+124|2.5|| Lifelink one-drop that draws later
+125|4|rm| Two-mana kill, or raise a small artifact
+126|3|| 6/5 or a land; never dead
+127|3|| Lifelink two-drop that strips their best card
+128|3|| 3/3; makes 2/2s off your graveyard
+129|2|| Recursive 2/1 that can't block
+130|2.5|| Two creatures back to hand
+131|2.5|| Two-drop; deathtouch or surveil on attack
+132|1.5|| They pick the weaker half
+133|2.5|| Two bodies for two; sacrifice fodder
+134|2|| Raise a creature for one mana
+135|3.5|| Raises a creature on arrival and on hits
+136|2|| Drains as creatures die; slow
+137|2.5|| Officers off noncreature spells
+138|2.5|| First strike two-drop; pings at three taps
+139|2.5|| Hasty 2/1, twice with beam me up
+140|0.5|| Almost never does anything
+141|2.5|| 2/3 that pushes an attacker
+142|3.5|| Value on arrival and every attack
+143|3|| 3/3 trample; pings on each land
+144|1.5|| Aura trick; risky
+145|3.5|| Station 3 makes a hasty 2/1 every turn
+146|3|rm| 4/3; sacrifice for 2 damage anywhere
+147|4|| Steals copies of their team for one swing
+148|3|| Draw two, or a small board wipe
+149|2.5|| Hasty 3/3
+150|2|| Card advantage in landfall decks only
+151|3.5|rm| Instant 6 damage; fixes a colour too
+152|3|| 7/6 trample or a land
+153|1|| Nine mana; too narrow
+154|4|rm| Instant, X mana deals twice X and exiles
+155|3.5|| 5/4 trample that pings their whole team
+156|3|| 4/3; stops a blocker at 8 power
+157|1.5|| Narrow trigger doubler
+158|3|| 3/2 trample for two; pings on death
+159|1.5|| Ramp then lose a land
+160|3|| Seven mana; team pump by land names
+161|2.5|| Trick or artifact kill
+162|3|rm| One mana: 2 damage, 4 after a death
+163|2|| Plain two-drop
+164|3.5|rm| Instant 3 damage anywhere; rummage
+165|3.5|| 4/4 plus a card you can copy again
+166|1.5|| Treasure you can't spend
+167|2.5|| Hasty flyer; cheap in spell decks
+168|2|| Two cards for two; use them fast
+169|1.5|| Team pump trick
+170|2.5|| Anthem spacecraft; slow to fly
+171|2.5|| Mana two-drop; Treasure late
+172|3|| 4/4 reach plus a card
+173|2|| Hasty 1/1; clue if it dies on your turn
+174|2.5|| Pings them each turn
+175|3|| 5/3 menace for three; eats a permanent
+176|2.5|| Hasty two-drop that keeps giving
+177|2|| Klingon trick or draw two
+178|3.5|rm| Two mana: 3 damage anywhere
+179|3|| 4/3; two landfall triggers every combat
+180|2.5|| Steals a small creature for a swing
+181|4|rm| 4 damage, then their creature, then an edict
+182|3|| 3/3 for three, twice with beam me up
+183|3|rm| Fight, life, then a creature back
+184|2.5|| Two-drop that pumps late
+185|1.5|| Eight mana; random
+186|3.5|| Two bodies and a big pump
+187|4.5|| Every creature explores; extra land drops
+188|2.5|| Big with many land names; card flow
+189|3|| Two counters and evasion, or a land
+190|3.5|rm| Two creatures bite one of theirs
+191|2.5|| 3/4 that adds a counter or ramps
+192|2.5|| Trick, or kill an artifact
+193|2.5|| 1/3 that adds a land of any colour
+194|3|| 4/4 vigilance for four
+195|2.5|| Counter and trample for the team
+196|3.5|| Doubles counters; hexproof for the team
+197|3|| Flash; raises a card or saves a creature
+198|2|| Ramp and fixing, twice with beam me up
+199|2|| Digs four for a permanent
+200|1.5|| Ramp artifact; slow
+201|4|| Two 3/3s; every token becomes a 3/3
+202|2.5|| Raises a permanent; 3/3s after
+203|2|| Cheap counter trick
+204|3|| Ramp engine or two counters
+205|2|| Life gain on lands
+206|2|| One-drop; tokens when targeted
+207|2.5|| Deathtouch one-drop that blocks flyers
+208|3.5|| 6/6 reach, vigilance, deathtouch for five
+209|2.5|| Grows with life gain; Food
+210|3|| 5/5 reach; a token from the graveyard
+211|3.5|| 5/5 that turns every creature into ramp
+212|2.5|| Flash 3/2; protects a creature
+213|3|| 4/3 that hits hard on land turns
+214|3.5|| 7/5 for six; gains life
+215|2|| Extra lands when attacking; slow
+216|2.5|| Counter on each creature that enters
+217|3|| Surveil 2, then counters from the graveyard
+218|3.5|| 4/4 trample; two counters every land
+219|2.5|| 2/3 that gets a land back
+220|1.5|| Sideboard: small artifact kill
+221|4|| Free spell on arrival and every attack
+222|3|| Ramps two lands, later a flyer
+223|1.5|| Lands untapped; fixing
+224|3|| Two-mana mana of any colour; makes splashes work
+225|2.5|| 3/2 that grows each land
+226|3|| Draws six, keeps three
+227|4|rm| Exiles a creature on arrival and every attack
+228|3|| Resets the board for two turns, then cards
+229|3.5|| A 2/2 Worm every land drop
+230|3.5|| Locks a creature two turns, or two clues
+231|3|| 3/3 for three; ramps and draws off lands
+232|3|| Gets a creature back on arrival
+233|2|| Three colours; needs enchantments
+234|3.5|| Spreads counters over the team
+235|3.5|| 3/2 for two that leaves a hasty 2/1
+236|2.5|| 2/4 untapper; surveil late
+237|4|| Grows on every death; sacrifice outlet
+238|2.5|| Copies a creature after a spell
+239|3|| 2/3 for two; loots when it taps
+240|1.5|| Haste for the team; low impact
+241|4|| Raises a creature, draws, gains life
+242|3.5|| 4/3 trample for three; creatures enter attacking
+243|3|| 3/3; card a turn at 8 power
+244|2|| Seven mana; no board impact
+245|3.5|rm| Artifact lord, or 2 damage and 2 life
+246|2.5|| 2/3; unblockable hit or surveil
+247|3.5|| A free hasty 2/1 every turn
+248|3.5|| Copies their best creature
+249|3|| Menace two-drop that grows to 3/4
+250|3.5|| 3/4 trample; draws when a creature with a counter hits
+251|1.5|| Three colours; needs many types
+252|3|| 2/4 that draws on every modal spell
+253|3|| Two-drop that finds a spell
+254|3|| Reach and vigilance; big with land names
+255|3.5|| 2/4 that surveils and draws every turn
+256|2.5|| Grows when tapping others
+257|2|| Symmetric draw and damage
+258|3|| Lifelink 2/2; taxes their best card
+259|2.5|| Mana rock that becomes a flyer
+260|1.5|| Two equipment for unblockable hits; slow
+261|4|| Eight mana: wipe their board, keep a 7/7 flyer
+262|2|| Colourless 2/1; surveil
+263|2.5|| Nine mana; free permanents every turn
+264|1|| Hard to use in sealed
+265|1.5|| Seven mana; too slow
+266|1|| Rarely worth a slot
+267|1.5|| Copies tokens; slow
+268|1.5|| Slow counters engine
+269|2|| Cantrip artifact; life or damage later
+270|1.5|| Small equipment
+271|3|| Stuns a creature, then +3/+0
+272|3|| Two tokens, later a flyer; any colour
+273|3.5|| Cheap spacecraft that draws as it charges
+274|1.5|| Finds a land; station help
+275|2|| Blue-red dual; Planet
+276|2|| Colourless land; drain later
+277|2|| Red-white dual; Planet
+278|2|| Black-red dual
+279|2|| Green-blue dual
+280|2|| White-black dual; Planet
+281|2|| Green-blue dual; Planet
+282|1.5|| White land with a small bonus
+283|2|| Black-green dual; Planet
+284|2|| Colourless land; draw two later
+285|2|| White-black dual
+286|2|| White-blue dual
+287|1.5|| Blue land with a small bonus
+288|2|| Red-green dual; Planet
+289|2|| Black-green dual
+290|1.5|| Green land with a small bonus
+291|2|| Black-red dual; Planet
+292|1.5|| Red land with a small bonus
+293|2|| Green-white dual; Planet
+294|2|| Blue-black dual; Planet
+295|2|| Red-white dual
+296|2.5|rm| Colourless land; 2 damage later
+297|1|| Colourless land; rarely pays off
+298|2|| Blue-red dual
+299|2|| Red-green dual
+300|2|| Colourless land; two tokens later
+301|2|| Green-white dual
+302|2|| Colourless land; digs later
+303|1.5|| Fetches a basic for a splash
+304|1.5|| Black land with a small bonus
+305|2|| White-blue dual; Planet
+306|2|| Blue-black dual

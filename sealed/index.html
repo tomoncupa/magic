@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>Sealed Helper</title>
-<meta name="description" content="Reality Fracture sealed: enter your pool, get your best colours and a 40-card deck, see the tricks your opponent could have.">
+<meta name="description" content="Prerelease sealed for Star Trek and Reality Fracture: enter your pool, get your best colours and a 40-card deck, see the tricks your opponent could have.">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#080B10">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -41,7 +41,9 @@ button{background:none;border:0;cursor:pointer;touch-action:manipulation;padding
 .toprow{display:flex;align-items:center;gap:var(--s4);max-width:760px;margin:0 auto}
 .back{flex:none;width:var(--tap);height:var(--tap);margin-left:-12px;display:grid;place-items:center;font-family:var(--disp);font-size:28px;line-height:1;color:var(--ink2);text-decoration:none}
 .brand{font-family:var(--disp);font-weight:700;font-size:19px;color:var(--brass);line-height:1;letter-spacing:var(--cap);text-transform:uppercase}
-.brand small{display:block;font-weight:500;font-size:10px;letter-spacing:.14em;color:var(--ink3);margin-top:4px}
+.brand{min-height:var(--tap);text-align:left}
+.brand small{display:flex;align-items:center;gap:2px;font-weight:500;font-size:12px;letter-spacing:.14em;color:var(--ink3);margin-top:4px}
+.chev{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
 .spacer{flex:1}
 .count{font-family:var(--disp);font-weight:600;font-size:var(--t2);color:var(--ink2);font-variant-numeric:tabular-nums}
 .steps{display:flex;gap:2px;max-width:760px;margin:var(--s3) auto 0}
@@ -103,6 +105,36 @@ p{margin:0 0 var(--s3)}
 .themes{display:flex;flex-direction:column;gap:2px;margin-top:var(--s3);font-size:var(--t2);color:var(--ink2)}
 .themes b{font-family:var(--disp);font-weight:600;color:var(--good)}
 
+.dcheck{margin-top:var(--s4);border:1px solid var(--line);border-radius:var(--r);background:var(--bg2)}
+.dcheck summary{display:flex;align-items:center;gap:var(--s4);min-height:56px;padding:var(--s3) var(--s4);cursor:pointer;list-style:none}
+.dcheck summary::-webkit-details-marker{display:none}
+.dscore{font-family:var(--disp);font-weight:700;font-size:25px;color:var(--ink);line-height:1}
+.dscore small{font-size:13px;color:var(--ink3)}
+.dletter{font-family:var(--disp);font-weight:700;font-size:25px;color:var(--brass);line-height:1}
+.dsum{font-family:var(--disp);font-weight:600;line-height:1.2}
+.crule{padding:var(--s3) var(--s4);border-top:1px solid var(--line)}
+.crule p{margin:2px 0 0;font-size:var(--t2);color:var(--ink2)}
+.crule .small{color:var(--ink3)}
+.cline{display:flex;align-items:center;gap:var(--s3)}
+.cline b{flex:1;font-family:var(--disp);font-weight:600}
+.cst{font-family:var(--disp);font-size:var(--t2);color:var(--ink2)}
+.cpts{font-family:var(--disp);font-size:var(--t2);color:var(--ink3);min-width:42px;text-align:right}
+.dot{width:10px;height:10px;border-radius:50%;flex:none;display:inline-block}
+.psec{border:1px solid var(--line);border-radius:var(--r);background:var(--bg2);margin-top:var(--s3)}
+.psec summary{min-height:var(--tap);display:flex;align-items:center;padding:0 var(--s4);font-family:var(--disp);font-weight:600;font-size:var(--t3);cursor:pointer}
+.psec>ol,.psec>ul,.psec>p,.psec>.archs{margin:0 var(--s4) var(--s4);padding-left:1.25em}
+.psec>p,.psec>.archs{padding-left:0}
+.psec li{color:var(--ink2);margin-bottom:6px;font-size:var(--t2)}
+.psec li b{color:var(--ink);font-weight:600}
+.src{display:inline-block;font-family:var(--disp);font-size:12px;letter-spacing:.06em;color:var(--brass);border:1px solid var(--line2);border-radius:3px;padding:0 5px;vertical-align:1px}
+.archs{display:grid;gap:var(--s2)}
+.arch{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r);padding:var(--s3)}
+.arch h3{margin:0 0 4px;font-size:var(--t2);letter-spacing:0;text-transform:none;color:var(--ink);align-items:center}
+.arch p{margin:0 0 4px;font-size:var(--t2);color:var(--ink2)}
+.arch .keys{color:var(--ink3);font-size:12px}
+.pips{display:inline-flex;gap:2px}
+.vid{margin-top:var(--s4);border-left:3px solid var(--brass);padding:var(--s2) var(--s3);background:var(--bg3);border-radius:0 var(--r) var(--r) 0;font-size:var(--t2);color:var(--ink)}
+.vid b{display:block;font-family:var(--disp);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);font-weight:600}
 .cost{display:inline-flex;gap:2px;vertical-align:middle}
 .pip{display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;font-family:var(--disp);font-weight:700;font-size:10px;color:#10160f;line-height:1}
 .pip.W{background:var(--mW)}.pip.U{background:var(--mU)}.pip.B{background:var(--mB)}.pip.R{background:var(--mR)}.pip.G{background:var(--mG)}.pip.C{background:var(--mC)}
@@ -199,7 +231,7 @@ p{margin:0 0 var(--s3)}
 <header class="top">
   <div class="toprow">
     <a class="back" href="../" aria-label="All Magic apps">‹</a>
-    <div class="brand">Sealed<small>Reality Fracture</small></div>
+    <button class="brand" data-act="sets" aria-label="Change set">Sealed<small><span id="setname">Star Trek</span><svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg></small></button>
     <div class="spacer"></div>
     <span class="count" id="count"></span>
   </div>
@@ -207,7 +239,7 @@ p{margin:0 0 var(--s3)}
     <button class="stepbtn" data-act="tab" data-v="pool">Pool</button>
     <button class="stepbtn" data-act="tab" data-v="build">Build</button>
     <button class="stepbtn" data-act="tab" data-v="tricks">Tricks</button>
-    <button class="stepbtn" data-act="tab" data-v="rules">Rules</button>
+    <button class="stepbtn" data-act="tab" data-v="rules">Guide</button>
   </nav>
 </header>
 
@@ -245,12 +277,25 @@ p{margin:0 0 var(--s3)}
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 
-// Bump when fra.json changes, so no phone keeps an old copy from its cache.
-const DATA_V = '2026-09-26';
-const KEY = 'sealed.fra.v1';
+// Two sets. Star Trek is the default; Reality Fracture stays one tap away in the
+// set menu. Each set keeps its own pool. Bump `v` when a set's data file changes,
+// so no phone keeps an old copy from its cache.
+const SETS = {
+  trk: {name: 'Star Trek', file: 'trk/trk.json', v: '2026-11-05', key: 'sealed.trk.v1'},
+  fra: {name: 'Reality Fracture', file: 'fra.json', v: '2026-09-26', key: 'sealed.fra.v1'},
+};
+const SET = (() => {
+  let k = new URLSearchParams(location.search).get('set');
+  if (!SETS[k]) { try { k = localStorage.getItem('sealed.set'); } catch (e) {} }
+  return SETS[k] ? k : 'trk';
+})();
+const CFG = SETS[SET];
+const DATA_V = CFG.v;
+const KEY = CFG.key;
 const PAIRS = ['WU','UB','BR','RG','GW','WB','UR','BG','RW','GU'];
 const CNAME = {W:'White',U:'Blue',B:'Black',R:'Red',G:'Green'};
-const THEME = {
+let DATA = {};   // the Star Trek file's extras: archetypes, primer, the video's pool
+const THEME_FRA = {
   WU:['Fatehold','Surveil to grow your flyers, then attack.'],
   UB:['Theorix','Fill your graveyard to seven cards and turn on threshold.'],
   BR:['Stingerquill','Burn your opponent directly; creatures reward it.'],
@@ -262,6 +307,7 @@ const THEME = {
   RW:['','Go wide with tokens and counters and attack early.'],
   GU:['','Build up Jace tokens and planeswalkers for cards.'],
 };
+let THEME = THEME_FRA;   // Star Trek's come from its data file
 
 let CARDS = [], BY = {}, NAMES = [];
 let S = load();
@@ -275,7 +321,7 @@ function load() {
   } catch (e) {}
   return fresh();
 }
-function fresh() { return {ver:2, pool:{}, tab:'pool', pair:null, decks:{}, lands:{}, opp:{cols:'', mana:3}}; }
+function fresh() { return {ver:2, pool:{}, tab:'pool', pair:null, decks:{}, lands:{}, opp:{cols:'', mana:3}, src:null}; }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 
 /* ---------- mana ---------- */
@@ -310,7 +356,8 @@ function costHTML(cost) {
     return `<span class="pip C">${esc(p)}</span>`;
   }).join('') + '</span>';
 }
-const isCreature = c => /Creature/.test(c.t);
+// Spacecraft only become creatures once stationed, so a deck counts them as spells.
+const isCreature = c => /Creature/.test(c.t) && !/Spacecraft/.test(c.t);
 const scClass = s => s >= 4 ? 's4' : s >= 3 ? 's3' : s >= 2 ? 's2' : '';
 const scHTML = c => `<span class="sc ${scClass(c.s)}">${c.s.toFixed(1)}</span>`;
 
@@ -349,7 +396,7 @@ function renderResults() {
   const box = $('#results');
   if (!q.trim()) { box.innerHTML = ''; return; }
   const hits = search(q);
-  if (!hits.length) { box.innerHTML = '<div class="nores">No Reality Fracture card by that name.</div>'; return; }
+  if (!hits.length) { box.innerHTML = `<div class="nores">No ${esc(CFG.name)} card by that name.</div>`; return; }
   box.innerHTML = hits.map((c, i) => `
     <button class="res${i ? '' : ' first'}" data-act="add" data-id="${c.id}">
       <span><span class="nm">${esc(c.n)}</span> ${costHTML(c.m)}<br><span class="small">${esc(c.t)}</span></span>
@@ -379,13 +426,17 @@ function renderPool() {
   if (!cards.length) {
     el.innerHTML = `<h2 style="margin-top:var(--s6)">Enter your pool</h2>
       <p class="note">Open your six packs, then type the first letters of each card and tap it. Enter adds the top match. Skip basic lands.</p>
-      <p class="small">Scores, 0 to 5, blend Claude's read with three published reviews: Draftsim, MTG Arena Zone and MTG Picker. No win-rate data exists yet; the set releases 2 October.</p>`;
+      <p class="small">${SET === 'trk'
+        ? 'Scores, 0 to 5, blend Claude\'s read with two published reviews: Draftsim and MTG Arena Zone. No win-rate data exists yet; the set releases 13 November.'
+        : 'Scores, 0 to 5, blend Claude\'s read with three published reviews: Draftsim, MTG Arena Zone and MTG Picker. No win-rate data exists yet; the set releases 2 October.'}</p>
+      ${SET === 'trk' ? `<h3>Practice</h3><div class="scanrow"><button class="btn" data-act="practice" data-v="tcc">The video's pool</button><button class="btn" data-act="practice" data-v="kit">Six random packs</button></div>` : ''}`;
     return;
   }
   const by = {};
   for (const c of cards) (by[groupOf(c)] = by[groupOf(c)] || []).push(c);
   let h = `<h2 style="margin-top:var(--s6)">Your pool</h2>
-    <p class="small">Tap a card to see it or change how many you have. Scores blend Claude's read with three published reviews; Split marks cards where Claude and the reviews disagree by a point or more.</p>`;
+    ${S.src === 'tcc' ? '<p class="note">Practice: the pool opened in Tolarian Community College\'s video.</p>' : S.src === 'kit' ? '<p class="note">Practice: six random packs.</p>' : ''}
+    <p class="small">Tap a card to see it or change how many you have. Scores blend Claude's read with ${SET === 'trk' ? 'two' : 'three'} published reviews; Split marks cards where Claude and the reviews disagree by a point or more.</p>`;
   for (const g of GROUPS) {
     const list = by[g];
     if (!list) continue;
@@ -403,7 +454,7 @@ function renderPool() {
    up to 0.45 when it has almost none; a card that fully feeds itself (its own
    lifelink, Jace or Heartwood) is never marked down. Enablers gain 0.06 for each payoff beside them, up to 0.2.
    Rows only show synergy of 0.15 or more; smaller is noise. */
-const SYN = [
+const SYN_FRA = [
   {k:'surveil', full:6, what:'cards that surveil or scry', short:'Surveil',
    en:/\b(surveil|scry) (\d|x)\b|empower jace/i, pay:/whenever you scry or surveil|scried or surveilled/i},
   {k:'jace', full:5, what:'cards that make or grow a Jace', short:'Jace',
@@ -429,13 +480,52 @@ const SYN = [
   {k:'prep', full:5, what:'prepared creatures', short:'Prepared',
    en:null, pay:/cast a prepared spell|(each creature you control|target creature)( that attacked this turn)? becomes prepared/i},
 ];
+// Star Trek's ten archetypes, read off the same kind of wording. `f` decides
+// the enabler from the card itself when the text alone can't.
+const SYN_TRK = [
+  {k:'counters', full:6, what:'cards that give +1/+1 counters', short:'Counters',
+   en:/\+1\/\+1 counters? on|enters? with (an additional |two |a )?\+1\/\+1|explores|distribute two \+1\/\+1/i,
+   pay:/with (a|one or more) counters? on (it|them)|with counters on them|creatures? you control with a (\+1\/\+1 )?counter|counter on it would be destroyed|permanent with a counter/i},
+  {k:'borg', full:7, what:'artifact creatures', short:'Artifact creatures',
+   en:/artifact creature token/i, f:(c, txt, en) => en || /Artifact Creature/.test(c.t),
+   pay:/artifact creatures you control|number of artifact creatures|nontoken artifact you control enters|three untapped artifact creatures|affinity for artifact creatures/i},
+  {k:'sac', full:5, what:'sacrifice outlets and spare bodies', short:'Sacrifice',
+   en:/sacrifice (a|another|an) (creature|artifact|nonland)|kicker.?sacrifice|dies(, | during your turn, )(create|investigate)|token with haste\. sacrifice it/i,
+   pay:/whenever (another|a) creature dies|whenever another creature dies|if a creature died this turn|creature you control dies/i},
+  {k:'landfall', full:5, what:'extra lands and land searchers', short:'Landfall',
+   en:/additional land|onto the battlefield tapped|land card from your hand onto the battlefield|play lands from|tapped planet land token|those land cards onto the battlefield/i,
+   pay:/landfall/i},
+  {k:'spells', full:8, what:'noncreature spells', short:'Spells',
+   en:null, pay:/whenever (you|a player) casts? a noncreature spell|cast a noncreature spell this turn|noncreature, nonland card in your graveyard/i},
+  {k:'leave', full:5, what:'cards that use your graveyard', short:'Graveyard',
+   en:/exile (target|a|up to one target) card from (a|your) graveyard|exile this card from your graveyard|beam me up|cast (this card|an artifact creature spell) from your graveyard|return target [^.]*from your graveyard/i,
+   pay:/whenever (one or more cards leave|a card leaves) your graveyard/i},
+  {k:'dilemma', full:6, what:'modal spells and abilities', short:'Dilemmas',
+   en:/choose (one|two|one or more)( —|\b(?! that))/i,
+   pay:/whenever you face a dilemma|faced a dilemma|dilemma you've faced/i},
+  {k:'ships', full:4, what:'spacecraft', short:'Spacecraft',
+   en:null, f:c => /Spacecraft/.test(c.t),
+   pay:/spacecraft (spell|you control|card)|charge counters on (an artifact|target spacecraft)|equipment or spacecraft/i},
+  {k:'eight', full:9, what:'creatures with 3 or more power', short:'Eight power',
+   en:null, f:c => isCreature(c) && parseInt(c.pt) >= 3,
+   pay:/total power 8 or greater/i},
+  {k:'worlds', full:3, what:'planet makers and land searchers', short:'Strange new worlds',
+   en:/planet/i, pay:/differently named lands/i},
+  {k:'wide', full:5, what:'token makers', short:'Tokens',
+   en:/create (a|two|three|x|that many) .*creature tokens?|create porthos|create murf/i,
+   pay:/officer tokens? you control|tokens would be created|creatures you control get \+|for each officer/i},
+  {k:'life', full:5, what:'life-gain cards', short:'Life gain',
+   en:/lifelink|you gain \d+ life|gain life equal/i, pay:/whenever you gain life|you gaining life|life you gained/i},
+];
+const SYN = SET === 'trk' ? SYN_TRK : SYN_FRA;
 const SYNK = Object.fromEntries(SYN.map(t => [t.k, t]));
-const SELF_OK = new Set(['life', 'jace', 'art']);
+const SELF_OK = new Set(SET === 'trk' ? ['life', 'borg', 'ships', 'counters'] : ['life', 'jace', 'art']);
 function tagSynergy(c) {
   const txt = (c.x || '').replace(/ ?\([^)]*\)/g, '');
   c.en = new Set(); c.pay = new Set(); c.w = {};
   for (const t of SYN) {
     let en = t.en ? t.en.test(txt) : false;
+    if (t.f) en = t.f(c, txt, en);
     if (t.k === 'spells') en = !/Creature|Land/.test(c.t);
     if (t.k === 'legend') en = /Legendary/.test(c.t);
     if (t.k === 'prep') en = !!c.prep;
@@ -488,7 +578,8 @@ function bonusHTML(b) {
 }
 
 /* ---------- deck building ---------- */
-function pickDeck(cols) {
+function pickDeck(cols, size) {
+  size = size || 23;
   const cands = [];
   for (const c of poolCards()) {
     if (c.land || !fits(c.m, cols)) continue;
@@ -497,18 +588,18 @@ function pickDeck(cols) {
   // First pass judges synergy against every on-colour card, scaled down to a
   // 23-card deck; the second judges it against the deck the first pass chose.
   let counts = synCounts(cands), scale = Math.min(1, 23 / Math.max(cands.length, 1));
-  let picked = fillDeck(cands, counts, scale);
+  let picked = fillDeck(cands, counts, scale, size);
   counts = synCounts(picked);
-  return fillDeck(cands, counts, 1);
+  return fillDeck(cands, counts, 1, size);
 }
-function fillDeck(all, counts, scale) {
+function fillDeck(all, counts, scale, size) {
   const cands = all.slice();
   const picked = [];
-  while (picked.length < 23 && cands.length) {
+  while (picked.length < size && cands.length) {
     const cr = picked.filter(isCreature).length;
     const big = picked.filter(c => c.v >= 6).length;
     const five = picked.filter(c => c.v === 5).length;
-    const left = 23 - picked.length;
+    const left = size - picked.length;
     let best = 0, bv = -1e9;
     cands.forEach((c, i) => {
       let v = eff(c, counts, scale);
@@ -545,6 +636,8 @@ function deckFor(pair) {
   if (!S.decks[pair]) {
     const d = {};
     for (const c of pickDeck(pair)) d[c.id] = (d[c.id] || 0) + 1;
+    // Two landcyclers stand in for a land, so the deck plays 16 lands and 24 spells.
+    if (defaultLands(d) === 16) { for (const k in d) delete d[k]; for (const c of pickDeck(pair, 24)) d[c.id] = (d[c.id] || 0) + 1; }
     S.decks[pair] = d;
     save();
   }
@@ -597,6 +690,97 @@ function landPlan(pair, d) {
 }
 const BASIC = {W:'Plains',U:'Island',B:'Swamp',R:'Mountain',G:'Forest'};
 
+/* ---------- deck check ----------
+   The ten checks from the Star Trek trainer, run on the deck shown, each with
+   what it found and why it matters. 100 points; a near miss scores half. */
+const isFixer = c => !c.land && /(basic land card|planet card|landcycling|mana of any colou?r)/i.test(c.x || '');
+const isBomb = c => c.bomb || (c.s >= 4 && 'RM'.includes(c.r));
+function deckCheck(pair, d, plan) {
+  const cards = deckCards(d), n = c => d[c.id];
+  const sum = (list, f) => list.filter(f).reduce((a, c) => a + n(c), 0);
+  const nSpells = cards.reduce((a, c) => a + n(c), 0), total = nSpells + plan.L;
+  const cre = sum(cards, isCreature), ships = sum(cards, c => /Spacecraft/.test(c.t));
+  const two = sum(cards, c => isCreature(c) && c.v === 2), top = sum(cards, c => c.v >= 6);
+  const avg = nSpells ? cards.reduce((a, c) => a + c.v * n(c), 0) / nSpells : 0;
+  const rm = sum(cards, c => c.rm);
+  const src = {};
+  for (const x of 'WUBRG') src[x] = (plan.counts[x] || 0) + plan.non.filter(l => l.prod.includes(x)).length;
+  const fixers = sum(cards, isFixer);
+  const splashN = sum(cards, c => offNeeds(c.m, pair).length > 0);
+  const spare = c => have(c.id) - (d[c.id] || 0);
+  const onCol = poolCards().filter(c => !c.land && fits(c.m, pair));
+  const missedRm = onCol.filter(c => c.rm && spare(c) > 0);
+  const bombs = poolCards().filter(c => !c.land && isBomb(c));
+  const playedB = bombs.filter(c => d[c.id]), missedB = bombs.filter(c => !d[c.id] && fits(c.m, pair));
+  const offB = bombs.filter(c => !d[c.id] && !fits(c.m, pair));
+  const arch = poolCards().filter(c => c.r === 'U' && !c.land && (c.hy ? [...(c.ci || c.col)] : [...c.col]).length === 2 &&
+    [...(c.hy ? (c.ci || c.col) : c.col)].every(x => pair.includes(x)));
+  const archIn = arch.filter(c => d[c.id]);
+  const weakest = cards.slice().sort((a, b) => a.s - b.s);
+  const swaps = [], used = new Set();
+  for (const b of onCol.filter(c => spare(c) > 0).sort((a, b) => b.s - a.s)) {
+    const w = weakest.find(p => !used.has(p.id) && b.s - p.s >= 0.8);
+    if (w) { used.add(w.id); swaps.push([b, w]); }
+    if (swaps.length >= 3) break;
+  }
+  const C = [];
+  const add = (title, max, state, said, why) => C.push({title, max, state, said, why, pts: state === 'good' ? max : state === 'wait' ? Math.round(max / 2) : 0});
+  const names = list => list.map(c => c.n).join(', ');
+  add('Deck size', 10, total === 40 ? 'good' : total >= 39 && total <= 41 ? 'wait' : 'bad',
+    `${total} cards.`, 'Sealed decks are 40 cards. Every card over 40 makes your best cards show up less.');
+  add('Land count', 10, plan.L === 17 || (plan.L >= 16 && plan.L <= 18 && total === 40) ? 'good' : plan.L >= 15 && plan.L <= 19 ? 'wait' : 'bad',
+    `${plan.L} lands, ${nSpells} spells.`, '17 lands with 23 spells is the default. 16 with a low curve, 18 with ramp or landfall.');
+  const splashOk = [...plan.splash].every(x => src[x] + fixers >= 3);
+  add('Colours', 15, !plan.splash.size ? 'good' : splashN <= 3 && splashOk ? 'good' : splashN <= 4 ? 'wait' : 'bad',
+    plan.splash.size ? `Splashing ${[...plan.splash].map(x => `${CNAME[x]} (${src[x]} land${src[x] === 1 ? '' : 's'})`).join(' and ')} for ${splashN} card${splashN === 1 ? '' : 's'}, with ${fixers} fixer${fixers === 1 ? '' : 's'}.` : 'Two colours, no splash.',
+    'A splash is only for 1 to 3 strong cards, with 3 or more sources from duals, planets, land searchers or a mana creature.');
+  const low = [...pair].filter(x => src[x] < 6), mid = [...pair].filter(x => src[x] >= 6 && src[x] < 7);
+  add('Mana sources', 5, low.length ? 'bad' : mid.length ? 'wait' : 'good',
+    [...pair].map(x => `${CNAME[x]} ${src[x]}`).join(', ') + '.', 'Each main colour wants 7 or more lands that make it.');
+  add('Creatures', 12, cre >= 14 && cre <= 17 ? 'good' : cre >= 12 && cre <= 19 ? 'wait' : 'bad',
+    `${cre} creatures${ships ? `, plus ${ships} spacecraft counted as spells` : ''}.`,
+    ships ? 'Aim for 14 to 17. Spacecraft fly only mid to late game and need bodies to station them.' : 'Aim for 14 to 17 creatures.');
+  add('Curve', 10, two >= 4 && top <= 3 && avg <= 3.6 ? 'good' : two >= 3 && top <= 4 ? 'wait' : 'bad',
+    `${two} two-drop creature${two === 1 ? '' : 's'}, ${top} card${top === 1 ? '' : 's'} at 6 or more, average ${avg.toFixed(2)}.`,
+    'Four or more two-drops trade early. More than three at 6 mana leaves dead cards in your opening hand.');
+  add('Removal', 13, rm >= 4 || (rm >= 3 && !missedRm.length) ? 'good' : rm >= 2 ? 'wait' : 'bad',
+    `${rm} removal spell${rm === 1 ? '' : 's'}.${missedRm.length ? ` Also in your colours: ${names(missedRm)}.` : ''}`,
+    'Removal answers their bombs. Play at least 3 or 4, and every strong one in your colours.');
+  add('Bombs', 13, missedB.length ? 'bad' : playedB.length || !bombs.length ? 'good' : 'wait',
+    bombs.length ? `In your pool: ${names(bombs)}. Played: ${playedB.length ? names(playedB) : 'none'}.` : 'No bombs in this pool.',
+    'Bombs decide sealed games. Find them first and let them pick your colours.' + (offB.length && !playedB.length ? ` ${offB[0].n} is in another colour: check that pair.` : ''));
+  add('Archetype cards', 6, !arch.length || archIn.length === arch.length ? 'good' : archIn.length ? 'wait' : 'bad',
+    arch.length ? `Gold and hybrid uncommons for this pair: ${names(arch)}. Played ${archIn.length}.` : 'No gold or hybrid uncommons for this pair.',
+    'Each pair has a gold signpost uncommon and a hybrid uncommon built for its plan.');
+  add('Card choices', 6, !swaps.length ? 'good' : swaps.length <= 2 ? 'wait' : 'bad',
+    swaps.length ? swaps.map(([b, w]) => `${b.n} (${b.s.toFixed(1)}) for ${w.n} (${w.s.toFixed(1)})`).join('; ') + '.' : 'No clear upgrades left in the sideboard.',
+    'Within your colours, play your strongest cards.');
+  return {C, score: C.reduce((a, c) => a + c.pts, 0)};
+}
+const STATE = {good: ['Pass', 'var(--good)'], wait: ['Close', 'var(--warn)'], bad: ['Miss', 'var(--danger)']};
+const letter = s => s >= 90 ? 'A' : s >= 80 ? 'B' : s >= 70 ? 'C' : s >= 60 ? 'D' : 'F';
+function checkHTML(chk) {
+  const bad = chk.C.filter(c => c.state !== 'good').length;
+  return `<details class="dcheck"${bad ? ' open' : ''}><summary><span class="dscore">${chk.score}<small>/100</small></span><span class="dletter">${letter(chk.score)}</span>
+      <span class="dsum">Deck check<br><span class="small">${bad ? `${bad} of 10 to look at` : 'All 10 pass'}</span></span></summary>` +
+    chk.C.map(c => `<div class="crule${c.state === 'good' ? ' ok' : ''}"><div class="cline"><span class="dot" style="background:${STATE[c.state][1]}"></span><b>${esc(c.title)}</b><span class="cst">${STATE[c.state][0]}</span><span class="cpts">${c.pts}/${c.max}</span></div>
+      <p>${esc(c.said)}</p>${c.state === 'good' ? '' : `<p class="small">${esc(c.why)}</p>`}</div>`).join('') + `</details>`;
+}
+// The deck Tolarian Community College built from this exact pool, beside yours.
+function videoHTML(d) {
+  const t = DATA.tcc;
+  if (S.src !== 'tcc' || !t) return '';
+  const theirs = Object.entries(t.built).filter(([id]) => BY[id] && !BY[id].land);
+  const tot = theirs.reduce((a, [, q]) => a + q, 0);
+  const match = theirs.reduce((a, [id, q]) => a + Math.min(q, d[id] || 0), 0);
+  const miss = theirs.filter(([id, q]) => (d[id] || 0) < q).map(([id]) => BY[id]);
+  const extra = Object.keys(d).filter(id => !t.built[id]).map(id => BY[id]);
+  return `<h3>Against the video's deck <span class="ct">${match} of ${tot}</span></h3>
+    <p class="small">They built green-white +1/+1 counters, splashing black for The City on the Edge of Forever and He's Dead, Jim, on 17 lands.</p>
+    ${miss.length ? `<p class="small" style="margin-top:6px">They played, you didn't:</p>` + miss.map(c => crowHTML(c)).join('') : ''}
+    ${extra.length ? `<p class="small" style="margin-top:6px">You played, they didn't:</p>` + extra.map(c => crowHTML(c)).join('') : ''}`;
+}
+
 function renderBuild() {
   const el = $('#build');
   const spells = poolCards().filter(c => !c.land).reduce((a, c) => a + have(c.id), 0);
@@ -642,13 +826,9 @@ function renderBuild() {
   const th = themesOf(counts);
   h += `<div class="themes">${th.length ? th.map(x => `<span><b>${esc(x.t.short)}</b>: ${x.pay} payoff${x.pay === 1 ? '' : 's'}, ${x.en} ${esc(x.t.what)}</span>`).join('') : '<span>No theme has enough payoffs and enablers here; this deck wins on card quality.</span>'}
     <span class="small">Green and orange numbers beside a score are each card's synergy in this deck. Tap a card to see why.</span></div>`;
-  if (total !== 40) h += `<p class="warn" style="margin-top:var(--s3)">${total > 40 ? `${total - 40} over 40: take ${total - 40 === 1 ? 'a card' : 'some cards'} out.` : `${40 - total} short of 40: put more in.`}</p>`;
-  if (nCr < 13) h += `<p class="warn">Under 13 creatures. Sealed decks usually want 14 to 17.</p>`;
-  const twos = cards.filter(c => c.v === 2).reduce((a, c) => a + d[c.id], 0);
-  const tops = cards.filter(c => c.v >= 6).reduce((a, c) => a + d[c.id], 0);
+  // Size, creatures, two-drops and six-drops are all in the deck check, said once.
+  h += checkHTML(deckCheck(pair, d, plan));
   const cycs = cards.filter(isCycler).reduce((a, c) => a + d[c.id], 0);
-  if (twos < 4) h += `<p class="warn">Only ${twos} two-drop${twos === 1 ? '' : 's'}. Sealed decks want 4 or more, or you fall behind early.</p>`;
-  if (tops > 3) h += `<p class="warn">${tops} cards cost 6 or more. More than 3 and your hand clogs.</p>`;
   if (cycs >= 2 && !S.lands[pair]) h += `<p class="small">${cycs} cards can cycle for a land, so the deck plays 16 lands instead of 17.</p>`;
   const buckets = [0, 0, 0, 0, 0, 0];
   for (const c of cards) buckets[Math.min(Math.max(c.v, 1), 6) - 1] += d[c.id];
@@ -693,6 +873,7 @@ function renderBuild() {
       return crowHTML(c, null, `<span class="tag">${f} fixing land${f === 1 ? '' : 's'}</span>`, synIfAdded(c));
     }).join('');
   }
+  h += videoHTML(d);
   h += `<div style="margin-top:var(--s6)"><button class="btn" data-act="rebuild">Rebuild this deck</button></div>`;
   el.innerHTML = h;
 }
@@ -760,7 +941,30 @@ function renderTricks() {
 }
 
 /* ---------- rules ---------- */
-const RULES = [
+const RULES_TRK = [
+  ['Beam me up', 'Cast the card from your graveyard for its beam me up cost, and also return a creature you control to your hand. The spell is exiled afterwards.',
+    'Bounce a creature with an enter ability, such as Spock, to use that ability again.'],
+  ['Dilemma', 'You face a dilemma every time you choose modes for a spell or ability ("Choose one", "choose two"). Cards that say "whenever you face a dilemma" reward it.'],
+  ['Spacecraft and station', 'Station: tap another creature you control to put charge counters equal to its power on the Spacecraft. Sorcery speed only.',
+    'Each card says the number of counters at which it becomes an artifact creature and gets the abilities on that line. Below that it can\'t attack or block.'],
+  ['Federation', 'Counts the creature types among your non-Borg creatures. Tokens count: an Officer adds one type, a Klingon Warrior two.'],
+  ['Strange new worlds', 'Counts your differently named lands. All your Forests together count as one.'],
+  ['Planet', 'A land type. Several cards search for "a basic land card or Planet card". A New Planet token taps for any colour.'],
+  ['Assimilate', 'Put the creature card onto the battlefield under your control with a +1/+1 counter. It becomes a Borg artifact creature and loses its other creature types.'],
+  ['Tokens', 'Officer: 1/1 red. Klingon Warrior: 2/1 red with haste. Borg: 1/1 colourless artifact. Illusion: 3/3 colourless artifact. Romulan: 2/2 black.'],
+  ['Stun counter', 'If a stunned permanent would untap, remove a stun counter instead.'],
+  ['Finality counter', 'If a creature with one would die, exile it instead.'],
+  ['Discover', 'Exile cards from the top until you exile a nonland card with mana value up to the number. Cast it free or put it in your hand.'],
+  ['Explore', 'Reveal the top card. A land goes to your hand; anything else gives the creature a +1/+1 counter, and you may put the card in your graveyard.'],
+  ['Investigate', 'Make a Clue: an artifact with "2, sacrifice: draw a card".'],
+  ['Landfall', 'Triggers whenever a land enters under your control.'],
+  ['Ward', 'A spell or ability an opponent aims at it is countered unless they pay the ward cost.'],
+  ['Threshold', 'Turns on while you have seven or more cards in your graveyard.'],
+  ['Phasing', 'The City on the Edge of Forever phases out all artifacts and creatures: treat them as though they don\'t exist until they phase back in.'],
+  ['Landcycling', 'Pay the cost and discard the card to search your library for a basic land. Big spells with it are never dead draws.'],
+  ['Sealed basics', 'Six packs, a 40-card deck: usually 23 spells and 17 lands, two colours, 14 to 17 creatures and every removal spell you can play. You may swap cards with your sideboard between games.'],
+];
+const RULES_FRA = [
   ['Prepared', 'Some creatures carry a second, small spell printed beside them. When the creature is prepared, you may cast a copy of that spell once, paying its cost at its normal speed. Casting it unprepares the creature.',
     'Most say "enters prepared". A few prepare again at the start of your turn, so you get the spell every turn. If the creature leaves the battlefield, the spell is gone.'],
   ['Empower Jace', '"Empower Jace 2" puts two loyalty on your Jace token. No Jace yet? First you create one: a blue planeswalker token with −1: Surveil 1 and −3: Draw a card, and no plus ability.',
@@ -778,8 +982,19 @@ const RULES = [
   ['Legendary matters', 'Some cards reward a legendary creature, such as Wrath of the Bloodmane costing 1 less.'],
   ['Sealed basics', 'Six packs, a 40-card deck: usually 23 spells and 17 lands, two colours, 14 to 17 creatures and every removal spell you can play. You may swap cards with your sideboard between games.'],
 ];
+const RULES = SET === 'trk' ? RULES_TRK : RULES_FRA;
+// The primer from the trainer, one fold per section, after the set's rules.
+function primerHTML() {
+  if (!DATA.primer) return '';
+  const p = DATA.primer
+    .replace(/<section class="panel psec" id="([\w-]+)">\s*<h2>([^<]+)<\/h2>/g, '<details class="psec" id="$1"><summary>$2</summary>')
+    .replace(/<\/section>/g, '</details>')
+    .replace(/<p class="muted small">/g, '<p class="small">');
+  return `<h2 style="margin-top:var(--s6)">How to build and win</h2>
+    <p class="small">Lines tagged <span class="src">Video</span> come from ${esc(DATA.video ? DATA.video.by : 'the video')}'s guide. The rest is standard sealed practice.</p>` + p;
+}
 function renderRules() {
-  $('#rules').innerHTML = `<h2>This set's rules</h2>` + RULES.map(([t, ...ps]) => `<div class="rule"><b>${esc(t)}</b>${ps.map(p => `<p>${esc(p)}</p>`).join('')}</div>`).join('');
+  $('#rules').innerHTML = `<h2>This set's rules</h2>` + RULES.map(([t, ...ps]) => `<div class="rule"><b>${esc(t)}</b>${ps.map(p => `<p>${esc(p)}</p>`).join('')}</div>`).join('') + primerHTML();
 }
 
 /* ---------- card sheet ---------- */
@@ -826,9 +1041,11 @@ function openCard(id) {
           <div class="ty">${esc(c.t)}${c.pt ? ' · ' + c.pt : ''}${c.loy ? ' · loyalty ' + c.loy : ''}</div>
           <div class="verdict">${scHTML(c)}<span>${esc(c.note)}</span></div>
           ${c.rm ? '<div style="margin-top:6px"><span class="tag rm">Removal</span></div>' : ''}
-          ${c.cl != null ? `<div class="small" style="margin-top:6px">Claude ${c.cl.toFixed(1)} · Draftsim ${esc(c.ds || '–')} · Arena Zone ${esc(c.az || '–')} · MTG Picker ${esc(c.mp || '–')}${c.gap ? ' · <span class="warn">Claude and the reviews split</span>' : ''}</div>` : ''}
+          ${c.cl != null ? `<div class="small" style="margin-top:6px">Claude ${c.cl.toFixed(1)} · Draftsim ${esc(c.ds || '–')} · Arena Zone ${esc(c.az || '–')}${SET === 'fra' ? ` · MTG Picker ${esc(c.mp || '–')}` : ''}${c.gap ? ' · <span class="warn">Claude and the reviews split</span>' : ''}</div>` : ''}
+          ${isBomb(c) ? '<div style="margin-top:6px"><span class="tag">Bomb</span></div>' : ''}
         </div>
       </div>
+      ${c.vid ? `<div class="vid"><b>From the video</b>${esc(c.vid)}</div>` : ''}
       ${synBox}
       <div class="oracle">${esc(text)}</div>
       <div id="zoomed"></div>
@@ -1166,9 +1383,24 @@ document.addEventListener('click', e => {
     return toast(`Added ${list.length} card${list.length === 1 ? '' : 's'} from the photo`, () => { for (const x of list) addCard(x.c.id, -1); render(); });
   }
   if (act === 'clear') {
-    const old = S.pool;
-    S.pool = {}; S.decks = {}; S.pair = null; save(); render();
-    return toast('Pool cleared', () => { S.pool = old; save(); render(); });
+    const old = S.pool, src = S.src;
+    S.pool = {}; S.decks = {}; S.pair = null; S.src = null; save(); render();
+    return toast('Pool cleared', () => { S.pool = old; S.src = src; save(); render(); });
+  }
+  if (act === 'practice') {
+    S.pool = v === 'tcc' ? Object.assign({}, DATA.tcc.pool) : crackKit();
+    S.decks = {}; S.lands = {}; S.pair = null; S.src = v; save(); render();
+    return toast(v === 'tcc' ? 'Loaded the video\'s pool' : 'Opened six random packs', () => { S.pool = {}; S.src = null; S.decks = {}; S.pair = null; save(); render(); });
+  }
+  if (act === 'sets') {
+    openPanel('Set', Object.entries(SETS).map(([k, s]) => `<button class="pair${k === SET ? ' on' : ''}" data-act="pickset" data-v="${k}" style="margin-bottom:var(--s3)"><span></span><span><b>${esc(s.name)}</b><span class="sub">${k === SET ? 'Open now' : 'Its own pool, kept separately'}</span></span><span></span></button>`).join(''));
+    return;
+  }
+  if (act === 'pickset') {
+    if (v === SET) return closeCard();
+    try { localStorage.setItem('sealed.set', v); } catch (e) {}
+    location.href = location.pathname;   // a plain reload keeps a ?set= in the address
+    return;
   }
 });
 
@@ -1180,7 +1412,33 @@ $('#q').addEventListener('keydown', e => {
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && sheetId) closeCard(); });
 
-fetch('fra.json?v=' + DATA_V).then(r => r.json()).then(list => {
+// Six packs from the real card list, for practice: in each, 7 commons, 3
+// uncommons, a rare (a mythic one time in seven), a wildcard and a common land.
+// Approximate, like the trainer's.
+function crackKit() {
+  const by = r => CARDS.filter(c => c.r === r && (r !== 'C' || !c.land));
+  const C = by('C'), U = by('U'), R = by('R'), M = by('M'), L = CARDS.filter(c => c.land && c.r === 'C');
+  const any = a => a[Math.floor(Math.random() * a.length)];
+  const pool = {};
+  const put = c => { pool[c.id] = (pool[c.id] || 0) + 1; };
+  for (let p = 0; p < 6; p++) {
+    const take = (arr, k) => { const a = arr.slice(); for (let i = 0; i < k; i++) put(a.splice(Math.floor(Math.random() * a.length), 1)[0]); };
+    take(C, 7); take(U, 3); put(any(Math.random() < 1 / 7 ? M : R));
+    const w = Math.random(); put(any(w < .6 ? C : w < .9 ? U : w < .98 ? R : M));
+    put(any(L));
+  }
+  return pool;
+}
+
+$('#setname').textContent = CFG.name;
+fetch(CFG.file + '?v=' + DATA_V).then(r => r.json()).then(got => {
+  // fra.json is the card list itself; trk.json carries the cards plus the
+  // archetypes, primer and the video's pool that Brewing Station also reads.
+  const list = Array.isArray(got) ? got : got.cards;
+  if (!Array.isArray(got)) {
+    DATA = got;
+    THEME = Object.fromEntries(PAIRS.map(p => [p, got.pairs[p] ? [got.pairs[p].name, got.pairs[p].plan] : ['', '']]));
+  }
   CARDS = list;
   for (const c of CARDS) {
     c.v = mvOf(c.m);

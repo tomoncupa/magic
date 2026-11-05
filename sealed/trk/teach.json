@@ -1,0 +1,170 @@
+{
+ "notes": {
+  "U.S.S. Enterprise-A, Free Spirit": "White bomb. Makes three 1/1 officers on arrival and can station itself the next turn into a 5/5 flying lifelinker.",
+  "The Caretaker": "Blue bomb. A 5/6 with vigilance and ward 2 that casts your opponent\\'s cards for free after you face a dilemma.",
+  "Georgiou, Terran Emperor": "Black bomb. You can\\'t lose at zero life, and at zero it makes ten 1/1s. Close to unbeatable if they can\\'t remove it.",
+  "Dominion Infiltration": "Red bomb. Takes hasty copies of X enemy creatures for a turn. Weak at X=1, absurd with lots of mana.",
+  "Captain Kathryn Janeway": "Green bomb. Every other creature explores and you get an extra land drop each turn.",
+  "Gowron, Eager for Battle": "Best card the black-red sacrifice deck can get: an outlet and a threat that keeps growing.",
+  "The Inner Light": "Does it all: reanimates, draws, gains life, and gives your team haste on a hard-to-remove card.",
+  "Hemmer, Fixing What Is Broken": "White-blue signpost. Gives spacecraft hexproof on your turn and loots whenever it taps, such as when it stations.",
+  "U.S.S. Excelsior, Cutting Edge": "Less a threat, more a removal spell on a spacecraft.",
+  "Federation Field Medic": "Vigilance enabler: attack, then station after combat. Can give vigilance or replace itself.",
+  "Seven of Nine": "Blue-black signpost. Draws a card whenever you face a dilemma, on a sturdy defensive body.",
+  "Resistance Is Futile": "The model modal spell: a strong situational mode (reanimate) beside a generic one (removal).",
+  "Consider the Prime Directive": "Soft counterspell with a fallback: stun a creature and draw.",
+  "Melkotian Adjudicator": "Dilemma payoff. Grows with every dilemma, on a flying, vigilant body.",
+  "L'Rell, Fierce Visionary": "Black-red signpost. A repeatable sacrifice outlet that makes its own fodder.",
+  "Tenacious Drone": "Sacrifice bread and butter: cheap, and leaves another permanent behind.",
+  "Starfleet Security": "Sacrifice bread and butter: cheap, and leaves another permanent behind.",
+  "Eject the Warp Core": "Solid removal, excellent when you can pay the kicker.",
+  "Targ Wrangler": "Above-rate evasive threat. Sacrifice fodder softens its drawback.",
+  "Dal R'El, Augment Orphan": "Red-green signpost. Extra mana on every land drop, and spare lands turn into cards.",
+  "Final Frontier": "Puts extra lands into play for landfall, and beam me up casts it a second time.",
+  "David and Carol Marcus, Creators": "Land ramp on a body, so it is a great creature to bounce with beam me up.",
+  "Captain Michael Burnham": "Efficient trampler that pings on every land and grows on double landfall.",
+  "Phlox, Unorthodox Doctor": "Green-white signpost. A 3/4 trampler that draws when a creature with a counter connects.",
+  "Emergency Medical Hologram": "A one-drop that arrives with a +1/+1 counter for counter synergies.",
+  "Dominion Supervisor": "A counter on arrival, plus trample for every creature with a counter.",
+  "Dr. McCoy, Surly Surgeon": "Turns every +1/+1 counter into a one-time shield.",
+  "Locutus, the One Who Speaks": "White-black signpost. A two-mana lord for artifact creatures, or a small drain from hand.",
+  "Assembly Specialist": "Two Borg for the price of one.",
+  "Command Subadjunct": "Cheap body that lets your whole board attack and still defend.",
+  "Andromedan Automatons": "Weak alone. The first copy finds two more.",
+  "Assault Drone": "Top-end payoff for a wide board of cheap artifact creatures.",
+  "Spock, Always Your Friend": "Blue-red signpost. Digs for a spell on arrival, so it is a prime beam me up target.",
+  "Open Communications": "Bread-and-butter card draw. Beam me up can retrigger enter effects.",
+  "Transporter Malfunction": "Excellent removal in any red deck.",
+  "Data, New Life": "Win condition that scales with how much you draw.",
+  "Vash, Freelance Archaeologist": "Black-green signpost. Surveils every turn and draws when cards leave your graveyard.",
+  "Relentless Drednok": "Early board presence and a little life, then replaces itself from the graveyard.",
+  "Sylvia Tilly, Joy of Discovery": "Removes cards from your graveyard over and over for value.",
+  "Blastoneuron": "Engine and payoff: one reanimation, then a drain each time a creature leaves your graveyard.",
+  "Kirk, Commanding Officer": "Red-white signpost. Impulse draws when you attack with 8 or more total power.",
+  "Hologram Janeway": "Adds a +1/+1 counter each combat to keep you above 8 power. Also a counters card.",
+  "La'An Noonien-Singh, Security": "Eight-power payoff with 4 power of her own.",
+  "The Traveler": "Blue-green signpost. Power equals your differently named lands.",
+  "Xenobotanist": "The key blue-green common: a two-mana mana creature that makes splashing reliable.",
+  "Cloak and Phaser": "Gets better the more varied your lands are. Strong late.",
+  "Xindi Surveyors": "Counter synergy creature in the video\\'s green-white build.",
+  "Culber and Stamets, Star-Crossed": "Counter synergy creature in the video\\'s green-white build.",
+  "I'm a Doctor, Not a . . .": "Unexciting alone. The video plays both copies to turn on its synergy payoffs reliably.",
+  "Captain Pike, Fullness of Time": "Rewards differently named lands, so a light third colour helps it.",
+  "The City on the Edge of Forever": "The rare saga the video splashes black for."
+ },
+ "bombs": [
+  "U.S.S. Enterprise-A, Free Spirit",
+  "The Caretaker",
+  "Georgiou, Terran Emperor",
+  "Dominion Infiltration",
+  "Captain Kathryn Janeway",
+  "Gowron, Eager for Battle",
+  "The Inner Light"
+ ],
+ "pairs": {
+  "WU": [
+   "Spacecraft",
+   "Play the best spacecraft, but keep enough real creatures to station them. Vigilance lets you attack, then station."
+  ],
+  "UB": [
+   "Dilemmas",
+   "Modal spells plus payoffs for facing dilemmas. Flexible: grind long or pull ahead early."
+  ],
+  "BR": [
+   "Sacrifice",
+   "Lean and aggressive. Cards that make more than one body feed your sacrifice engines."
+  ],
+  "RG": [
+   "Landfall",
+   "Extra land drops ramp you into big creatures ahead of schedule."
+  ],
+  "WG": [
+   "+1/+1 counters",
+   "Curve out wide and buff with counters. Hard to stop once it snowballs."
+  ],
+  "WB": [
+   "Artifact creatures",
+   "Borg typal aggro: cheap artifact creatures backed by efficient removal."
+  ],
+  "UR": [
+   "Spells",
+   "Card draw and removal, but you still need creatures to win."
+  ],
+  "BG": [
+   "Graveyard",
+   "Value when cards leave your graveyard. Trades one for one and wins late."
+  ],
+  "WR": [
+   "Eight power",
+   "Aggressive two-drops get you to 8 total power without trying."
+  ],
+  "UG": [
+   "Strange new worlds",
+   "Many differently named lands. Splash the best cards regardless of colour."
+  ]
+ },
+ "keys": {
+  "WU": [
+   "Hemmer",
+   "Suurok-Class Science Vessel",
+   "U.S.S. Excelsior",
+   "Federation Field Medic"
+  ],
+  "UB": [
+   "Seven of Nine",
+   "Resistance Is Futile",
+   "Consider the Prime Directive",
+   "Melkotian Adjudicator"
+  ],
+  "BR": [
+   "L'Rell",
+   "Tenacious Drone",
+   "Starfleet Security",
+   "Eject the Warp Core",
+   "Targ Wrangler"
+  ],
+  "RG": [
+   "Dal R'El",
+   "Final Frontier",
+   "David and Carol Marcus",
+   "Captain Michael Burnham"
+  ],
+  "GW": [
+   "Phlox",
+   "Emergency Medical Hologram",
+   "Dominion Supervisor",
+   "Dr. McCoy"
+  ],
+  "WB": [
+   "Locutus",
+   "Assembly Specialist",
+   "Command Subadjunct",
+   "Andromedan Automatons",
+   "Assault Drone"
+  ],
+  "UR": [
+   "Spock",
+   "Open Communications",
+   "Transporter Malfunction",
+   "Data, New Life"
+  ],
+  "BG": [
+   "Vash",
+   "Relentless Drednok",
+   "Sylvia Tilly",
+   "Blastoneuron"
+  ],
+  "RW": [
+   "Kirk",
+   "Hologram Janeway",
+   "La'An Noonien-Singh"
+  ],
+  "UG": [
+   "The Traveler",
+   "Xenobotanist",
+   "planet makers",
+   "Cloak and Phaser"
+  ]
+ },
+ "primer": "<section class=\"panel psec\" id=\"p-build\">\n<h2>1 Build a sealed deck</h2>\n<ol class=\"steps\">\n<li><b>Sort.</b> By colour, then mana value. Pull uncommons and up into their own row. <span class=\"src\">Video</span></li>\n<li><b>Find the bombs and removal.</b> These decide your colours more than anything else. <span class=\"src\">Video</span></li>\n<li><b>Count playables per colour.</b> You need about 23 good spells from two colours. The deepest pair usually beats the flashiest one.</li>\n<li><b>Check the signposts.</b> Each pair has a gold uncommon and a hybrid uncommon built for it. Owning both is a strong pull. <span class=\"src\">Video</span></li>\n<li><b>Pick a plan, not just two colours.</b> Choose cards that work together toward one way to win. <span class=\"src\">Video</span></li>\n<li><b>Fill the shape.</b> 14 to 17 creatures, 4 or more two-drops, 3 or more removal, at most 3 cards at 6 mana and up.</li>\n<li><b>Lands.</b> 17 lands, 23 spells. Split basics by how many cards of each colour you play.</li>\n<li><b>Splash only for power.</b> A third colour is for 1 to 3 bombs or removal spells, with 3 or more sources: duals, planets, land searchers, Xenobotanist. <span class=\"src\">Video</span></li>\n</ol>\n</section>\n<section class=\"panel psec\" id=\"p-wins\">\n<h2>2 What wins sealed</h2>\n<ul>\n<li><b>Card quality beats synergy.</b> Sealed pools are shallow, so games run longer and the best individual cards win.</li>\n<li><b>Removal is gold.</b> Your opponent opened rares too. Every clean answer you play is one of their bombs handled.</li>\n<li><b>Flyers close games.</b> Evasion ends board stalls, and sealed has many.</li>\n<li><b>Two-for-ones add up.</b> Creatures with enter abilities, beam me up spells and modal cards all give you extra value. Beam me up gives a spell a second cast. <span class=\"src\">Video</span></li>\n<li><b>Spacecraft are late threats.</b> Count them as spells. They need creatures to station them. <span class=\"src\">Video</span></li>\n<li><b>Beam me up costs a creature, but that can help.</b> Bouncing a creature with an enter ability lets you use that ability twice. <span class=\"src\">Video</span></li>\n</ul>\n</section>\n<section class=\"panel psec\" id=\"p-arch\">\n<h2>3 The 10 decks</h2>\n<div class=\"archs\">\n<div class=\"arch\"><h3><span class=\"pips\"><span class=\"pip W\">W</span><span class=\"pip U\">U</span></span> Spacecraft</h3><p>Play the best spacecraft, with enough real creatures to station them. Vigilance creatures attack, then station after combat.</p><p class=\"keys\">Hemmer · Suurok-Class Science Vessel · U.S.S. Excelsior · Federation Field Medic</p></div>\n<div class=\"arch\"><h3><span class=\"pips\"><span class=\"pip U\">U</span><span class=\"pip B\">B</span></span> Dilemmas</h3><p>Modal spells and payoffs for choosing modes. Flexible: grind long or pull ahead early.</p><p class=\"keys\">Seven of Nine · Resistance Is Futile · Consider the Prime Directive · Melkotian Adjudicator</p></div>\n<div class=\"arch\"><h3><span class=\"pips\"><span class=\"pip B\">B</span><span class=\"pip R\">R</span></span> Sacrifice</h3><p>Lean and aggressive. Cards that make two bodies feed the sacrifice engines.</p><p class=\"keys\">L'Rell · Tenacious Drone · Starfleet Security · Eject the Warp Core · Targ Wrangler</p></div>\n<div class=\"arch\"><h3><span class=\"pips\"><span class=\"pip R\">R</span><span class=\"pip G\">G</span></span> Landfall</h3><p>Extra land drops ramp into big creatures ahead of schedule.</p><p class=\"keys\">Dal R'El · Final Frontier · David and Carol Marcus · Captain Michael Burnham</p></div>\n<div class=\"arch\"><h3><span class=\"pips\"><span class=\"pip G\">G</span><span class=\"pip W\">W</span></span> +1/+1 counters</h3><p>Curve out wide and grow your team. Snowballs fast. The video's own deck.</p><p class=\"keys\">Phlox · Emergency Medical Hologram · Dominion Supervisor · Dr. McCoy</p></div>\n<div class=\"arch\"><h3><span class=\"pips\"><span class=\"pip W\">W</span><span class=\"pip B\">B</span></span> Artifact creatures</h3><p>Borg aggro: many cheap artifact creatures backed by efficient removal.</p><p class=\"keys\">Locutus · Assembly Specialist · Command Subadjunct · Andromedan Automatons · Assault Drone</p></div>\n<div class=\"arch\"><h3><span class=\"pips\"><span class=\"pip U\">U</span><span class=\"pip R\">R</span></span> Spells</h3><p>Card draw and removal, leaning control. Keep enough creatures to actually win.</p><p class=\"keys\">Spock · Open Communications · Transporter Malfunction · Data, New Life</p></div>\n<div class=\"arch\"><h3><span class=\"pips\"><span class=\"pip B\">B</span><span class=\"pip G\">G</span></span> Graveyard</h3><p>Value whenever cards leave your graveyard. Trade one for one and win late.</p><p class=\"keys\">Vash · Relentless Drednok · Sylvia Tilly · Blastoneuron</p></div>\n<div class=\"arch\"><h3><span class=\"pips\"><span class=\"pip R\">R</span><span class=\"pip W\">W</span></span> Eight power</h3><p>Rewards 8 or more total power. Play strong two-drops and it happens on its own.</p><p class=\"keys\">Kirk · Hologram Janeway · La'An Noonien-Singh</p></div>\n<div class=\"arch\"><h3><span class=\"pips\"><span class=\"pip U\">U</span><span class=\"pip G\">G</span></span> Strange new worlds</h3><p>Many differently named lands. Splash freely and play the best cards in any colour.</p><p class=\"keys\">The Traveler · Xenobotanist · planet makers · Cloak and Phaser</p></div>\n</div>\n<p class=\"muted small\">All from the video. It does not rank the ten decks.</p>\n</section>\n<section class=\"panel psec\" id=\"p-bombs\">\n<h2>4 Bombs to build around</h2>\n<ul>\n<li><b>U.S.S. Enterprise-A, Free Spirit</b> (white). Three 1/1s now, a 5/5 flying lifelinker next turn.</li>\n<li><b>The Caretaker</b> (blue). A 5/6 with ward that casts your opponent's cards for free.</li>\n<li><b>Georgiou, Terran Emperor</b> (black). You can't lose at zero life. Close to unbeatable unless they remove it.</li>\n<li><b>Dominion Infiltration</b> (red). Steals copies of their creatures for a turn. Scales with mana.</li>\n<li><b>Captain Kathryn Janeway</b> (green). Every creature explores, plus an extra land drop each turn.</li>\n<li><b>Gowron, Eager for Battle</b> (black-red). The best card for sacrifice.</li>\n<li><b>The Inner Light</b> (multicolour). Reanimates, draws, gains life and gives your team haste.</li>\n</ul>\n<p class=\"muted small\">All from the video. <span class=\"src\">Video</span></p>\n</section>\n<section class=\"panel psec\" id=\"p-play\">\n<h2>5 Playing to win</h2>\n<ul>\n<li><b>Mulligans.</b> Keep 2 to 5 lands with plays in your first three turns. Mulligan 0, 1, 6 and 7 landers.</li>\n<li><b>Play first.</b> When you win the roll, going first is the default. Choose to draw only with a slow control deck.</li>\n<li><b>Save removal for real threats.</b> Kill what beats you: bombs, flyers, engines. Not the first 2/2.</li>\n<li><b>Count their open mana.</b> Before attacking into untapped mana, ask what trick it could be.</li>\n<li><b>Station after combat.</b> Station is sorcery speed. Attack first, then tap the creatures that stayed home or have vigilance.</li>\n<li><b>Beam me up late.</b> A second copy of a spell is worth more in a long game. Bounce a creature with an enter ability to use it again.</li>\n<li><b>Race math.</b> Each turn, count who wins the race. If you are ahead, attack. If behind, block and stall for your flyers or bombs.</li>\n<li><b>Read the 8-power and Federation counters.</b> Know when your payoffs turn on before you attack or block.</li>\n</ul>\n</section>\n<section class=\"panel psec\" id=\"p-between\">\n<h2>Between games</h2>\n<ul>\n<li><b>Matches are best of three.</b> Your whole pool is your sideboard.</li>\n<li><b>Sideboard for what you saw.</b> Bring in artifact removal against Borg and spacecraft, reach or flyers against flying decks, and cheap creatures against fast aggro.</li>\n<li><b>Switch colours if game 1 showed your deck can't win.</b> A second build from the same pool is legal between games.</li>\n</ul>\n</section>\n<section class=\"panel psec\" id=\"p-draft\">\n<h2>6 Drafting</h2>\n<p class=\"second\">Prerelease is sealed. Use this for Friday Night Magic or Arena drafts.</p>\n<ul>\n<li><b>Pick order.</b> Bomb, then premium removal, then evasive or high-value creatures, then good two-drops. Combat tricks and narrow cards come last.</li>\n<li><b>Stay open for the first 5 picks.</b> Take the best card, not your colour.</li>\n<li><b>Read signals.</b> A strong card of one colour at pick 6 to 9 means the players passing to you aren't in it. Move in.</li>\n<li><b>Settle by pack 2.</b> Two colours, one plan. Gold signposts tell you the plan. <span class=\"src\">Video</span></li>\n<li><b>Draft the shape.</b> Track your creature count and two-drops as you go. Late picks fill gaps, not wish lists.</li>\n<li><b>Draft is faster than sealed.</b> Synergy decks like sacrifice, artifacts and counters are stronger in draft, where you can collect the pieces.</li>\n</ul>\n</section>\n<section class=\"panel psec\" id=\"p-mist\">\n<h2>7 Common mistakes</h2>\n<ul>\n<li>Building around a cool rare in your thinnest colour.</li>\n<li>Counting spacecraft as creatures, then having nothing to station them with. <span class=\"src\">Video</span></li>\n<li>Playing 41 or more cards, or 15 lands to fit one more spell.</li>\n<li>Splashing a third colour for an average card.</li>\n<li>Leaving removal in the sideboard for a creature that does nothing special.</li>\n<li>Ignoring the uncommons. They show which deck your pool wants. <span class=\"src\">Video</span></li>\n</ul>\n</section>"
+}

@@ -1,0 +1,1250 @@
+{
+ "sources": {
+  "draftsim": {
+   "name": "Draftsim - The Ultimate MTG Star Trek Limited Set Review (Andrew Quinn)",
+   "url": "https://draftsim.com/mtg-trk-limited-set-review/",
+   "scale": "N/10 whole numbers, 0 to 10. The four land cycles (Planet duals, Anomaly lands, shock lands, Dilemma lands) get one shared grade per cycle.",
+   "fetched": "2026-11-05"
+  },
+  "mtgazone": {
+   "name": "MTG Arena Zone - Star Trek (TRK) Limited Set Review, one page per colour",
+   "url": [
+    "https://mtgazone.com/star-trek-trk-limited-set-review-white/",
+    "https://mtgazone.com/star-trek-trk-limited-set-review-blue/",
+    "https://mtgazone.com/star-trek-trk-limited-set-review-black/",
+    "https://mtgazone.com/star-trek-trk-limited-set-review-red/",
+    "https://mtgazone.com/star-trek-trk-limited-set-review-green/",
+    "https://mtgazone.com/star-trek-trk-limited-set-review-multicolor/",
+    "https://mtgazone.com/star-trek-trk-limited-set-review-artifacts-and-lands/"
+   ],
+   "scale": "N/5 in half steps, 0.0 to 5.0, written like '3.5/5'. Planets, shock lands and surveil (Dilemma) lands get one shared grade per cycle.",
+   "fetched": "2026-11-05"
+  }
+ },
+ "cards": {
+  "70,000 Light-Years from Home": {
+   "draftsim": "6/10",
+   "mtgazone": "2.5/5"
+  },
+  "Andromedan Automatons": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Antagonist Incorporator": {
+   "draftsim": "8/10",
+   "mtgazone": "3.5/5"
+  },
+  "Assembly Specialist": {
+   "draftsim": "6/10",
+   "mtgazone": "2.0/5"
+  },
+  "Brad Boimler, Eager Ensign": {
+   "draftsim": "5/10",
+   "mtgazone": "2.5/5"
+  },
+  "Captain Benjamin Sisko": {
+   "draftsim": "8/10",
+   "mtgazone": "2.5/5"
+  },
+  "Captain Jean-Luc Picard": {
+   "draftsim": "9/10",
+   "mtgazone": "4.5/5"
+  },
+  "Command Decision": {
+   "draftsim": "3/10",
+   "mtgazone": "2.5/5"
+  },
+  "Command Subadjunct": {
+   "draftsim": "3/10",
+   "mtgazone": "2.0/5"
+  },
+  "Conquest Mission": {
+   "draftsim": "7/10",
+   "mtgazone": "1.0/5"
+  },
+  "Deanna Troi, Psychic Counsel": {
+   "draftsim": "7/10",
+   "mtgazone": "4.0/5"
+  },
+  "DOT-7 Repair Squad": {
+   "draftsim": "2/10",
+   "mtgazone": "1.5/5"
+  },
+  "Dr. Beverly Crusher": {
+   "draftsim": "4/10",
+   "mtgazone": "1.5/5"
+  },
+  "Dr. McCoy, Surly Surgeon": {
+   "draftsim": "3/10",
+   "mtgazone": "2.0/5"
+  },
+  "Emergency Medical Hologram": {
+   "draftsim": "2/10",
+   "mtgazone": "1.5/5"
+  },
+  "Excalbian Gamemaster": {
+   "draftsim": "10/10",
+   "mtgazone": "4.5/5"
+  },
+  "Federation Field Medic": {
+   "draftsim": "5/10",
+   "mtgazone": "2.5/5"
+  },
+  "Federation Resupply": {
+   "draftsim": "2/10",
+   "mtgazone": "1.0/5"
+  },
+  "Free Borg Revolutionaries": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Ghost of Illyria": {
+   "draftsim": "6/10",
+   "mtgazone": "2.0/5"
+  },
+  "Hologram Janeway": {
+   "draftsim": "5/10",
+   "mtgazone": "2.0/5"
+  },
+  "Malfunctioning Holodeck": {
+   "draftsim": "6/10",
+   "mtgazone": "3.0/5"
+  },
+  "The Measure of a Man": {
+   "draftsim": "3/10",
+   "mtgazone": "1.5/5"
+  },
+  "Miles O'Brien, Transporter Ops": {
+   "draftsim": "7/10",
+   "mtgazone": "3.5/5"
+  },
+  "The Needs of the Many": {
+   "draftsim": "0/10",
+   "mtgazone": "1.0/5"
+  },
+  "Oberth-Class Starship": {
+   "draftsim": "4/10",
+   "mtgazone": "2.0/5"
+  },
+  "Peace in Our Time": {
+   "draftsim": "0/10",
+   "mtgazone": "1.5/5"
+  },
+  "Pet Sehlat": {
+   "draftsim": "3/10",
+   "mtgazone": "1.5/5"
+  },
+  "Picard, Leading by Example": {
+   "draftsim": "6/10",
+   "mtgazone": "2.5/5"
+  },
+  "Primary Unimatrix Adjunct": {
+   "draftsim": "5/10",
+   "mtgazone": "3.5/5"
+  },
+  "Pure Energy": {
+   "draftsim": "1/10",
+   "mtgazone": "1.0/5"
+  },
+  "Rutherford, Upgraded Ensign": {
+   "draftsim": "6/10",
+   "mtgazone": "3.0/5"
+  },
+  "Saavik, Stoic Student": {
+   "draftsim": "4/10",
+   "mtgazone": "2.0/5"
+  },
+  "Set Phasers to . . .": {
+   "draftsim": "4/10",
+   "mtgazone": "1.5/5"
+  },
+  "Shields Up!": {
+   "draftsim": "5/10",
+   "mtgazone": "2.0/5"
+  },
+  "Shuttle Ace": {
+   "draftsim": "1/10",
+   "mtgazone": "1.5/5"
+  },
+  "Sulu, Space Swashbuckler": {
+   "draftsim": "7/10",
+   "mtgazone": "3.0/5"
+  },
+  "Tactical Officer": {
+   "draftsim": "1/10",
+   "mtgazone": "1.5/5"
+  },
+  "Test of Conviction": {
+   "draftsim": "1/10",
+   "mtgazone": "1.5/5"
+  },
+  "There's Coffee in that Nebula": {
+   "draftsim": "4/10",
+   "mtgazone": "2.0/5"
+  },
+  "Troubling Tribbles": {
+   "draftsim": "0/10",
+   "mtgazone": "1.0/5"
+  },
+  "Una Chin-Riley, Number One": {
+   "draftsim": "3/10",
+   "mtgazone": "1.5/5"
+  },
+  "U.S.S. Enterprise-A, Free Spirit": {
+   "draftsim": "10/10",
+   "mtgazone": "4.5/5"
+  },
+  "U.S.S. Excelsior, Cutting Edge": {
+   "draftsim": "6/10",
+   "mtgazone": "2.5/5"
+  },
+  "Vexing Drone": {
+   "draftsim": "3/10",
+   "mtgazone": "1.5/5"
+  },
+  "Anthropological Mission": {
+   "draftsim": "5/10",
+   "mtgazone": "1.5/5"
+  },
+  "The Caretaker": {
+   "draftsim": "9/10",
+   "mtgazone": "3.5/5"
+  },
+  "Cetacean Ops": {
+   "draftsim": "1/10",
+   "mtgazone": "1.5/5"
+  },
+  "Cloak and Phaser": {
+   "draftsim": "7/10",
+   "mtgazone": "1.5/5"
+  },
+  "Cloistered Telepath": {
+   "draftsim": "2/10",
+   "mtgazone": "1.5/5"
+  },
+  "Consider the Prime Directive": {
+   "draftsim": "4/10",
+   "mtgazone": "2.0/5"
+  },
+  "Data, New Life": {
+   "draftsim": "3/10",
+   "mtgazone": "2.0/5"
+  },
+  "Deep Space Scan": {
+   "draftsim": "1/10",
+   "mtgazone": "1.5/5"
+  },
+  "Dominion Saboteur": {
+   "draftsim": "6/10",
+   "mtgazone": "2.0/5"
+  },
+  "Emergency Holographic Crew": {
+   "draftsim": "4/10",
+   "mtgazone": "1.5/5"
+  },
+  "Energize": {
+   "draftsim": "5/10",
+   "mtgazone": "2.0/5"
+  },
+  "Ensign Pavel Chekov": {
+   "draftsim": "4/10",
+   "mtgazone": "1.5/5"
+  },
+  "Enterprise NX-01": {
+   "draftsim": "4/10",
+   "mtgazone": "2.0/5"
+  },
+  "Federation Probe": {
+   "draftsim": "4/10",
+   "mtgazone": "2.0/5"
+  },
+  "Guidance Failure": {
+   "draftsim": "5/10",
+   "mtgazone": "2.5/5"
+  },
+  "Gwyndala, the Progeny": {
+   "draftsim": "3/10",
+   "mtgazone": "2.5/5"
+  },
+  "Highly Illogical": {
+   "draftsim": "4/10",
+   "mtgazone": "1.5/5"
+  },
+  "H.M.S. Bounty, Unlikely Timeship": {
+   "draftsim": "6/10",
+   "mtgazone": "1.5/5"
+  },
+  "Hoshi Sato, Exolinguist": {
+   "draftsim": "6/10",
+   "mtgazone": "3.0/5"
+  },
+  "Humpback Whales": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Interstellar Effigy": {
+   "draftsim": "5/10",
+   "mtgazone": "2.0/5"
+  },
+  "Jett Reno, Problem Solver": {
+   "draftsim": "6/10",
+   "mtgazone": "2.0/5"
+  },
+  "Kobayashi Maru Scenario": {
+   "draftsim": "1/10",
+   "mtgazone": "0.5/5"
+  },
+  "Lieutenant Commander Data": {
+   "draftsim": "7/10",
+   "mtgazone": "3.5/5"
+  },
+  "Lt. Cmdr. Geordi La Forge": {
+   "draftsim": "3/10",
+   "mtgazone": "2.0/5"
+  },
+  "Make It So": {
+   "draftsim": "4/10",
+   "mtgazone": "2.0/5"
+  },
+  "Marooned": {
+   "draftsim": "3/10",
+   "mtgazone": "3.0/5"
+  },
+  "Melkotian Adjudicator": {
+   "draftsim": "3/10",
+   "mtgazone": "2.0/5"
+  },
+  "Mr. Spock, Science Officer": {
+   "draftsim": "8/10",
+   "mtgazone": "4.0/5"
+  },
+  "Nyota Uhura, Communications": {
+   "draftsim": "6/10",
+   "mtgazone": "3.5/5"
+  },
+  "Open Communications": {
+   "draftsim": "3/10",
+   "mtgazone": "2.5/5"
+  },
+  "Romulan Bird-of-Prey": {
+   "draftsim": "4/10",
+   "mtgazone": "3.0/5"
+  },
+  "Rules of Acquisition": {
+   "draftsim": "1/10",
+   "mtgazone": "2.0/5"
+  },
+  "Scotty, Miracle Worker": {
+   "draftsim": "6/10",
+   "mtgazone": "4.0/5"
+  },
+  "Seven of Nine, Unassimilated": {
+   "draftsim": "7/10",
+   "mtgazone": "4.0/5"
+  },
+  "Starfleet Spanner Jockey": {
+   "draftsim": "3/10",
+   "mtgazone": "2.0/5"
+  },
+  "Subcommander T'Pol": {
+   "draftsim": "7/10",
+   "mtgazone": "2.5/5"
+  },
+  "Suurok-Class Science Vessel": {
+   "draftsim": "5/10",
+   "mtgazone": "2.0/5"
+  },
+  "Suus Mahna Practitioner": {
+   "draftsim": "4/10",
+   "mtgazone": "2.0/5"
+  },
+  "Test of Priorities": {
+   "draftsim": "4/10",
+   "mtgazone": "2.0/5"
+  },
+  "Those Old Scientists": {
+   "draftsim": "3/10",
+   "mtgazone": "1.5/5"
+  },
+  "V'Ger, the Intruder": {
+   "draftsim": "7/10",
+   "mtgazone": "2.0/5"
+  },
+  "Vulcan Mind-Meld": {
+   "draftsim": "1/10",
+   "mtgazone": "0.5/5"
+  },
+  "Wesley Crusher, Starfleet Cadet": {
+   "draftsim": "7/10",
+   "mtgazone": "3.0/5"
+  },
+  "Zefram Cochrane, Warp Pioneer": {
+   "draftsim": "5/10",
+   "mtgazone": "2.0/5"
+  },
+  "Armus, Skin of Evil": {
+   "draftsim": "7/10",
+   "mtgazone": "4.0/5"
+  },
+  "Assault Drone": {
+   "draftsim": "3/10",
+   "mtgazone": "2.0/5"
+  },
+  "Automated Warfare System": {
+   "draftsim": "3/10",
+   "mtgazone": "2.0/5"
+  },
+  "Bat'leth": {
+   "draftsim": "6/10",
+   "mtgazone": "1.5/5"
+  },
+  "Battle-Scarred Survivalist": {
+   "draftsim": "2/10",
+   "mtgazone": "1.5/5"
+  },
+  "Blastoneuron": {
+   "draftsim": "5/10",
+   "mtgazone": "2.0/5"
+  },
+  "Cha'DIch Investigator": {
+   "draftsim": "4/10",
+   "mtgazone": "1.5/5"
+  },
+  "Collation Trimatrix": {
+   "draftsim": "7/10",
+   "mtgazone": "3.0/5"
+  },
+  "Collective Drone": {
+   "draftsim": "4/10",
+   "mtgazone": "2.0/5"
+  },
+  "Commander Raffi Musiker": {
+   "draftsim": "5/10",
+   "mtgazone": "1.5/5"
+  },
+  "D'Ghor Bloodletter": {
+   "draftsim": "6/10",
+   "mtgazone": "3.0/5"
+  },
+  "Death Is Irrelevant": {
+   "draftsim": "9/10",
+   "mtgazone": "3.5/5"
+  },
+  "The Destruction of Praxis": {
+   "draftsim": "9/10",
+   "mtgazone": "2.5/5"
+  },
+  "De-evolve": {
+   "draftsim": "4/10",
+   "mtgazone": "2.0/5"
+  },
+  "Eject the Warp Core": {
+   "draftsim": "6/10",
+   "mtgazone": "3.0/5"
+  },
+  "Elim Garak, Simple Tailor": {
+   "draftsim": "8/10",
+   "mtgazone": "4.0/5"
+  },
+  "Fugitive Listener": {
+   "draftsim": "4/10",
+   "mtgazone": "2.0/5"
+  },
+  "Gabriel Lorca, Mirror Menace": {
+   "draftsim": "5/10",
+   "mtgazone": "2.5/5"
+  },
+  "General Chang, Cold Warrior": {
+   "draftsim": "8/10",
+   "mtgazone": "3.5/5"
+  },
+  "Georgiou, Terran Emperor": {
+   "draftsim": "7/10",
+   "mtgazone": "5.0/5"
+  },
+  "A Good Day to Die": {
+   "draftsim": "1/10",
+   "mtgazone": "1.0/5"
+  },
+  "Grand Nagus Zek": {
+   "draftsim": "6/10",
+   "mtgazone": "1.5/5"
+  },
+  "Gul Dukat, Colonial Prefect": {
+   "draftsim": "3/10",
+   "mtgazone": "3.5/5"
+  },
+  "He's Dead, Jim": {
+   "draftsim": "5/10",
+   "mtgazone": "3.5/5"
+  },
+  "Hive Mind Coprocessor": {
+   "draftsim": "6/10",
+   "mtgazone": "3.5/5"
+  },
+  "Impossible Choice": {
+   "draftsim": "2/10",
+   "mtgazone": "2.5/5"
+  },
+  "In the Pale Moonlight": {
+   "draftsim": "6/10",
+   "mtgazone": "3.0/5"
+  },
+  "Kai Winn, Faithless Leader": {
+   "draftsim": "3/10",
+   "mtgazone": "1.5/5"
+  },
+  "Khan, Vengeful Heart": {
+   "draftsim": "6/10",
+   "mtgazone": "3.5/5"
+  },
+  "Obsidian Order Operative": {
+   "draftsim": "2/10",
+   "mtgazone": "1.5/5"
+  },
+  "Organic Avulsion Unit": {
+   "draftsim": "5/10",
+   "mtgazone": "2.5/5"
+  },
+  "Overflow Submatrix": {
+   "draftsim": "9/10",
+   "mtgazone": "4.5/5"
+  },
+  "Pattern Buffer Preservation": {
+   "draftsim": "4/10",
+   "mtgazone": "2.0/5"
+  },
+  "Relentless Drednok": {
+   "draftsim": "4/10",
+   "mtgazone": "1.5/5"
+  },
+  "Resistance Is Futile": {
+   "draftsim": "7/10",
+   "mtgazone": "2.5/5"
+  },
+  "Rogue Artificial Intelligence": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Salt Vampire": {
+   "draftsim": "7/10",
+   "mtgazone": "4.0/5"
+  },
+  "Sela, Tal Shiar Paradox": {
+   "draftsim": "8/10",
+   "mtgazone": "2.5/5"
+  },
+  "Storied Veteran": {
+   "draftsim": "4/10",
+   "mtgazone": "2.0/5"
+  },
+  "Stray from History": {
+   "draftsim": "3/10",
+   "mtgazone": "2.5/5"
+  },
+  "Tal Shiar Operative": {
+   "draftsim": "3/10",
+   "mtgazone": "2.0/5"
+  },
+  "Tell Me What You See": {
+   "draftsim": "6/10",
+   "mtgazone": "2.5/5"
+  },
+  "Tenacious Drone": {
+   "draftsim": "4/10",
+   "mtgazone": "2.0/5"
+  },
+  "Test of Loyalty": {
+   "draftsim": "4/10",
+   "mtgazone": "1.5/5"
+  },
+  "U.S.S. Reliant, From Hell's Heart": {
+   "draftsim": "7/10",
+   "mtgazone": "3.5/5"
+  },
+  "Vengeance Mission": {
+   "draftsim": "4/10",
+   "mtgazone": "2.0/5"
+  },
+  "Academy Instructor": {
+   "draftsim": "7/10",
+   "mtgazone": "3.0/5"
+  },
+  "Beckett Mariner, Impetuous Ensign": {
+   "draftsim": "3/10",
+   "mtgazone": "1.5/5"
+  },
+  "Boarding Action": {
+   "draftsim": "5/10",
+   "mtgazone": "2.0/5"
+  },
+  "Brazen Bluff": {
+   "draftsim": "0/10",
+   "mtgazone": "0.0/5"
+  },
+  "Cantankerous Captain": {
+   "draftsim": "3/10",
+   "mtgazone": "2.0/5"
+  },
+  "Captain James T. Kirk": {
+   "draftsim": "7/10",
+   "mtgazone": "4.0/5"
+  },
+  "Captain Michael Burnham": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Captain's Tutelage": {
+   "draftsim": "2/10",
+   "mtgazone": "1.5/5"
+  },
+  "D-7 Battle Cruiser": {
+   "draftsim": "4/10",
+   "mtgazone": "4.0/5"
+  },
+  "Dahar Master": {
+   "draftsim": "3/10",
+   "mtgazone": "2.0/5"
+  },
+  "Dominion Infiltration": {
+   "draftsim": "0/10",
+   "mtgazone": "1.5/5"
+  },
+  "Encounter the Unknown": {
+   "draftsim": "5/10",
+   "mtgazone": "4.0/5"
+  },
+  "Erica Ortegas, Plucky Pilot": {
+   "draftsim": "3/10",
+   "mtgazone": "1.5/5"
+  },
+  "Exploratory Mission": {
+   "draftsim": "6/10",
+   "mtgazone": "1.5/5"
+  },
+  "Genesis Effect": {
+   "draftsim": "3/10",
+   "mtgazone": "2.5/5"
+  },
+  "Horta": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Infinite Diversity": {
+   "draftsim": "0/10",
+   "mtgazone": "0.0/5"
+  },
+  "Khaaaaaaaaaaaannn!": {
+   "draftsim": "6/10",
+   "mtgazone": "3.0/5"
+  },
+  "Khan, Despot by Design": {
+   "draftsim": "6/10",
+   "mtgazone": "2.5/5"
+  },
+  "La'An Noonien-Singh, Security": {
+   "draftsim": "5/10",
+   "mtgazone": "2.0/5"
+  },
+  "Lwaxana Troi, Charming Guest": {
+   "draftsim": "4/10",
+   "mtgazone": "2.0/5"
+  },
+  "Munitions Enthusiast": {
+   "draftsim": "5/10",
+   "mtgazone": "2.5/5"
+  },
+  "The Naked Time": {
+   "draftsim": "2/10",
+   "mtgazone": "1.0/5"
+  },
+  "Pah-Wraith": {
+   "draftsim": "5/10",
+   "mtgazone": "4.0/5"
+  },
+  "Perils of the Past": {
+   "draftsim": "4/10",
+   "mtgazone": "2.0/5"
+  },
+  "Planetary Bombardment": {
+   "draftsim": "5/10",
+   "mtgazone": "3.0/5"
+  },
+  "Planetary Patrol": {
+   "draftsim": "3/10",
+   "mtgazone": "1.5/5"
+  },
+  "Plasma Cascade": {
+   "draftsim": "4/10",
+   "mtgazone": "3.0/5"
+  },
+  "Q, Stacking the Deck": {
+   "draftsim": "9/10",
+   "mtgazone": "4.0/5"
+  },
+  "Quark, Humble Proprietor": {
+   "draftsim": "2/10",
+   "mtgazone": "1.5/5"
+  },
+  "Ravenous Cosmozoan": {
+   "draftsim": "5/10",
+   "mtgazone": "1.5/5"
+  },
+  "Reckless Impulse": {
+   "draftsim": "3/10",
+   "mtgazone": "2.0/5"
+  },
+  "Red Alert!": {
+   "draftsim": "1/10",
+   "mtgazone": "1.5/5"
+  },
+  "Sarcophagus, Ship of the Dead": {
+   "draftsim": "6/10",
+   "mtgazone": "2.5/5"
+  },
+  "Savvy Profiteer": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Silicate Surveyor": {
+   "draftsim": "3/10",
+   "mtgazone": "2.0/5"
+  },
+  "Starfleet Security": {
+   "draftsim": "4/10",
+   "mtgazone": "1.5/5"
+  },
+  "Tal Shiar Analyst": {
+   "draftsim": "5/10",
+   "mtgazone": "2.0/5"
+  },
+  "Targ Wrangler": {
+   "draftsim": "4/10",
+   "mtgazone": "1.5/5"
+  },
+  "Tasha Yar, Out of Time": {
+   "draftsim": "6/10",
+   "mtgazone": "3.5/5"
+  },
+  "Test of Identity": {
+   "draftsim": "3/10",
+   "mtgazone": "2.0/5"
+  },
+  "Transporter Malfunction": {
+   "draftsim": "7/10",
+   "mtgazone": "3.5/5"
+  },
+  "Will Riker, First in the Field": {
+   "draftsim": "6/10",
+   "mtgazone": "2.5/5"
+  },
+  "Worf, Intelligence Contractor": {
+   "draftsim": "4/10",
+   "mtgazone": "3.0/5"
+  },
+  "The Wrath of Khan": {
+   "draftsim": "5/10",
+   "mtgazone": "4.0/5"
+  },
+  "Adversary by Algorithm": {
+   "draftsim": "5/10",
+   "mtgazone": "2.5/5"
+  },
+  "Amok Time": {
+   "draftsim": "6/10",
+   "mtgazone": "2.5/5"
+  },
+  "Astute Terraformer": {
+   "draftsim": "2/10",
+   "mtgazone": "1.5/5"
+  },
+  "Branching Timeline": {
+   "draftsim": "0/10",
+   "mtgazone": "1.0/5"
+  },
+  "Captain Jonathan Archer": {
+   "draftsim": "7/10",
+   "mtgazone": "4.0/5"
+  },
+  "Captain Kathryn Janeway": {
+   "draftsim": "6/10",
+   "mtgazone": "4.0/5"
+  },
+  "Captain Pike, Fullness of Time": {
+   "draftsim": "7/10",
+   "mtgazone": "4.0/5"
+  },
+  "Cold-Blooded Crew": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Common Goal": {
+   "draftsim": "5/10",
+   "mtgazone": "2.5/5"
+  },
+  "Culber and Stamets, Star-Crossed": {
+   "draftsim": "2/10",
+   "mtgazone": "2.0/5"
+  },
+  "Dathon and Picard at El-Adrel": {
+   "draftsim": "1/10",
+   "mtgazone": "1.0/5"
+  },
+  "David and Carol Marcus, Creators": {
+   "draftsim": "7/10",
+   "mtgazone": "2.5/5"
+  },
+  "Dominion Assault Force": {
+   "draftsim": "2/10",
+   "mtgazone": "2.0/5"
+  },
+  "Dominion Supervisor": {
+   "draftsim": "3/10",
+   "mtgazone": "2.0/5"
+  },
+  "Dr. Joseph M'Benga": {
+   "draftsim": "4/10",
+   "mtgazone": "3.0/5"
+  },
+  "Dr. Leonard \"Bones\" McCoy": {
+   "draftsim": "8/10",
+   "mtgazone": "4.0/5"
+  },
+  "Final Frontier": {
+   "draftsim": "3/10",
+   "mtgazone": "1.5/5"
+  },
+  "First Contact": {
+   "draftsim": "3/10",
+   "mtgazone": "2.0/5"
+  },
+  "Genesis Device": {
+   "draftsim": "4/10",
+   "mtgazone": "2.0/5"
+  },
+  "Holo-Engineer": {
+   "draftsim": "9/10",
+   "mtgazone": "4.5/5"
+  },
+  "Hologram Stalker": {
+   "draftsim": "7/10",
+   "mtgazone": "2.5/5"
+  },
+  "I'm a Doctor, Not a . . .": {
+   "draftsim": "1/10",
+   "mtgazone": "1.5/5"
+  },
+  "Jadzia Dax, Living Legacy": {
+   "draftsim": "7/10",
+   "mtgazone": "4.0/5"
+  },
+  "Jake Sisko, War Correspondent": {
+   "draftsim": "5/10",
+   "mtgazone": "2.0/5"
+  },
+  "MACO Strike Team": {
+   "draftsim": "4/10",
+   "mtgazone": "3.5/5"
+  },
+  "Moopsy": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Mugato": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Neelix, Moral Support": {
+   "draftsim": "3/10",
+   "mtgazone": "1.5/5"
+  },
+  "Photosynthetic Physician": {
+   "draftsim": "3/10",
+   "mtgazone": "1.5/5"
+  },
+  "Rok-Tahk, Budding Scientist": {
+   "draftsim": "3/10",
+   "mtgazone": "3.5/5"
+  },
+  "Saru, Unthreatened": {
+   "draftsim": "5/10",
+   "mtgazone": "2.0/5"
+  },
+  "Saurian Explorer": {
+   "draftsim": "3/10",
+   "mtgazone": "2.0/5"
+  },
+  "Species 8472": {
+   "draftsim": "6/10",
+   "mtgazone": "2.5/5"
+  },
+  "Stable Wormhole": {
+   "draftsim": "4/10",
+   "mtgazone": "2.0/5"
+  },
+  "Support Mission": {
+   "draftsim": "0/10",
+   "mtgazone": "3.0/5"
+  },
+  "Sylvia Tilly, Joy of Discovery": {
+   "draftsim": "5/10",
+   "mtgazone": "3.0/5"
+  },
+  "Syndicate Liquidators": {
+   "draftsim": "6/10",
+   "mtgazone": "3.0/5"
+  },
+  "Temporal Conqueror": {
+   "draftsim": "5/10",
+   "mtgazone": "2.5/5"
+  },
+  "Test of Courage": {
+   "draftsim": "1/10",
+   "mtgazone": "0.5/5"
+  },
+  "U.S.S. Discovery, at Black Alert": {
+   "draftsim": "10/10",
+   "mtgazone": "4.5/5"
+  },
+  "U.S.S. Voyager, Lone Wanderer": {
+   "draftsim": "5/10",
+   "mtgazone": "2.0/5"
+  },
+  "Warp Speed": {
+   "draftsim": "1/10",
+   "mtgazone": "1.5/5"
+  },
+  "Xenobotanist": {
+   "draftsim": "5/10",
+   "mtgazone": "2.0/5"
+  },
+  "Xindi Surveyors": {
+   "draftsim": "3/10",
+   "mtgazone": "2.0/5"
+  },
+  "All Good Things...": {
+   "draftsim": "5/10",
+   "mtgazone": "3.0/5"
+  },
+  "Borg Cube": {
+   "draftsim": "9/10",
+   "mtgazone": "4.0/5"
+  },
+  "The City on the Edge of Forever": {
+   "draftsim": "7/10",
+   "mtgazone": "2.0/5"
+  },
+  "Cleveland Booker, Empath": {
+   "draftsim": "6/10",
+   "mtgazone": "2.5/5"
+  },
+  "Constable Odo": {
+   "draftsim": "6/10",
+   "mtgazone": "3.5/5"
+  },
+  "Dal R'El, Augment Orphan": {
+   "draftsim": "4/10",
+   "mtgazone": "3.0/5"
+  },
+  "Daniels, Temporal Agent": {
+   "draftsim": "7/10",
+   "mtgazone": "2.5/5"
+  },
+  "Dathon, His Heart Open": {
+   "draftsim": "4/10",
+   "mtgazone": "1.0/5"
+  },
+  "The Doctor, EMH": {
+   "draftsim": "4/10",
+   "mtgazone": "3.0/5"
+  },
+  "The Duras Sisters": {
+   "draftsim": "5/10",
+   "mtgazone": "3.5/5"
+  },
+  "D'Vana Tendi, Optimistic Ensign": {
+   "draftsim": "4/10",
+   "mtgazone": "3.0/5"
+  },
+  "Gowron, Eager for Battle": {
+   "draftsim": "7/10",
+   "mtgazone": "4.0/5"
+  },
+  "Gray and Adira, Forever Joined": {
+   "draftsim": "3/10",
+   "mtgazone": "3.0/5"
+  },
+  "Hemmer, Fixing What Is Broken": {
+   "draftsim": "4/10",
+   "mtgazone": "3.5/5"
+  },
+  "Hit It!": {
+   "draftsim": "3/10",
+   "mtgazone": "3.5/5"
+  },
+  "The Inner Light": {
+   "draftsim": "8/10",
+   "mtgazone": "4.0/5"
+  },
+  "Kira Nerys, Firebrand": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Kirk, Commanding Officer": {
+   "draftsim": "6/10",
+   "mtgazone": "3.5/5"
+  },
+  "Live Long and Prosper": {
+   "draftsim": "0/10",
+   "mtgazone": "2.0/5"
+  },
+  "Locutus, the One Who Speaks": {
+   "draftsim": "7/10",
+   "mtgazone": "3.5/5"
+  },
+  "Lore, Positronic Provocateur": {
+   "draftsim": "4/10",
+   "mtgazone": "2.0/5"
+  },
+  "L'Rell, Fierce Visionary": {
+   "draftsim": "6/10",
+   "mtgazone": "3.5/5"
+  },
+  "Mirror Universe Intrusion": {
+   "draftsim": "3/10",
+   "mtgazone": "4.5/5"
+  },
+  "Nog, Ambitious Cadet": {
+   "draftsim": "8/10",
+   "mtgazone": "4.0/5"
+  },
+  "Phlox, Unorthodox Doctor": {
+   "draftsim": "5/10",
+   "mtgazone": "3.5/5"
+  },
+  "Sarek, Federation Ambassador": {
+   "draftsim": "6/10",
+   "mtgazone": "1.5/5"
+  },
+  "Seven of Nine": {
+   "draftsim": "6/10",
+   "mtgazone": "3.5/5"
+  },
+  "Spock, Always Your Friend": {
+   "draftsim": "6/10",
+   "mtgazone": "3.5/5"
+  },
+  "The Traveler": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Vash, Freelance Archaeologist": {
+   "draftsim": "6/10",
+   "mtgazone": "3.5/5"
+  },
+  "Worf, Honor-Bound Warrior": {
+   "draftsim": "6/10",
+   "mtgazone": "2.0/5"
+  },
+  "Year of Hell": {
+   "draftsim": "0/10",
+   "mtgazone": "0.0/5"
+  },
+  "Zero, Incorporeal Sensate": {
+   "draftsim": "5/10",
+   "mtgazone": "2.5/5"
+  },
+  "Class-F Shuttlecraft": {
+   "draftsim": "3/10",
+   "mtgazone": "1.5/5"
+  },
+  "Combadge": {
+   "draftsim": "0/10",
+   "mtgazone": "1.5/5"
+  },
+  "Crystalline Entity": {
+   "draftsim": "8/10",
+   "mtgazone": "4.0/5"
+  },
+  "Cybernetic Specialist": {
+   "draftsim": "3/10",
+   "mtgazone": "2.0/5"
+  },
+  "Deep Space 9": {
+   "draftsim": "6/10",
+   "mtgazone": "1.5/5"
+  },
+  "Engineered Explosives": {
+   "draftsim": "6/10",
+   "mtgazone": "3.0/5"
+  },
+  "The Holodeck": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Isolinear Processor": {
+   "draftsim": "4/10",
+   "mtgazone": "1.5/5"
+  },
+  "Replicator": {
+   "draftsim": "4/10",
+   "mtgazone": "4.5/5"
+  },
+  "Sickbay": {
+   "draftsim": "5/10",
+   "mtgazone": "2.5/5"
+  },
+  "Tea, Earl Grey, Hot": {
+   "draftsim": "3/10",
+   "mtgazone": "1.5/5"
+  },
+  "Tricorder": {
+   "draftsim": "3/10",
+   "mtgazone": "2.5/5"
+  },
+  "Type-2 Phaser": {
+   "draftsim": "2/10",
+   "mtgazone": "1.5/5"
+  },
+  "U.S.S. Cerritos, Following Up": {
+   "draftsim": "4/10",
+   "mtgazone": "2.0/5"
+  },
+  "U.S.S. Enterprise-D, Galaxy-Class": {
+   "draftsim": "8/10",
+   "mtgazone": "4.5/5"
+  },
+  "Warp Core": {
+   "draftsim": "3/10",
+   "mtgazone": "1.5/5"
+  },
+  "Andoria": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Artificial Anomaly": {
+   "draftsim": "3/10",
+   "mtgazone": "1.0/5"
+  },
+  "Bajor": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Blood Crypt": {
+   "draftsim": "4/10",
+   "mtgazone": "3.0/5"
+  },
+  "Breeding Pool": {
+   "draftsim": "4/10",
+   "mtgazone": "3.0/5"
+  },
+  "Cardassia Prime": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Earth, Sector 001": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Federation Outpost": {
+   "draftsim": "5/10",
+   "mtgazone": "2.5/5"
+  },
+  "Ferenginar": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Gaseous Anomaly": {
+   "draftsim": "3/10",
+   "mtgazone": "2.0/5"
+  },
+  "Godless Shrine": {
+   "draftsim": "4/10",
+   "mtgazone": "3.0/5"
+  },
+  "Hallowed Fountain": {
+   "draftsim": "4/10",
+   "mtgazone": "3.0/5"
+  },
+  "Ni'Var Science Academy": {
+   "draftsim": "5/10",
+   "mtgazone": "2.5/5"
+  },
+  "Orion": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Overgrown Tomb": {
+   "draftsim": "4/10",
+   "mtgazone": "3.0/5"
+  },
+  "Q Continuum": {
+   "draftsim": "5/10",
+   "mtgazone": "2.5/5"
+  },
+  "Qo'noS": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Quark's Bar": {
+   "draftsim": "5/10",
+   "mtgazone": "2.5/5"
+  },
+  "Risa": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Romulus": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Sacred Foundry": {
+   "draftsim": "4/10",
+   "mtgazone": "3.0/5"
+  },
+  "Spatial Anomaly": {
+   "draftsim": "3/10",
+   "mtgazone": "1.5/5"
+  },
+  "Starfleet Academy": {
+   "draftsim": "0/10",
+   "mtgazone": "0.0/5"
+  },
+  "Steam Vents": {
+   "draftsim": "4/10",
+   "mtgazone": "3.0/5"
+  },
+  "Stomping Ground": {
+   "draftsim": "4/10",
+   "mtgazone": "3.0/5"
+  },
+  "Subspace Anomaly": {
+   "draftsim": "3/10",
+   "mtgazone": "1.5/5"
+  },
+  "Temple Garden": {
+   "draftsim": "4/10",
+   "mtgazone": "3.0/5"
+  },
+  "Temporal Anomaly": {
+   "draftsim": "3/10",
+   "mtgazone": "1.5/5"
+  },
+  "Unexplored Territory": {
+   "draftsim": "3/10",
+   "mtgazone": "2.5/5"
+  },
+  "The Unicomplex": {
+   "draftsim": "5/10",
+   "mtgazone": "2.5/5"
+  },
+  "Vulcan": {
+   "draftsim": "4/10",
+   "mtgazone": "2.5/5"
+  },
+  "Watery Grave": {
+   "draftsim": "4/10",
+   "mtgazone": "3.0/5"
+  }
+ }
+}
