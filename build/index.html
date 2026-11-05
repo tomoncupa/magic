@@ -300,6 +300,7 @@ pre.out{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r
   <symbol id="i-side" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M15 5v14"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
   <symbol id="i-import" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M4 17v3h16v-3"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></symbol>
 </svg>
 <header class="bs-head" id="head">
   <div class="bs-toprow"><div class="bs-wrap">
@@ -5551,8 +5552,9 @@ function stSet(code){ return (ST.sets || []).filter(function(s){ return s.code =
 function stDate(at){ return at ? new Date(at + 'T00:00:00').toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : ''; }
 function stOwned(n){ var c = collData(); return c ? (c.cards[moxKey(n)] || 0) : 0; }
 function stListHtml(){
-  var q = ST.sq.trim().toLowerCase(), today = new Date().toISOString().slice(0, 10), picks = stPicks(), per = {}, year = '', h = '';
+  var q = ST.sq.trim().toLowerCase(), today = new Date().toISOString().slice(0, 10), picks = stPicks(), per = {}, rated = {}, rates = stRates(), year = '', h = '';
   Object.keys(picks).forEach(function(k){ var s = picks[k].set; per[s] = (per[s] || 0) + 1; });
+  Object.keys(rates).forEach(function(k){ var s = rates[k].set; rated[s] = (rated[s] || 0) + 1; });
   var rows = ST.sets.filter(function(s){ return (!ST.kind || s.kind === ST.kind) && (!q || (s.n + ' ' + s.code).toLowerCase().indexOf(q) >= 0); });
   if(!rows.length) return '<p class="bs-cv-none">No sets match.</p>';
   rows.forEach(function(s){
@@ -5560,7 +5562,7 @@ function stListHtml(){
     if(y !== year){ h += (year ? '</div>' : '') + '<h2 class="bs-st-year">' + esc(y) + '</h2><div class="bs-st-sets">'; year = y; }
     h += '<a class="bs-st-set" href="#sets/' + esc(s.code) + '" data-k="' + esc(s.code) + '">' +
       (s.icon ? '<span class="bs-st-ico" style="--ico:url(&quot;' + esc(s.icon) + '&quot;)" aria-hidden="true"></span>' : '<span class="bs-st-ico"></span>') +
-      '<span class="bs-st-set-t"><span class="bs-st-set-n">' + esc(s.n) + '</span><span class="bs-st-set-s">' + esc(s.code.toUpperCase()) + ', ' + (s.at > today ? 'out ' : '') + esc(stDate(s.at)) + ', ' + s.count + ' printing' + (s.count === 1 ? '' : 's') + '</span></span>' +
+      '<span class="bs-st-set-t"><span class="bs-st-set-n">' + esc(s.n) + '</span><span class="bs-st-set-s">' + esc(s.code.toUpperCase()) + ', ' + (s.at > today ? 'out ' : '') + esc(stDate(s.at)) + ', ' + s.count + ' printing' + (s.count === 1 ? '' : 's') + (rated[s.code] ? ', ' + rated[s.code] + ' rated' : '') + '</span></span>' +
       (per[s.code] ? '<span class="bs-badge bs-gold">' + per[s.code] + ' picked</span>' : s.at > today ? '<span class="bs-badge bs-info">Upcoming</span>' : '') + '</a>';
   });
   return h + '</div>';
@@ -5576,20 +5578,23 @@ function stFilter(list){
 }
 function stMarks(c){
   var k = moxKey(c.n), own = stOwned(c.n), m = [];
+  var rt = stRates()[k];
   if(stPicks()[k]) m.push('<span class="bs-badge bs-gold">' + ico('check', 'bs-i16') + 'Picked</span>');
+  if(stInts()[k]) m.push('<span class="bs-badge bs-gold">' + ico('star', 'bs-i16') + 'Interesting</span>');
+  if(rt) m.push('<span class="bs-badge">Rated ' + rt.r + '</span>');
   if(wishPending(c.n)) m.push('<span class="bs-badge">Sending</span>');
   else if(wishQ(c.n)) m.push('<span class="bs-badge bs-info">On wishlist</span>');
   if(own) m.push('<span class="bs-badge">You own ' + own + '</span>');
   return m.join('');
 }
-function stTile(c){
+function stTile(c, more){
   var k = moxKey(c.n), on = !!stPicks()[k], price = typeof c.usd === 'number' ? (phpOf(c.usd) || '$' + c.usd.toFixed(2)) : '';
   return '<div class="bs-ctile bs-st-card' + (on ? ' bs-picked' : '') + '" data-k="' + esc(k) + '">' +
     '<button class="bs-ctile-pic" type="button" data-stpick="' + esc(c.n) + '" aria-pressed="' + on + '" aria-label="Pick ' + esc(c.n) + '">' +
       (c.img ? '<img loading="lazy" src="' + esc(c.img) + '" alt="">' : '<span class="bs-ctile-noimg">' + esc(c.n) + '</span>') +
       '<span class="bs-ctile-bl" data-stmarks>' + stMarks(c) + '</span></button>' +
     cardLink(c.n, null, { cls:'bs-ctile-n', ro:true, title:c.n }) +
-    '<span class="bs-ctile-s"><span>' + esc(c.r ? c.r.charAt(0).toUpperCase() + c.r.slice(1) : '') + '</span>' + (price ? '<span>' + esc(price) + '</span>' : '') + '<span>#' + esc(c.cn) + '</span></span></div>';
+    '<span class="bs-ctile-s"><span>' + esc(c.r ? c.r.charAt(0).toUpperCase() + c.r.slice(1) : '') + '</span>' + (price ? '<span>' + esc(price) + '</span>' : '') + '<span>#' + esc(c.cn) + '</span></span>' + (more || '') + '</div>';
 }
 function stGridHtml(box){
   var rows = stFilter(box.list);
@@ -5633,34 +5638,52 @@ function drawSets(){
   var bar = '<div class="bs-st-bar" data-stbar aria-live="polite"' + (stBarHtml() ? '' : ' hidden') + '>' + stBarHtml() + '</div>', h;
   if(!ST.code){
     var picks = Object.keys(stPicks()).length;
-    h = '<div class="bs-pagehead"><div><h1 class="bs-title">Sets</h1><p class="bs-sub">Every paper release, newest first. Open one and tap the cards you want; they go to your Moxfield wishlist together.</p></div></div>' +
+    var nInt = Object.keys(stInts()).length;
+    h = '<div class="bs-pagehead"><div><h1 class="bs-title">Sets</h1><p class="bs-sub">Every paper release, newest first. Open one and tap the cards you want; they go to your Moxfield wishlist together.</p></div>' +
+      '<a class="bs-btn" href="#sets/interesting">' + ico('star', 'bs-i16') + 'Interesting' + (nInt ? ' <b class="bs-st-n">' + nInt + '</b>' : '') + '</a></div>' +
       '<div class="bs-cv-bar"><input class="bs-swm-q bs-flt-q" type="search" data-stsq autocomplete="off" spellcheck="false" placeholder="Find a set by name or code" aria-label="Find a set" value="' + esc(ST.sq) + '">' +
       '<div class="bs-seg" role="group" aria-label="Kind of set">' + ST_KINDS.map(function(s){ var on = ST.kind === s[0]; return '<button type="button" data-stkind="' + s[0] + '" aria-pressed="' + on + '"' + (on ? ' class="on"' : '') + '>' + s[1] + '</button>'; }).join('') + '</div></div>' +
       '<div data-stlist>' + stListHtml() + '</div>' + bar;
     main.innerHTML = h;
     // Back from a set lands where he was in the list (after route() has scrolled to the top).
     if(ST.listY){ var y = ST.listY; ST.listY = 0; setTimeout(function(){ window.scrollTo(0, y); }, 0); }
+  } else if(ST.code === 'interesting'){
+    main.innerHTML = '<a class="bs-btn bs-quiet bs-sm bs-st-back" href="#sets">' + ico('back', 'bs-i16') + 'All sets</a>' +
+      '<div class="bs-pagehead"><div><h1 class="bs-title">Interesting</h1><p class="bs-sub">Cards you marked while rating, from every set, newest first. Tap a card to pick it for the wishlist.</p></div></div>' +
+      '<div data-stgrid>' + intGridHtml() + '</div>' + bar;
   } else {
     var s = stSet(ST.code) || { code:ST.code, n:ST.code.toUpperCase(), at:'', count:0 }, box = ST.cards[ST.code];
     var head = '<a class="bs-btn bs-quiet bs-sm bs-st-back" href="#sets">' + ico('back', 'bs-i16') + 'All sets</a>' +
-      '<div class="bs-pagehead"><div><h1 class="bs-title">' + esc(s.n) + '</h1><p class="bs-sub">' + esc(s.code.toUpperCase()) + (s.at ? ', ' + (s.at > new Date().toISOString().slice(0, 10) ? 'out ' : 'released ') + esc(stDate(s.at)) : '') + '. Tap a card to pick it; tap its name to read it.</p></div></div>';
+      '<div class="bs-pagehead"><div><h1 class="bs-title">' + esc(s.n) + '</h1><p class="bs-sub">' + esc(s.code.toUpperCase()) + (s.at ? ', ' + (s.at > new Date().toISOString().slice(0, 10) ? 'out ' : 'released ') + esc(stDate(s.at)) : '') + '. Tap a card to pick it; tap its name to read it.</p></div>' +
+      '<a class="bs-btn bs-primary" href="#sets/' + esc(ST.code) + '/rate">' + ico('star', 'bs-i16') + 'Rate the cards</a></div>';
     if(!box || !box.done){
       main.innerHTML = head + loadingHtml('Loading the cards');
       if(!box) stFetch(ST.code).then(function(){ if(APP.view === 'sets') drawSets(); });
       main.onclick = null; return;
     }
+    if(RT.on){
+      if(RT.code !== ST.code) rtStart();
+      main.innerHTML = '<div data-rt>' + rtHtml() + '</div>'; rtBind();
+    } else {
     h = head + '<div class="bs-cv-bar"><input class="bs-swm-q bs-flt-q" type="search" data-stq autocomplete="off" spellcheck="false" placeholder="Find a card by name, type or text" aria-label="Find a card in this set" value="' + esc(ST.q) + '">' +
       '<div class="bs-seg" role="group" aria-label="Rarity">' + ST_RARE.map(function(r){ var on = ST.r === r[0]; return '<button type="button" data-strare="' + r[0] + '" aria-pressed="' + on + '"' + (on ? ' class="on"' : '') + '>' + r[1] + '</button>'; }).join('') + '</div>' +
       '<select data-stt aria-label="Card type">' + CV_TYPES.map(function(t){ return '<option value="' + t[0] + '"' + (ST.t === t[0] ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('') + '</select>' +
       (collData() ? '<button class="bs-btn" type="button" data-sthide aria-pressed="' + ST.hideOwn + '">' + (ST.hideOwn ? 'Show cards you own' : 'Hide cards you own') + '</button>' : '') +
       '</div><div data-stgrid>' + stGridHtml(box) + '</div>' + bar;
     main.innerHTML = h;
+    }
   }
   main.onclick = function(e){
     var t = e.target, b;
     if(t.closest('.bs-st-set')){ ST.listY = window.scrollY; return; }   // the link opens the set; Back comes to the same place
+    b = t.closest('[data-rtrate]'); if(b){ rtRate(+b.getAttribute('data-rtrate')); return; }
+    if(t.closest('[data-rtint]')){ rtInt(); return; }
+    if(t.closest('[data-rtskip]')){ rtGo(false); return; }
+    if(t.closest('[data-rtprev]')){ rtPrev(); return; }
+    if(t.closest('[data-rtagain]')){ RT.all = true; RT.i = 0; rtDraw(); return; }
+    b = t.closest('[data-stunint]'); if(b){ intDrop(b.getAttribute('data-stunint')); return; }
     b = t.closest('[data-stpick]'); if(b){ var n = b.getAttribute('data-stpick'), k = moxKey(n), p = stPicks();
-      if(p[k]) delete p[k]; else p[k] = { n:n, set:ST.code }; stPutPicks(p); stPaint(); return; }
+      if(p[k]) delete p[k]; else p[k] = { n:n, set:ST.code === 'interesting' ? (stInts()[k] || {}).set || '' : ST.code }; stPutPicks(p); stPaint(); return; }
     if(t.closest('[data-stsend]')){ var pk = stPicks(); wishSend(Object.keys(pk).map(function(k){ return pk[k].n; }).filter(function(n){ return !wishQ(n) && !wishPending(n); })); stPaint(); return; }
     if(t.closest('[data-stclear]')){ var was = stPicks(), cnt = Object.keys(was).length; stPutPicks({}); stPaint();
       toast('Cleared ' + cnt + ' pick' + (cnt === 1 ? '' : 's') + '.', { undo:function(){ stPutPicks(was); stPaint(); return true; } }); return; }
@@ -5673,6 +5696,114 @@ function drawSets(){
     if(e.target.matches('[data-stq]')){ ST.q = e.target.value; stGridRedraw(); }
   };
   main.onchange = function(e){ if(e.target.matches('[data-stt]')){ ST.t = e.target.value; stGridRedraw(); } };
+}
+/* Rate (Tom, 2026-11-05: "a 'tinder' like mode where I can rate cards 1-5, as well as add to an 'interesting' list"):
+   a set's cards one at a time, in set order, with the grid's filters, each name once, from the first he has not rated or
+   marked. 1 to 5 rates it and shows the next. Drag it right (or the right arrow) and it goes on Interesting and the next
+   comes; left skips it. Ratings (forge.rates: card key -> { n, r, set }) and Interesting (forge.interest: card key ->
+   the card as shown, so the list draws without asking Scryfall) are kept on this PC across sets, like the picks. */
+var RT = { on:false, code:'', q:[], i:0, all:false };
+function lsObj(k){ try{ var p = JSON.parse(lsGet(k) || '{}'); return p && typeof p === 'object' ? p : {}; }catch(e){ return {}; } }
+function stRates(){ return lsObj('forge.rates'); }
+function stInts(){ return lsObj('forge.interest'); }
+function rtSeen(c, r, p){ var k = moxKey(c.n); return !!(r[k] || p[k]); }
+function rtStart(){
+  var seen = {}, r = stRates(), p = stInts();
+  RT.code = ST.code; RT.all = false;
+  RT.q = stFilter(ST.cards[ST.code].list).filter(function(c){ var k = moxKey(c.n); if(seen[k]) return false; seen[k] = 1; return true; });
+  RT.i = 0; while(RT.i < RT.q.length && rtSeen(RT.q[RT.i], r, p)) RT.i++;
+}
+function rtHtml(){
+  var s = stSet(ST.code) || { n:ST.code.toUpperCase() }, q = RT.q, r = stRates(), p = stInts();
+  var nr = q.filter(function(c){ return r[moxKey(c.n)]; }).length, ni = q.filter(function(c){ return p[moxKey(c.n)]; }).length;
+  var top = '<div class="bs-rt-top"><a class="bs-btn bs-quiet" href="#sets/' + esc(ST.code) + '">' + ico('back', 'bs-i16') + 'Back to the cards</a>' +
+    '<span class="bs-rt-set">' + esc(s.n) + '</span><span class="bs-count"><b>' + nr + '</b> of ' + q.length + ' rated' + (ni ? ', <b>' + ni + '</b> interesting' : '') + '</span></div>';
+  if(!q.length) return top + '<p class="bs-cv-none">No cards match the filters on this set.</p>';
+  if(RT.i >= q.length) return top + '<div class="bs-rt-end"><h2 class="bs-title">That is every card here</h2><p class="bs-sub">' + nr + ' rated, ' + ni + ' on Interesting.</p>' +
+    '<a class="bs-btn bs-primary" href="#sets/' + esc(ST.code) + '">Back to the cards</a><button class="bs-btn" type="button" data-rtagain>Go through them again</button></div>';
+  var c = q[RT.i], k = moxKey(c.n), mine = r[k] ? r[k].r : 0, on = !!p[k], own = stOwned(c.n), big = faceImg(c, c.n).replace('/normal/', '/large/');
+  var price = typeof c.usd === 'number' ? (phpOf(c.usd) || '$' + c.usd.toFixed(2)) : '';
+  var meta = [c.type, c.r ? c.r.charAt(0).toUpperCase() + c.r.slice(1) : '', price, own ? 'you own ' + own : ''].filter(Boolean).join(', ');
+  return top + '<div class="bs-rt-main">' +
+    '<div class="bs-rt-card" data-rtcard>' + (big ? '<img src="' + esc(big) + '" alt="' + esc(c.n) + '" draggable="false">' : '<span class="bs-ctile-noimg">' + esc(c.n) + '</span>') +
+      '<span class="bs-rt-tag bs-rt-yes" aria-hidden="true">Interesting</span><span class="bs-rt-tag bs-rt-no" aria-hidden="true">Skip</span></div>' +
+    '<div class="bs-rt-side">' + cardLink(c.n, null, { cls:'bs-rt-n', ro:true }) + '<p class="bs-rt-meta">' + esc(meta) + '</p>' +
+      '<div class="bs-rt-rate" role="group" aria-label="Rate ' + esc(c.n) + '">' + [1, 2, 3, 4, 5].map(function(n){ return '<button type="button" class="bs-rt-r' + (mine === n ? ' on' : '') + '" data-rtrate="' + n + '" aria-pressed="' + (mine === n) + '">' + n + '</button>'; }).join('') + '</div>' +
+      '<p class="bs-rt-hint">1 not for me, 5 love it. Press 1 to 5 on the keyboard.</p>' +
+      '<button class="bs-btn bs-rt-int" type="button" data-rtint aria-pressed="' + on + '">' + ico('star', 'bs-i16') + (on ? 'On Interesting' : 'Add to Interesting') + '</button>' +
+      '<div class="bs-rt-nav"><button class="bs-btn bs-quiet" type="button" data-rtprev' + (RT.i ? '' : ' disabled') + '>' + ico('back', 'bs-i16') + 'Previous</button>' +
+        '<button class="bs-btn bs-quiet" type="button" data-rtskip>Skip</button></div>' +
+      '<p class="bs-rt-hint">Drag the card right for Interesting, left to skip. Keys: right and left arrows, I, Backspace for the previous card.</p>' +
+    '</div></div>';
+}
+function rtDraw(){
+  var w = main.querySelector('[data-rt]'); if(!w) return;
+  w.innerHTML = rtHtml(); rtBind();
+  var nx = RT.q[RT.i + 1]; if(nx){ var im = new Image(); im.src = faceImg(nx, nx.n).replace('/normal/', '/large/'); }   // the next picture is ready when it comes
+}
+function rtNext(){ var r = stRates(), p = stInts(); RT.i++; if(!RT.all) while(RT.i < RT.q.length && rtSeen(RT.q[RT.i], r, p)) RT.i++; rtDraw(); }
+function rtPrev(){ if(RT.i > 0){ RT.i = Math.min(RT.i, RT.q.length) - 1; rtDraw(); } }
+function rtRate(n){
+  var c = RT.q[RT.i]; if(!c) return;
+  var r = stRates(); r[moxKey(c.n)] = { n:c.n, r:n, set:c.set || ST.code }; lsSet('forge.rates', JSON.stringify(r));
+  rtNext();
+}
+function rtInt(on){
+  var c = RT.q[RT.i]; if(!c) return;
+  var p = stInts(), k = moxKey(c.n), flip = on == null; if(flip) on = !p[k];
+  if(on) p[k] = { n:c.n, img:c.img, bk:c.bk || '', r:c.r, cn:c.cn, set:c.set || ST.code, usd:c.usd, type:c.type, at:Date.now() }; else delete p[k];
+  lsSet('forge.interest', JSON.stringify(p));
+  if(flip) rtDraw();   // the button stays on this card; a swipe moves on by itself
+}
+// Right: on Interesting, then the next. Left: the next. The card flies off the way it went.
+function rtGo(yes){
+  var el = main.querySelector('[data-rtcard]');
+  function then(){ if(yes) rtInt(true); rtNext(); }
+  if(!el || reducedMotion()){ then(); return; }
+  el.classList.remove('bs-rt-drag'); el.style.setProperty(yes ? '--yes' : '--no', 1);
+  el.style.transform = 'translateX(' + (yes ? 640 : -640) + 'px) rotate(' + (yes ? 18 : -18) + 'deg)'; el.style.opacity = 0;
+  setTimeout(then, 180);
+}
+function rtBind(){
+  var el = main.querySelector('[data-rtcard]'); if(!el) return;
+  var x0 = null, dx = 0;
+  el.onpointerdown = function(e){ if(e.button) return; x0 = e.clientX; dx = 0; el.setPointerCapture(e.pointerId); el.classList.add('bs-rt-drag'); };
+  el.onpointermove = function(e){
+    if(x0 == null) return; dx = e.clientX - x0;
+    el.style.transform = 'translateX(' + dx + 'px) rotate(' + dx / 24 + 'deg)';
+    el.style.setProperty('--yes', Math.max(0, Math.min(1, dx / 110))); el.style.setProperty('--no', Math.max(0, Math.min(1, -dx / 110)));
+  };
+  el.onpointerup = el.onpointercancel = function(e){
+    if(x0 == null) return; x0 = null;
+    if(e.type === 'pointerup' && Math.abs(dx) > 110){ rtGo(dx > 0); return; }
+    el.classList.remove('bs-rt-drag'); el.style.transform = ''; el.style.setProperty('--yes', 0); el.style.setProperty('--no', 0);
+  };
+}
+document.addEventListener('keydown', function(e){
+  if(APP.view !== 'sets' || !RT.on || e.ctrlKey || e.metaKey || e.altKey || e.repeat || typingIn(e.target) || SHEETS.length || MENU) return;
+  var k = e.key, done = RT.i >= RT.q.length;
+  if(/^[1-5]$/.test(k) && !done) rtRate(+k);
+  else if(k === 'ArrowRight' && !done) rtGo(true);
+  else if(k === 'ArrowLeft' && !done) rtGo(false);
+  else if((k === 'i' || k === 'I') && !done) rtInt();
+  else if(k === 'Backspace') rtPrev();
+  else if(k === 'Escape') location.hash = '#sets/' + ST.code;
+  else return;
+  e.preventDefault();
+});
+function intGridHtml(){
+  var p = stInts(), r = stRates(), names = {};
+  (ST.sets || []).forEach(function(s){ names[s.code] = s.n; });
+  var rows = Object.keys(p).map(function(k){ return p[k]; }).sort(function(a, b){ return (b.at || 0) - (a.at || 0); });
+  if(!rows.length) return '<p class="bs-cv-none">Nothing yet. Open a set, press Rate the cards, and drag the ones you like to the right.</p>';
+  return '<p class="bs-count bs-cv-count">' + rows.length + ' card' + (rows.length === 1 ? '' : 's') + '</p><div class="bs-cgrid" style="--card-min:180px">' +
+    rows.map(function(c){ return stTile(c, '<span class="bs-ctile-s"><span>' + esc(names[c.set] || String(c.set || '').toUpperCase()) + '</span></span>' +
+      '<button class="bs-btn bs-quiet bs-sm bs-st-drop" type="button" data-stunint="' + esc(c.n) + '">' + ico('close', 'bs-i16') + 'Take off</button>'); }).join('') + '</div>';
+}
+function intDrop(n){
+  var p = stInts(), k = moxKey(n), was = p[k]; if(!was) return;
+  delete p[k]; lsSet('forge.interest', JSON.stringify(p)); var g = main.querySelector('[data-stgrid]'); if(g) g.innerHTML = intGridHtml();
+  toast('<b>' + esc(n) + '</b> is off Interesting.', { undo:function(){ var u = stInts(); u[k] = was; lsSet('forge.interest', JSON.stringify(u)); if(APP.view === 'sets' && ST.code === 'interesting') drawSets(); return true; } });
 }
 function stListRedraw(){ var g = main.querySelector('[data-stlist]'); if(g) g.innerHTML = stListHtml(); }
 function stGridRedraw(){ var g = main.querySelector('[data-stgrid]'), box = ST.cards[ST.code]; if(g && box) g.innerHTML = stGridHtml(box); }
@@ -8266,13 +8397,13 @@ function rewrite99(fn){
 function droppedLabel(){ return isImported() ? 'Left out when the list came in: ' : 'Left out of your must-includes: '; }
 
 /* ---------- navigation ---------- */
-function wantHash(){ return APP.view === 'deck' ? '#d=' + CUR + '&p=' + S.page : APP.view === 'sets' && ST.code ? '#sets/' + ST.code : '#' + APP.view; }
+function wantHash(){ return APP.view === 'deck' ? '#d=' + CUR + '&p=' + S.page : APP.view === 'sets' && ST.code ? '#sets/' + ST.code + (RT.on ? '/rate' : '') : '#' + APP.view; }
 function parseHash(h){
   h = String(h || '').replace(/^#/, '');
   if(h === 'compare') return { view:'compare' };
   if(h === 'decks') return { view:'decks' };
   if(h === 'collection') return { view:'collection' };
-  var sm = /^sets(?:\/([a-z0-9]{2,8}))?$/.exec(h); if(sm) return { view:'sets', set:sm[1] || '' };
+  var sm = /^sets(?:\/(interesting|[a-z0-9]{2,8})(\/rate)?)?$/.exec(h); if(sm) return { view:'sets', set:sm[1] || '', rate:!!sm[2] && sm[1] !== 'interesting' };
   var m = /^d=([A-Za-z0-9_-]+)(?:&p=([a-z]+))?/.exec(h);
   return m ? { view:'deck', id:m[1], page:m[2] || '' } : null;
 }
@@ -8283,7 +8414,7 @@ function route(){
   closeSwap(); closeMenu(); closeAllSheets();
   if(r.view === 'compare' && !PG('compare')) r = { view:'decks' };
   if((r.view === 'collection' || r.view === 'sets') && !LOCAL) r = { view:'decks' };
-  if(r.view === 'sets') ST.code = r.set || '';
+  if(r.view === 'sets'){ ST.code = r.set || ''; if(!r.rate) RT.code = ''; RT.on = !!r.rate; } else RT.on = false;
   // Opening a deck (even the one Analyse every deck is on right now) stops the analysis first.
   if(r.view === 'deck') stopAnalyse();
   if(r.view === 'deck' && r.id !== CUR){
@@ -8300,7 +8431,7 @@ function route(){
   if(want !== h) history.replaceState(history.state, '', want);
   LAST_HASH = location.hash;
   render();
-  if(before !== APP.view + '|' + CUR + '|' + S.page + '|' + ST.code) window.scrollTo(0, 0);
+  if(before !== APP.view + '|' + CUR + '|' + S.page + '|' + ST.code || RT.on) window.scrollTo(0, 0);
 }
 function navDeck(id, page){
   whenSettled(function(){
