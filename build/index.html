@@ -3272,6 +3272,20 @@ function tasteLines(){
   var l = tasteLog(), made = l.filter(function(x){ return x.k === 'swap'; }).slice(-25), no = l.filter(function(x){ return x.k === 'no'; }).slice(-25), L = [];
   if(made.length) L.push('Swaps he made, newest last: ' + made.map(function(x){ return x.out + ' -> ' + x.inn + ' (' + shortName(x.d || '') + (x.src ? ', ' + x.src : '') + ')'; }).join('; '));
   if(no.length) L.push('Swaps he turned down, newest last: ' + no.map(function(x){ return (x.out ? x.out + ' -> ' : '') + x.inn + ' (' + shortName(x.d || '') + ')'; }).join('; '));
+  return L.concat(rateLines());
+}
+/* His ratings from Sets (Tom, 2026-11-05: "Yes, feed Claude"): cards he rated 4 or 5, cards he rated 1 or 2 and his
+   Interesting list, only those that fit this commander's colours (a card rated before colours were kept passes),
+   newest first. 3 says nothing either way and is left out. */
+function rateLines(){
+  var who = [S.cmd, S.partner].filter(Boolean), ci = who.length && who.every(function(c){ return Array.isArray(c.ci); }) ? [].concat.apply([], who.map(function(c){ return c.ci; })) : null;
+  function fits(x){ return !ci || !Array.isArray(x.ci) || x.ci.every(function(c){ return ci.indexOf(c) >= 0; }); }
+  function list(o){ return Object.keys(o).map(function(k){ return o[k]; }).filter(fits).sort(function(a, b){ return (b.at || 0) - (a.at || 0); }); }
+  var r = list(stRates()), it = list(stInts()), L = [];
+  var love = r.filter(function(x){ return x.r >= 4; }).sort(function(a, b){ return b.r - a.r; }).slice(0, 80), no = r.filter(function(x){ return x.r <= 2; }).slice(0, 60);
+  if(love.length) L.push('Cards he rated 4 or 5 out of 5 while looking through sets (he likes them; one that fits and is not in the deck is worth suggesting): ' + love.map(function(x){ return x.n + ' ' + x.r; }).join('; '));
+  if(no.length) L.push('Cards he rated 1 or 2 out of 5 (he does not like them; do not suggest them unless he asks): ' + no.map(function(x){ return x.n + ' ' + x.r; }).join('; '));
+  if(it.length) L.push('Cards he marked Interesting in new sets (he wants to find a home for them): ' + it.slice(0, 80).map(function(x){ return x.n; }).join('; '));
   return L;
 }
 var LASTCHG = null;
@@ -5745,13 +5759,13 @@ function rtNext(){ var r = stRates(), p = stInts(); RT.i++; if(!RT.all) while(RT
 function rtPrev(){ if(RT.i > 0){ RT.i = Math.min(RT.i, RT.q.length) - 1; rtDraw(); } }
 function rtRate(n){
   var c = RT.q[RT.i]; if(!c) return;
-  var r = stRates(); r[moxKey(c.n)] = { n:c.n, r:n, set:c.set || ST.code }; lsSet('forge.rates', JSON.stringify(r));
+  var r = stRates(); r[moxKey(c.n)] = { n:c.n, r:n, set:c.set || ST.code, ci:c.ci || [], at:Date.now() }; lsSet('forge.rates', JSON.stringify(r));
   rtNext();
 }
 function rtInt(on){
   var c = RT.q[RT.i]; if(!c) return;
   var p = stInts(), k = moxKey(c.n), flip = on == null; if(flip) on = !p[k];
-  if(on) p[k] = { n:c.n, img:c.img, bk:c.bk || '', r:c.r, cn:c.cn, set:c.set || ST.code, usd:c.usd, type:c.type, at:Date.now() }; else delete p[k];
+  if(on) p[k] = { n:c.n, img:c.img, bk:c.bk || '', r:c.r, cn:c.cn, set:c.set || ST.code, usd:c.usd, type:c.type, ci:c.ci || [], at:Date.now() }; else delete p[k];
   lsSet('forge.interest', JSON.stringify(p));
   if(flip) rtDraw();   // the button stays on this card; a swipe moves on by itself
 }
