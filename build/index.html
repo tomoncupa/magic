@@ -86,6 +86,8 @@ input[type=text],input[type=number],textarea,select{width:100%;background:var(--
 input:focus,textarea:focus,select:focus{border-color:var(--brass-line);outline:none}
 input:focus-visible,textarea:focus-visible,select:focus-visible{box-shadow:0 0 0 2px var(--brass)}
 textarea{min-height:96px;resize:vertical;font-family:var(--mono);font-size:14px}
+.dk-plan{margin-bottom:var(--s5)}
+#dkIntent,#intentIn{font-family:var(--ui);font-size:15px;line-height:1.45;min-height:0}
 input[type=number]{width:84px;text-align:center;font-family:var(--num);font-weight:600;font-variant-numeric:tabular-nums}
 label.lab{display:block;font-family:var(--disp);font-size:var(--t1);letter-spacing:var(--cap);text-transform:uppercase;color:var(--ink3);margin-bottom:var(--s2)}
 
@@ -6753,6 +6755,10 @@ function drawDeckPage(){
   var snapN = S.mox && S.mox.snap ? (S.mox.snap.main || []).reduce(function(s, x){ return s + (x.q || 1); }, 0) : -1;
   if(!moxQuiet() && total !== 100 && snapN >= 0 && snapN + (S.partner ? 2 : 1) === total && !moxDiff().count) h += '<div class="bs-callout bs-warn">' + ico('warn') + '<p><b>Moxfield\'s Main Deck had ' + snapN + ' cards when this copy came in,</b> so the deck has ' + total + '. ' +
     (total > 100 ? 'Cut ' + (total - 100) + ' here or on Moxfield.' : 'Add ' + (100 - total) + ' here or on Moxfield.') + ' If you were still changing it on Moxfield, bring in the newer version once it shows.</p></div>';
+  // The deck's plan, editable right here (Tom, 2026-11-16: "update the plan without having to start a Claude prompt").
+  // Same words as the Plan step's box (S.intentText); Claude reads them in every prompt.
+  if(!asm) h += '<section class="dk-plan"><label class="lab" for="dkIntent">What this deck should do</label>' +
+    '<textarea id="dkIntent" rows="3" placeholder="How it plays, how it wins, what a good game looks like.">' + esc(S.intentText || '') + '</textarea></section>';
   h += '<section data-zone="main"><div class="bs-section-head"><h2 class="bs-h2">The deck</h2>' + cnt + '<div class="bs-acts">' +
     '<div class="bs-seg" role="group" aria-label="Show as"><button type="button" data-lv="p:0"' + (!lv.p ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>List</button><button type="button" data-lv="p:1"' + (lv.p === 1 ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Pictures</button>' +
     '<button type="button" data-lv="p:2"' + (lv.p === 2 ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Assemble</button></div>' +
@@ -6811,6 +6817,11 @@ function drawDeckPage(){
     var cf = e.target.closest && e.target.closest('[data-catsfrom]'); if(cf){ catsFrom(cf.getAttribute('data-catsfrom')); return; }
     onDeckClick(e); };
   main.oninput = fltInput;
+  var dki = $('dkIntent');
+  if(dki){ var dkT = 0;
+    dki.oninput = function(e){ e.stopPropagation(); clearTimeout(dkT); dkT = setTimeout(function(){ S.intentText = dki.value.trim(); save({ quiet:true }); }, 400); };
+    dki.onchange = function(){ clearTimeout(dkT); S.intentText = dki.value.trim(); save({ quiet:true }); };
+    dki.onclick = function(e){ e.stopPropagation(); }; }
   main.onkeydown = function(e){ if((e.key === 'Enter' || e.key === ' ') && e.target.matches('[role=button][data-card], [role=checkbox][data-got]')){ e.preventDefault(); e.target.click(); } };
   catDrag(!touch, onBoard);
   if(lv.p === 2){ gotPaint(); asmFit(); }
