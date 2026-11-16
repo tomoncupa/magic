@@ -845,7 +845,7 @@ var S = upgradeS(load()) || fresh();
 save({ quiet:true });   // the shelf shows this deck's commander and step from the start
 function fresh(){
   return { step:1, cmd:null, partner:null, partnerKind:'', companion:null, ci:[], slug:'', base:null,
-    bracket:null, theme:null, wins:[], mustText:'', refuseText:'', meta:[], metaText:'',
+    bracket:3, theme:null, wins:[], mustText:'', refuseText:'', meta:[], metaText:'', intentText:'',
     quotas:null, why:null, sources:null, pool:null, deck:[], side:null, fixes:[],
     page:'build', boards:{ side:[], maybe:[] }, roleFix:{} };
 }
@@ -1136,7 +1136,10 @@ function drawPlan(b, err){
   if(!b) h += '<p class="warn">EDHREC has no page for this commander' + (err ? ' (' + esc(err.message) + ')' : '') + '. The builder can still work from Scryfall, but with no popularity data the picks will be weaker.</p>';
   else h += '<p class="src">EDHREC: ' + (b.decks || 0).toLocaleString() + ' decks' + (b.rank ? ', rank #' + b.rank : '') + (b.salt != null ? ', salt ' + b.salt.toFixed(2) + ' out of 4' : '') + '.</p>';
 
-  h += '<h2>1. Target bracket</h2><div class="stack">';
+  h += '<h2>1. What you want this deck to do</h2><label class="lab" for="intentIn">In your own words: how it plays, how it wins, what a good game looks like</label>' +
+    '<textarea id="intentIn" rows="5" placeholder="Go wide with goblins by turn 4, protect the board through one wipe, and win with Krenko and a sac outlet before the table untaps.">' + esc(S.intentText || '') + '</textarea>' +
+    '<p class="small" style="margin-top:6px">Claude reads this every time it picks cards, reviews the deck or writes the guide. Your table is set: high bracket 3.</p>';
+  h += '<h2>2. Target bracket</h2><div class="stack">';
   [1,2,3,4,5].forEach(function(n){
     var B = BRACKETS[n];
     h += '<button class="opt' + (S.bracket === n ? ' on' : '') + '" data-br="' + n + '"><span class="tick"></span><span><b>' + n + ' ' + B.name + '</b><span class="note">' + B.desc + '</span></span></button>';
@@ -1144,9 +1147,9 @@ function drawPlan(b, err){
   h += '</div><p class="src" style="margin-top:8px">Rules: ' + BRACKET_SRC + '. The Game Changers list is read live from Scryfall.</p>';
   h += houseHtml();
 
-  h += '<h2>2. Game Changers</h2><div id="gcBox"></div>';
+  h += '<h2>3. Game Changers</h2><div id="gcBox"></div>';
 
-  h += '<h2>3. Strategy</h2><div class="stack">';
+  h += '<h2>4. Strategy</h2><div class="stack">';
   tags.forEach(function(t){
     var p = themePitch(t);
     h += '<button class="opt multi' + (themeSlugs().indexOf(t.slug) >= 0 && (S.themes || [S.theme]).indexOf(t.slug) >= 0 ? ' on' : '') + '" data-th="' + esc(t.slug) + '"><span class="tick"></span><span><b>' + esc(t.value) + '</b>' +
@@ -1156,19 +1159,18 @@ function drawPlan(b, err){
   h += '</div><div style="margin-top:10px"><label class="lab" for="themeIn">Or type your own, separated by commas</label><input type="text" id="themeIn" value="' + esc(S.themeText || '') + '" placeholder="treasure, sacrifice, haste"></div>' +
     '<p class="small" style="margin-top:6px">Pick as many as you like. Each one EDHREC has a page for adds its cards; typed words also favour cards that say them, and Claude hears all of it.</p>';
 
-  h += '<h2>4. How you like to win</h2><div class="stack">';
+  h += '<h2>5. How you like to win</h2><div class="stack">';
   WINS.forEach(function(w){
     h += '<button class="opt multi' + (S.wins.indexOf(w[0]) >= 0 ? ' on' : '') + '" data-win="' + w[0] + '"><span class="tick"></span><span><b>' + w[1] + '</b><span class="note">' + w[2] + '</span></span></button>';
   });
   h += '</div>';
 
-  h += '<h2>5. Cards</h2><div class="grid2">' +
+  h += '<h2>6. Cards</h2><div class="grid2">' +
     '<div><label class="lab" for="mustIn">Must include, one per line</label><textarea id="mustIn" placeholder="Skirk Prospector">' + esc(S.mustText) + '</textarea></div>' +
     '<div><label class="lab" for="refIn">Refuse to play, one per line</label><textarea id="refIn" placeholder="Armageddon">' + esc(S.refuseText) + '</textarea></div></div>';
 
-  h += '<h2>6. Your playgroup</h2><div class="row">';
-  META.forEach(function(m){ h += '<button class="chip' + (S.meta.indexOf(m[0]) >= 0 ? ' on' : '') + '" data-meta="' + m[0] + '">' + m[1] + '</button>'; });
-  h += '</div><div style="margin-top:10px"><label class="lab" for="metaIn">Anything else about the table</label><input type="text" id="metaIn" value="' + esc(S.metaText) + '" placeholder="Two friends on precons, one on a tuned Yuriko"></div>';
+  // The playgroup questions are hidden, not deleted (Tom, 2026-11-16: "Don't ask me anymore about the table").
+  // Every deck plays a high bracket 3 table; TABLE_LINE tells Claude so. Old answers stay in S.meta/S.metaText.
   main.innerHTML = h;
 
   drawGcBox();
@@ -1191,7 +1193,7 @@ function drawPlan(b, err){
   };
   $('mustIn').onchange = function(e){ S.mustText = e.target.value; S.quotas = null; save(); };
   $('refIn').onchange = function(e){ S.refuseText = e.target.value; S.quotas = null; save(); };
-  $('metaIn').onchange = function(e){ S.metaText = e.target.value; save(); };
+  $('intentIn').onchange = function(e){ S.intentText = e.target.value.trim(); save(); };
   $('themeIn').onchange = function(e){
     S.themeText = e.target.value.trim(); S.themes = S.themes || (S.theme ? [S.theme] : []);
     S.theme = S.themes[0] || (S.themeText || S.theme === '' ? '' : null); S.pool = null; S.quotas = null; save(); drawPlan(b);
@@ -1435,12 +1437,8 @@ function makeSkeleton(){
   if(/voltron|equipment|auras/.test(th) || S.wins.indexOf('cmdr') >= 0){ mv('protection', 3, 'Everything rides on one creature.'); mv('wipes', -1, 'Wipes cost you the equipment board.'); mv('removal', -1, 'Room for protection.'); }
   if(/spellslinger|storm|burn|cantrips/.test(th)) mv('draw', 2, 'Spells decks burn through cards.');
   if(/ramp|lands|landfall|big-mana/.test(th)){ mv('ramp', 3, 'The theme is mana.'); mv('lands', 1, 'Landfall wants lands.'); }
-  if(S.meta.indexOf('removal') >= 0){ mv('protection', 2, 'Your table plays a lot of removal.'); mv('draw', 1, 'Rebuild after removal.'); }
-  if(S.meta.indexOf('wipes') >= 0){ mv('protection', 1, 'Your table wipes often.'); mv('draw', 1, 'Refill after a wipe.'); mv('wipes', -1, 'Others do the wiping.'); }
-  if(S.meta.indexOf('fast') >= 0){ mv('removal', 2, 'Fast combo at the table needs answers.'); }
-  if(S.meta.indexOf('big') >= 0){ mv('removal', 1, 'Big creatures need answers.'); mv('wipes', 1, 'Reset boards of big creatures.'); }
-  if(S.meta.indexOf('stax') >= 0){ mv('removal', 1, 'Stax pieces must be removed.'); }
-  if(S.meta.indexOf('casual') >= 0){ mv('removal', -1, 'A casual table needs less interaction.'); }
+  // The table is fixed at high bracket 3 (2026-11-16); the old playgroup chips no longer bend the counts.
+  if(br === 3) mv('protection', 1, 'Your table is high bracket 3: it answers threats.');
   if(br >= 3) mv('draw', 1, 'Consistency: the deck sees more of itself every game.');
   // Never ask for more tutors than there are cards that can fill the job.
   var tutors = S.pool.filter(function(c){ return c.roles.tutor && !isLand(c) && allowed(c); }).length;
@@ -2048,6 +2046,14 @@ function deckByJob(){
   });
   return L;
 }
+// Tom's table, fixed for every deck (2026-11-16).
+var TABLE_LINE = 'His table: high bracket 3. Strong, tuned decks with Game Changers, efficient removal, counters and wipes, and games decided around turns 6 to 8. Build to win against that, inside the bracket.';
+// His own words on what the deck should do. They outrank the strategy tags when the two disagree.
+function intentLines(){
+  var L = [TABLE_LINE];
+  if((S.intentText || '').trim()) L.push('What Tom wants this deck to do, in his words (follow this over the strategy tags if they disagree): ' + S.intentText.trim());
+  return L;
+}
 function tableLines(){
   var B = BRACKETS[S.bracket], lim = gcLimit(), L = [];
   var th = themeLabel();
@@ -2057,7 +2063,7 @@ function tableLines(){
   L.push('Strategy: ' + th + '.' + (S.wins.length ? ' Likes to win by: ' + S.wins.map(function(w){ return WINS.filter(function(x){ return x[0] === w; })[0][1].toLowerCase(); }).join(', ') + '.' : ''));
   if(lines(S.refuseText).length) L.push('Never add: ' + lines(S.refuseText).join(', ') + '.');
   if(rejectLine()) L.push(rejectLine());
-  if(S.meta.length || S.metaText) L.push('About the table: ' + S.meta.concat(S.metaText ? [S.metaText] : []).join('; ') + '.');
+  L = L.concat(intentLines());
   return L;
 }
 // Said to Claude in every prompt: money is no object, the bracket (as his table bends it) is.
@@ -2070,7 +2076,7 @@ function budgetLines(){
 }
 function roundPrompt(job){
   var open = openSlots(job), n = Math.min(12, Math.max(6, open * 2)), passed = S.draft.passed[job] || [];
-  var L = ['You are helping Tom build a Magic: The Gathering Commander deck one job at a time. He plays at a kitchen table with friends.', ''];
+  var L = ['You are helping Tom build a Magic: The Gathering Commander deck one job at a time. He plays with a regular group.', ''];
   L = L.concat(tableLines());
   if(window.PRO_DOCTRINE) L.push(window.PRO_DOCTRINE, '');
   L.push('Game Changers in the deck now: ' + draftGcs() + '.');
@@ -2670,7 +2676,7 @@ function claudePrompt(){
   var th = themeLabel();
   var L = [];
   if(window.PRO_DOCTRINE) L.push(window.PRO_DOCTRINE, '');
-  L.push('You are reviewing a Magic: The Gathering Commander deck for Tom, who plays it at a kitchen table with friends.', '');
+  L.push('You are reviewing a Magic: The Gathering Commander deck for Tom.', '');
   L.push('Commander: ' + S.cmd.n + (S.partner ? ' + ' + S.partner.n : '') + '. Colour identity: ' + (S.ci.join('') || 'colourless') + '.');
   L.push('Bracket ' + S.bracket + ' (' + B.name + '): ' + B.desc + ' Game Changer limit: ' + (lim === Infinity ? 'none' : lim) + '.');
   if((S.gcNames || []).length) L.push('The current official Game Changer list (your memory of it is out of date; cards not on it are not Game Changers): ' + S.gcNames.join('; ') + '.');
@@ -2682,7 +2688,7 @@ function claudePrompt(){
   if(cons.length) L.push('Not released yet, kept out of the 99, do not suggest them: ' + cons.join(', ') + '.');
   if(lines(S.refuseText).length) L.push('Never add: ' + lines(S.refuseText).join(', ') + '.');
   if(rejectLine()) L.push(rejectLine());
-  if(S.meta.length || S.metaText) L.push('About the table: ' + S.meta.concat(S.metaText ? [S.metaText] : []).join('; ') + '.');
+  L = L.concat(intentLines());
   L.push('', 'What the builder\'s own checks found:');
   (r.fails || []).forEach(function(f){ L.push('- FAILED: ' + f.t); });
   (r.passes || []).forEach(function(f){ L.push('- passed: ' + f.t); });
@@ -2984,9 +2990,7 @@ function primerMd(){
   L.push('- Board wipes: keep back a threat or protection; do not overextend.');
   if(/tokens|aggro|goblins|go-wide/.test(themeStr()) || isTribe(S.theme || '')) L.push('- Pyroclasm-style sweepers and Ensnaring Bridge style locks shut down a wide board.');
   if(S.wins.indexOf('cmdr') >= 0 || /voltron/.test(themeStr())) L.push('- Edict effects and tuck removal get around indestructible and hexproof.');
-  if(S.meta.indexOf('fast') >= 0) L.push('- Fast combo decks at your table: save removal and counters for their pieces.');
-  if(S.meta.indexOf('stax') >= 0) L.push('- Stax pieces: remove them early, before they lock you out.');
-  if(S.metaText) L.push('- Table notes: ' + S.metaText);
+  L.push('- A high bracket 3 table holds removal and wipes: keep a threat in hand and protection up for the turn you commit.');
   if(S.side){
     L.push('', '## Power swaps', '');
     S.side.up.forEach(function(p){ L.push('- Power Up: ' + p.out + ' -> ' + p.inn); });
@@ -3040,7 +3044,7 @@ function guideMd(){
 }
 function guidePrompt(){
   var r = S.lastCheck || {}, L = [];
-  L.push('Write a short piloting guide for Tom for the Magic: The Gathering Commander deck below. He reads it on his phone before and during games at a kitchen table with friends.', '');
+  L.push('Write a short piloting guide for Tom for the Magic: The Gathering Commander deck below. He reads it on his phone before and during games.', '');
   L = L.concat(tableLines());
   if(S.companion) L.push('Companion: ' + S.companion + '.');
   if(r.sim) L.push('Simulation: ' + pct(r.sim.p3) + ' of opening hands have 3+ lands; goldfish win around turn ' + (r.sim.winTurn || '15+') + '.');
@@ -3699,7 +3703,7 @@ async function importList(X, onStep, opts){
     S.theme = ''; S.themes = []; S.wins = []; S.meta = [];
     if(old){
       // The cards come from Moxfield; his plan, his bracket and Claude's text are his and stay.
-      ['claude', 'guide', 'theme', 'themes', 'themeText', 'wins', 'meta', 'metaText', 'mustText', 'refuseText', 'gcMode', 'gcPick', 'considerAdd', 'cats', 'keep', 'ask', 'plan', 'bench', 'when'].forEach(function(k){
+      ['claude', 'guide', 'theme', 'themes', 'themeText', 'wins', 'meta', 'metaText', 'mustText', 'refuseText', 'intentText', 'gcMode', 'gcPick', 'considerAdd', 'cats', 'keep', 'ask', 'plan', 'bench', 'when'].forEach(function(k){
         if(old[k] != null) S[k] = JSON.parse(JSON.stringify(old[k]));
       });
       if(!Array.isArray(S.wins)) S.wins = []; if(!Array.isArray(S.meta)) S.meta = []; if(!Array.isArray(S.themes)) S.themes = [];
