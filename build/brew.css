@@ -1068,3 +1068,6 @@ button.bs-rt-n.bs-cardlink{font-family:var(--disp);font-weight:600;font-size:var
 .ai-steps{margin:0 0 var(--s2);padding-left:var(--s5);color:var(--ink2);display:flex;flex-direction:column;gap:var(--s2)}
 .ai-steps .bs-btn{margin-top:var(--s1)}
 .ai-err{margin:0;color:var(--danger)}
+/* Group by: the extra groupings list sits beside the three buttons; gold edge while one of its groupings is on. */
+.bs-lvsel{width:auto;min-height:var(--tap);padding:0 10px;cursor:pointer;vertical-align:middle}
+.bs-lvsel.on{border-color:var(--brass);color:var(--brass)}

@@ -595,6 +595,7 @@ function slim(c){
     rel:c.reprint ? '' : c.released_at || '', usd:usdOfRaw(c),
     // A creature's power ('*' counts), '' for a card with none. Cards kept from before have no pw: powNeeded() asks.
     pw:c.power != null ? String(c.power) : f[0] && f[0].power != null ? String(f[0].power) : '',
+    tg:c.toughness != null ? String(c.toughness) : f[0] && f[0].toughness != null ? String(f[0].toughness) : '',
     // The printing's other name (Tom, 2026-10-21: "include the alt names"): Kefka Palazzo is Purphoros, God of the Forge.
     fn:c.flavor_name || f.map(function(x){ return x.flavor_name || ''; }).filter(Boolean).join(' // ') || '' };
 }
@@ -1738,10 +1739,18 @@ function drawList(){
 var TYPE_GROUPS = ['Creature', 'Planeswalker', 'Instant', 'Sorcery', 'Artifact', 'Enchantment', 'Battle', 'Land', 'Other'];
 var GROUP_PLURAL = { Creature:'Creatures', Planeswalker:'Planeswalkers', Instant:'Instants', Sorcery:'Sorceries',
   Artifact:'Artifacts', Enchantment:'Enchantments', Battle:'Battles', Land:'Lands', Other:'Other' };
+// The groupings past the three main ones sit in a list beside them (Tom, 2026-11-17: "put date added, put toughness,
+// put game changers and combo pieces").
+var GCC = { id:'', names:{}, busy:false };   // combo pieces for Game Changers and combos, per deck
+var LV_MORE = { mv:'Mana value', pow:'Power', tgh:'Toughness', date:'Date added', gc:'Game Changers and combos' };
+document.addEventListener('change', function(e){
+  var s = e.target && e.target.closest && e.target.closest('[data-lvsel]'); if(!s) return;
+  setListView('g', s.value || 'type'); drawDeckPage();
+});
 function listView(){
   // s: the order inside each group, per grouping (Tom, 2026-10-19: "manacost, or alphabetical"); each grouping keeps the order it had.
-  var v = { g:'type', p:0, s:{ type:'az', job:'mv', cat:'mv', mv:'az', pow:'mv' } };
-  try { var s = JSON.parse(localStorage.getItem('forge.listView') || '{}'); if(['job', 'cat', 'mv', 'pow'].indexOf(s.g) >= 0) v.g = s.g; if(s.p) v.p = s.p === 2 ? 2 : 1;
+  var v = { g:'type', p:0, s:{ type:'az', job:'mv', cat:'mv', mv:'az', pow:'mv', tgh:'mv', date:'az', gc:'mv' } };
+  try { var s = JSON.parse(localStorage.getItem('forge.listView') || '{}'); if(s.g === 'job' || s.g === 'cat' || LV_MORE[s.g]) v.g = s.g; if(s.p) v.p = s.p === 2 ? 2 : 1;
     if(s.s && typeof s.s === 'object') Object.keys(v.s).forEach(function(g){ if(s.s[g] === 'mv' || s.s[g] === 'az') v.s[g] = s.s[g]; }); } catch(e){}
   return v;
 }
@@ -6210,7 +6219,25 @@ function cats(){
   }
   if(!c.pos || typeof c.pos !== 'object') c.pos = {};   // where he put each box on the board, per grouping
   if(!c.pin || typeof c.pin !== 'object') c.pin = {};   // category -> card keys pinned to its top, newest first
+  if(!window.NO_WIPES && !c.mog){ c.mog = 1; if(catMog(c)){ var sid = CUR; setTimeout(function(){ if(CUR === sid) save({ quiet:true }); }, 0); } }
   return c;
+}
+/* His decks' Interaction becomes Oppression/ Removal/ Mogging, once per deck (Tom, 2026-11-17: "Yes rename"). A deck that
+   already has both moves Interaction's cards, extra tags, pins and box place into it and drops Interaction. */
+function catMog(c){
+  var iw = catWords('Interaction'), mw = catWords(CAT_INTER), old = c.list.filter(function(x){ return catWords(x) === iw; })[0];
+  if(!old) return;
+  var have = c.list.filter(function(x){ return catWords(x) === mw; })[0], to = have || CAT_INTER;
+  if(have) c.list.splice(c.list.indexOf(old), 1); else c.list[c.list.indexOf(old)] = to;
+  Object.keys(c.of).forEach(function(k){ if(c.of[k] === old) c.of[k] = to; });
+  Object.keys(c.also).forEach(function(k){
+    var l = c.also[k].map(function(x){ return x === old ? to : x; }).filter(function(x, i, a){ return a.indexOf(x) === i && x !== c.of[k]; });
+    if(l.length) c.also[k] = l; else delete c.also[k];
+  });
+  if(c.pin[old]){ var p = c.pin[to] || []; c.pin[to] = p.concat(c.pin[old].filter(function(x){ return p.indexOf(x) < 0; })); delete c.pin[old]; }
+  Object.keys(c.pos).forEach(function(g){ var bp = c.pos[g]; if(bp && typeof bp === 'object' && bp[old]){ if(!bp[to]) bp[to] = bp[old]; delete bp[old]; } });
+  if(c.autoNew) Object.keys(c.autoNew).forEach(function(k){ if(c.autoNew[k] === old) c.autoNew[k] = to; });
+  return true;
 }
 /* Pinned cards sit at the top of their category, outlined in gold (Tom, 2026-10-19: "let me pin cards to the top
    of those categories"). A pin is per category, so a card shown shaded under an extra tag can be pinned there too. */
@@ -6364,6 +6391,8 @@ function catFromMox(tags){
   Object.keys(tags || {}).forEach(function(n){
     // A tag that is one of his categories as sent to Moxfield ("Combos/ Win Cons") comes back as that category.
     var l = (tags[n] || []).map(catClean).filter(Boolean).map(function(t){
+      // Moxfield's old Interaction tag comes back as his removal category (catMog).
+      if(!window.NO_WIPES && catWords(t) === catWords('Interaction')) t = catFind(CAT_INTER) || CAT_INTER;
       var m = moxTagName(t).toLowerCase(), hit = c.list.filter(function(x){ return moxTagName(x).toLowerCase() === m; })[0]; return hit || t; });
     if(!l.length) return;
     var k = moxKey(n);
@@ -6811,7 +6840,42 @@ function deckGroups(lv){
       groups.push({ t:t, cat:t, items:l.sort(function(a, b){ return (a.pin || 1e9) - (b.pin || 1e9) || srt(a, b); }) });
     });
     if(none.length || cats().list.length) groups.push({ t:'No category yet', cat:'', none:true, items:none.sort(srt) });
-  } else if(lv.g === 'mv' || lv.g === 'pow'){
+  } else if(lv.g === 'date'){
+    // Newest first. A card with no change recorded since it came in counts from the day the deck arrived.
+    var W = S.when || {}, t0 = S.importedAt || 0, now = new Date(), day0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    var BUCK = [['Today', day0], ['Yesterday', day0 - 864e5], ['This week', day0 - 6 * 864e5], ['This month', day0 - 29 * 864e5], ['Earlier', 1]];
+    var byD = {};
+    items.forEach(function(it){
+      var at = W[moxKey(it.n)] || t0;
+      it.at = at; it.sub = (it.basic ? 'Basic land' : typeShort(it.c)) + (at ? ', ' + dateStr(at) : '');
+      var b = at ? BUCK.filter(function(x){ return at >= x[1]; })[0][0] : 'Since the deck began';
+      (byD[b] = byD[b] || []).push(it);
+    });
+    BUCK.map(function(x){ return x[0]; }).concat(['Since the deck began']).forEach(function(b){
+      if(byD[b]) groups.push({ t:b, items:byD[b].sort(function(a, c){ return (c.at || 0) - (a.at || 0) || a.n.localeCompare(c.n); }) });
+    });
+  } else if(lv.g === 'gc'){
+    // Game Changers (the bracket's list) and pieces of combos the deck already holds (Commander Spellbook).
+    var CN = Object.assign({}, S.comboNames || {}, GCC.id === CUR ? GCC.names : {}), inCombo = function(n){ return !!(CN[n] || Object.keys(CN).some(function(k){ return sameName(k, n) || sameName(n, k); })); };
+    var both = [], gcs = [], cps = [], other = [];
+    items.forEach(function(it){
+      var g = !it.basic && it.c && isGC(it.c), p = !it.basic && inCombo(it.n);
+      it.sub = it.basic ? 'Basic land' : jobSub(it);
+      (g && p ? both : g ? gcs : p ? cps : other).push(it);
+    });
+    [['Game Changer and combo piece', both], ['Game Changers', gcs], ['Combo pieces', cps], ['Everything else', other]].forEach(function(x){
+      if(x[1].length) groups.push({ t:x[0], items:x[1].sort(itemOrder(lv)) });
+    });
+    // Combos the deck already holds, from Commander Spellbook; redrawn once they are in.
+    if(GCC.id !== CUR && !GCC.busy && window.ENGINE && ENGINE.combos){
+      GCC.busy = true; var gid = CUR;
+      ENGINE.combos().then(function(r){
+        GCC.busy = false; var nm = {}; ((r && r.inDeck) || []).forEach(function(o){ o.cards.forEach(function(n){ nm[n] = 1; }); });
+        GCC = { id:gid, names:nm, busy:false };
+        if(CUR === gid && APP.view === 'deck' && S.page === 'deck' && listView().g === 'gc') drawDeckPage();
+      }, function(){ GCC.busy = false; });
+    }
+  } else if(lv.g === 'mv' || lv.g === 'pow' || lv.g === 'tgh'){
     /* Grouped by mana value, or creatures by power (Tom, 2026-11-17: "group cards by mana cost ... group creatures by
        attack power"). Lands sit apart under mana value; under power everything that is not a creature sits last. */
     var byV = {}, keys = [], rest = [], restT = lv.g === 'mv' ? 'Lands' : 'Not creatures';
@@ -6821,8 +6885,9 @@ function deckGroups(lv){
       if(lv.g === 'mv'){ if(it.basic || isLand(c)){ rest.push(it); return; } k = Math.min(Math.floor(c.mv || 0), 7); }
       else {
         if(!/creature/i.test(String(c.type || '').split('//')[0])){ rest.push(it); return; }
-        var p = c.pw; k = p == null ? 'unk' : /^\d+$/.test(p) ? Math.min(+p, 7) : 'x';
-        it.sub = typeShort(c) + ', power ' + (p == null ? 'loading' : p) + (c.mv != null ? ', mana value ' + c.mv : '');
+        var tg = lv.g === 'tgh', p = tg ? c.tg : c.pw, w = tg ? 'toughness' : 'power';
+        k = p == null ? 'unk' : /^\d+$/.test(p) ? Math.min(+p, 7) : 'x';
+        it.sub = typeShort(c) + ', ' + w + ' ' + (p == null ? 'loading' : p) + (c.mv != null ? ', mana value ' + c.mv : '');
       }
       if(!byV[k]){ byV[k] = []; keys.push(k); }
       byV[k].push(it);
@@ -6830,7 +6895,8 @@ function deckGroups(lv){
     keys.sort(function(a, b){ var na = typeof a === 'number', nb = typeof b === 'number'; return na && nb ? a - b : na ? -1 : nb ? 1 : a === 'x' ? -1 : 1; });
     var label = function(k){
       if(lv.g === 'mv') return k === 7 ? 'Mana value 7+' : 'Mana value ' + k;
-      return k === 7 ? 'Power 7+' : k === 'x' ? 'Power changes (*)' : k === 'unk' ? 'Power loading' : 'Power ' + k;
+      var W2 = lv.g === 'tgh' ? 'Toughness' : 'Power';
+      return k === 7 ? W2 + ' 7+' : k === 'x' ? W2 + ' changes (*)' : k === 'unk' ? W2 + ' loading' : W2 + ' ' + k;
     };
     keys.forEach(function(k){ groups.push({ t:label(k), items:byV[k].sort(itemOrder(lv)) }); });
     if(rest.length) groups.push({ t:restT, items:rest.sort(itemOrder(lv)) });
@@ -6963,9 +7029,10 @@ function drawDeckPage(){
     '<div class="bs-seg" role="group" aria-label="Show as"><button type="button" data-lv="p:0"' + (!lv.p ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>List</button><button type="button" data-lv="p:1"' + (lv.p === 1 ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Pictures</button>' +
     '<button type="button" data-lv="p:2"' + (lv.p === 2 ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Assemble</button></div>' +
     '<div class="bs-seg" role="group" aria-label="Group by"><button type="button" data-lv="g:type"' + (lv.g === 'type' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>By type</button><button type="button" data-lv="g:job"' + (lv.g === 'job' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>By job</button>' +
-    '<button type="button" data-lv="g:cat"' + (lv.g === 'cat' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>My categories</button>' +
-    '<button type="button" data-lv="g:mv"' + (lv.g === 'mv' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Mana value</button>' +
-    '<button type="button" data-lv="g:pow"' + (lv.g === 'pow' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Power</button></div>' + (lv.g === 'mv' ? '' :
+    '<button type="button" data-lv="g:cat"' + (lv.g === 'cat' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>My categories</button></div>' +
+    '<select class="bs-lvsel' + (LV_MORE[lv.g] ? ' on' : '') + '" data-lvsel aria-label="More ways to group">' + '<option value=""' + (LV_MORE[lv.g] ? '' : ' selected') + '>More groupings</option>' +
+      Object.keys(LV_MORE).map(function(g){ return '<option value="' + g + '"' + (lv.g === g ? ' selected' : '') + '>' + LV_MORE[g] + '</option>'; }).join('') + '</select>' +
+    (lv.g === 'mv' || lv.g === 'date' ? '' :
     '<div class="bs-seg" role="group" aria-label="Sort"><button type="button" data-lv="s:mv"' + (lv.s[lv.g] === 'mv' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Mana value</button><button type="button" data-lv="s:az"' + (lv.s[lv.g] === 'az' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>A to Z</button></div>') +
     '<button class="bs-btn bs-sm' + (lv.g === 'cat' ? '' : ' bs-primary') + '" type="button" data-addcard>' + ico('plus', 'bs-i16') + 'Add a card</button>' +
     (lv.g === 'cat' ? '<button class="bs-btn bs-sm bs-primary" type="button" data-catnew>' + ico('plus', 'bs-i16') + 'New category</button>' : '') +
@@ -7033,7 +7100,7 @@ function drawDeckPage(){
   loadBasicPics();   // the basics' art, for the list's thumbnails and the pictures alike
   backsNeeded();
   altNeeded();
-  if(lv.g === 'pow') powNeeded();
+  if(lv.g === 'pow' || lv.g === 'tgh') powNeeded();
 }
 /* ---------- two-faced cards flip (Tom, 2026-10-19: "Let me flip cards as well") ----------
    FLIP holds the cards turned to their back, for this visit only. Every picture of the card follows it:
@@ -7091,13 +7158,13 @@ var POWS = { asked:{}, busy:false };
 function powNeeded(){
   if(POWS.busy || !S.cmd) return;
   var need = S.deck.map(function(d){ return d.basic ? null : poolCard(d.n); })
-    .filter(function(c){ return c && c.pw === undefined && /creature/i.test(String(c.type || '')) && !POWS.asked[c.n]; });
+    .filter(function(c){ return c && (c.pw === undefined || c.tg === undefined) && /creature/i.test(String(c.type || '')) && !POWS.asked[c.n]; });
   if(!need.length) return;
   need.forEach(function(c){ POWS.asked[c.n] = 1; });
   POWS.busy = true; var tok = CUR;
   sfCollectionFetch(need.map(function(c){ return { id:c.id, n:c.n }; })).then(function(r){
     POWS.busy = false; if(CUR !== tok) return;
-    need.forEach(function(c){ var s = r.cards[c.id || c.n.toLowerCase()]; c.pw = s && s.pw != null ? s.pw : ''; });
+    need.forEach(function(c){ var s = r.cards[c.id || c.n.toLowerCase()]; c.pw = s && s.pw != null ? s.pw : ''; c.tg = s && s.tg != null ? s.tg : ''; });
     if(APP.view === 'deck' && S.page === 'deck' && !main.classList.contains('bs-dragging')) drawDeckPage();
   }, function(){ POWS.busy = false; });
 }

@@ -215,7 +215,7 @@ function state(){
   var id = curId();
   if(ST.deck !== id) ST = { deck:id, open:{}, more:{},
     edh:{ theme:'', bracket:0, budget:'', hide:false, allThemes:false, last:'', themes:null },
-    ideas:{ tab:'up', up:0, down:0 } };
+    ideas:{ tab:'rec', up:0, down:0 } };
   return ST;
 }
 
@@ -1587,14 +1587,18 @@ function drawIdeas(ctx, st){
   rateThen(ctx);
 
   var H = head('Upgrades and downgrades', 'Each pair swaps a card for one that does the same job, best for the deck score first. Every swap can be undone.');
-  var tabs = [['up', 'Upgrades', ups ? ups.length : null], ['down', 'Downgrades', cur > 1 ? (downs ? downs.length : null) : 0], ['int', 'Interesting<span class="bs-nosm"> cards</span>', ilist ? ilist.length : null]];
+  var recs = safe(function(){ return E().recommend(60); }, null);
+  var tabs = [['rec', 'Recommended', recs ? recs.length : null], ['up', 'Upgrades', ups ? ups.length : null], ['down', 'Downgrades', cur > 1 ? (downs ? downs.length : null) : 0], ['int', 'Interesting<span class="bs-nosm"> cards</span>', ilist ? ilist.length : null]];
   H += '<div class="pg-tabsrow"><div class="bs-seg bs-block pg-seg3" role="group" aria-label="Show">' + tabs.map(function(t){
     var on = s.tab === t[0];
     return '<button class="' + (on ? 'on' : '') + '" type="button" aria-pressed="' + on + '"' + ctx.act(function(){ if(s.tab !== t[0]){ s.tab = t[0]; redraw(); } }) + '><span>' + t[1] + '</span>' +
       ' <span class="bs-seg-n">' + (t[2] == null ? '<span class="bs-spin pg-spin-sm"></span>' : t[2]) + '</span></button>';
   }).join('') + '</div></div>';
 
-  if(s.tab === 'up'){
+  if(s.tab === 'rec'){
+    H += drawRecs(ctx, recs);
+  }
+  else if(s.tab === 'up'){
     H += '<div class="pg-controls">' + (cur < 5
       ? '<div class="pg-ctl"><span class="bs-label">Aim for</span><div class="bs-seg" role="group" aria-label="Aim for">' +
           [cur, cur + 1].map(function(v){ var on = s.up === v; return '<button class="' + (on ? 'on' : '') + '" type="button" aria-pressed="' + on + '"' + ctx.act(function(){ if(s.up !== v){ s.up = v; redraw(); } }) + '>' + (v === cur ? 'Stay at ' + v : 'Push to ' + v) + '</button>'; }).join('') +
@@ -1656,6 +1660,21 @@ function drawIdeas(ctx, st){
   el.innerHTML = wrap(H);
 }
 
+/* Recommended: internet data only, no Claude. Each card shows its mark out of 10 and the parts behind it. */
+function drawRecs(ctx, recs){
+  var H = '<div class="pg-controls"><p class="pg-legend pg-ctl-grow">From EDHREC and the deck\'s plans only, so Ask Claude is untouched. Each card is marked out of 10: synergy with ' + h(short()) + ' counts 40%, how many of its decks play it 30%, and fit with your plan 30%.</p></div>';
+  if(recs && recs.note) H += callout('info', h(recs.note));
+  if(!recs || !recs.length) return H;
+  var per = gridCols(ctx, 170) * 3, k = 'rec', all = isAll(k);
+  H += '<section class="bs-section">' + sectionHead('Recommended for this deck', recs.length) +
+    '<div class="bs-cgrid' + (all ? ' pg-all' : '') + '" style="--card-min:170px" data-more="' + moreKey(k) + '">' + recs.map(function(x, i){
+      var c = remember(x.c) || cardFor(x.n);
+      var why = x.plan ? 'Fits your ' + x.planName.toLowerCase() + ' plan.' : 'No fit with your plans.';
+      var st = '<span><b>' + (x.mark * 10).toFixed(1) + '</b> of 10</span>' + edhStats(x.inc, x.syn, false);
+      return tile(c || { n:x.n }, { hidden:!all && i >= per, badge:ownBadge(x.n) || (gcC(c) ? '<span class="bs-badge bs-warn">Game Changer</span>' : ''), why:why, stats:st, acts:addButtons(ctx, c, 'Recommended: ' + why) });
+    }).join('') + '</div>' + showAll(ctx, k, recs.length, per) + '</section>';
+  return H;
+}
 /* ================================================================
    COMPARE (top level)
    ================================================================ */

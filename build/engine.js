@@ -1402,6 +1402,32 @@ E.downgrades = swapMemo('down', function(opts){
   }catch(e){ return withNote([], 'Could not find downgrades: ' + e.message); }
 });
 
+/* ============ ENGINE.recommend ============
+   Cards for this deck from internet data alone, no AI (Tom, 2026-11-17: "a set of recommended cards based on existing
+   internet data without affecting our Claude convos ... based on synergy, inclusion, and alignment with our stated game
+   plan"). Each card not in the deck, legal and in colours gets three parts, each 0 to 1:
+   synergy (EDHREC synergy with this commander, +50% or more is full), inclusion (share of this commander's EDHREC decks),
+   plan (works with the deck's active plans by rules text: the strongest plan full, another active plan 0.6).
+   The mark is 40% synergy, 30% inclusion, 30% plan. */
+E.recommend = function(max){
+  if(!has()) return withNote([], 'No deck is open.');
+  var X = ctx(); if(!X.ok) return withNote([], X.why);
+  var plans = X.themes.filter(function(h){ return h.active; }), out = [];
+  (S.pool || []).forEach(function(c){
+    if(!c || isLand(c) || inX(X, c.n) || !okAdd(c)) return;
+    var b = (c.stats && c.stats.base) || {}, inc = b.pd ? b.nd / b.pd : 0, syn = b.pd ? Math.max(0, b.syn || 0) : 0;
+    var plan = 0, planName = '';
+    for(var i = 0; i < plans.length; i++){
+      var t = plans[i].t; if(enOf(t, c) || payOf(t, c)){ var v = i === 0 ? 1 : 0.6; if(v > plan){ plan = v; planName = t.label; } }
+    }
+    if(!inc && !syn && !plan) return;
+    var sN = Math.min(1, syn / 0.5), mark = 0.4 * sN + 0.3 * inc + 0.3 * plan;
+    out.push({ n:c.n, c:c, mark:r2(mark), syn:r2(syn), inc:r2(inc), plan:plan, planName:planName, own:ownedIn(c.n) });
+  });
+  out.sort(function(a, b){ return b.mark - a.mark || b.inc - a.inc; });
+  out = out.slice(0, max || 60);
+  return withNote(out, out.length ? (plans.length ? '' : 'No plan is active for this deck yet, so plan fit counts for nothing.') : 'Nothing in the card pool for this commander is missing from the deck.');
+};
 /* ============ ENGINE.interesting ============ */
 E.interesting = async function(){
   try{
