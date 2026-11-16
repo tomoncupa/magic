@@ -429,7 +429,7 @@ function tileHTML(g){
     <div class="qty">
       <button class="btn" data-act="dec" aria-label="Remove one">${I.minus}${g.creature ? 'Dies' : 'Use 1'}</button>
       <button class="btn" data-act="inc" aria-label="Make one more">${I.plus}${tokenMath(g, 1).total > 1 ? 'Make ' + tokenMath(g, 1).total : 'One'}</button>
-      <button class="btn" data-act="double" aria-label="Double the pile">x2 <span class="help">+${tokenMath(g, g.count).total}</span></button>
+      ${g.creature ? `<button class="btn" data-act="ctr" aria-label="Put a +1/+1 counter on each">+1/+1${counterMath(1).total > 1 ? ` <span class="help">=${counterMath(1).total}</span>` : ''}</button>` : ''}
     </div>
   </div>`;
 }
@@ -472,6 +472,7 @@ $('#board').addEventListener('click', e => {
   if(k === 'open'){ groupPanel(g.id); return; }
   if(k === 'inc'){ makeTokens(g, 1); return; }
   if(k === 'double'){ makeTokens(g, g.count); return; }
+  if(k === 'ctr'){ const add = counterMath(1).total; act(() => { g.plus += add; }, `+${add} counter${add === 1 ? '' : 's'} on each ${g.name}.`); return; }
   if(k === 'dec'){
     if(g.count <= 1){ removeGroup(g, deathText([[g, 1]])); return; }
     const d = deathText([[g, 1]]); act(() => { g.count--; if(g.tapped > g.count) g.tapped = g.count; clampG(g); }, d || null); return;
@@ -501,12 +502,38 @@ let holdT = null;
 $('#board').addEventListener('pointerdown', e => {
   if(e.target.closest('button, input')) return;
   const t = e.target.closest('.tile');
-  holdT = setTimeout(() => { holdT = null; if(t) groupPanel(+t.dataset.id); else searchPanel(); }, 500);
+  holdT = setTimeout(() => { holdT = null; if(t) holdPanel(+t.dataset.id); else searchPanel(); }, 500);
 });
+// Hold a pile (Tom, 2026-11-17): the less common moves, with everything else one press further.
+function holdPanel(id){
+  const g = grp(id); if(!g) return;
+  const half = Math.floor(g.count / 2);
+  openPanel(`${g.name} x${g.count}`, `
+    <button class="btn" id="hDbl">x2 the pile <span class="help">+${tokenMath(g, g.count).total}</span></button>
+    ${half ? `<button class="btn" id="hSplit">Split it: ${g.count - half} and ${half}</button>` : ''}
+    <button class="btn" id="hAll">${I.more}Everything else</button>
+    <button class="btn bad" id="hDel">Remove the pile</button>`);
+  $('#hDbl').onclick = () => { closePanel(); makeTokens(g, g.count); };
+  if($('#hSplit')) $('#hSplit').onclick = () => { splitGroup(g, half); closePanel(); };
+  $('#hAll').onclick = () => groupPanel(g.id);
+  $('#hDel').onclick = () => { closePanel(); removeGroup(g); };
+}
+// Moves k of a pile into a new pile beside it; untapped ones move first.
+function splitGroup(g, k){
+  let ng;
+  act(() => {
+    const untapped = g.count - g.tapped, fromUn = Math.min(k, untapped), fromTap = k - fromUn;
+    const sickMove = Math.min(g.sick, k);
+    ng = JSON.parse(JSON.stringify(g)); ng.id = S.nextId++; ng.count = k; ng.tapped = fromTap; ng.sick = sickMove; ng.note = '';
+    g.count -= k; g.tapped -= fromTap; g.sick -= sickMove; clampG(g);
+    S.groups.splice(S.groups.indexOf(g) + 1, 0, ng);
+  }, `Split into ${g.count - k} and ${k}.`);
+  return ng;
+}
 document.addEventListener('pointerdown', e => { if(e.target === document.body || e.target === document.documentElement){ holdT = setTimeout(() => { holdT = null; searchPanel(); }, 500); } });
 document.addEventListener('pointerup', () => clearTimeout(holdT));
 ['pointerup','pointercancel','pointerleave','pointermove'].forEach(ev => $('#board').addEventListener(ev, e => { if(ev === 'pointermove' && Math.abs(e.movementX) + Math.abs(e.movementY) < 4) return; clearTimeout(holdT); }));
-$('#board').addEventListener('contextmenu', e => { e.preventDefault(); const t = e.target.closest('.tile'); if(t) groupPanel(+t.dataset.id); else searchPanel(); });
+$('#board').addEventListener('contextmenu', e => { e.preventDefault(); const t = e.target.closest('.tile'); if(t) holdPanel(+t.dataset.id); else searchPanel(); });
 $('#stats').addEventListener('click', e => { if(e.target.closest('[data-open=menu]')) menuPanel(); if(e.target.closest('[data-open=dbl]')) dblPanel(); });
 
 function removeGroup(g, extra){
@@ -1036,16 +1063,7 @@ function groupPanel(id, keepScroll){
   $('#gAddCtr').onclick = addCtr; $('#gNewCtr').addEventListener('keydown', e => { if(e.key === 'Enter') addCtr(); });
   $('#gSplit').onclick = () => {
     const k = Math.min(Math.max(1, parseInt($('#gSp').value, 10) || 1), g.count - 1);
-    let ng;
-    act(() => {
-      // Untapped ones move first, then tapped.
-      const untapped = g.count - g.tapped, fromUn = Math.min(k, untapped), fromTap = k - fromUn;
-      const sickMove = Math.min(g.sick, k);
-      ng = JSON.parse(JSON.stringify(g)); ng.id = S.nextId++; ng.count = k; ng.tapped = fromTap; ng.sick = sickMove; ng.note = '';
-      g.count -= k; g.tapped -= fromTap; g.sick -= sickMove; clampG(g);
-      S.groups.splice(S.groups.indexOf(g) + 1, 0, ng);
-    });
-    groupPanel(ng.id);
+    groupPanel(splitGroup(g, k).id);
   };
   document.querySelectorAll('[data-merge]').forEach(b => b.onclick = () => {
     const x = grp(+b.dataset.merge);
