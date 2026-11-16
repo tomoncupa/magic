@@ -413,6 +413,8 @@ button.bs-bracket::after{content:'';position:absolute;left:0;right:0;top:50%;hei
 .bs-crow{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:var(--s3);width:100%;min-height:var(--tap);padding:5px var(--s2);border-bottom:1px solid var(--line);text-align:left;color:inherit;font:inherit;border-radius:0}
 button.bs-crow,.bs-crow.bs-tap{cursor:pointer}
 .bs-crow.on{background:var(--brass-soft);box-shadow:inset 2px 0 0 var(--brass)}
+/* Sorted by the deck itself, not yet looked at: a blue tint and edge, apart from the gold of pins and the selection. */
+.bs-auto{background:var(--info-soft);box-shadow:inset 3px 0 0 var(--info)}
 .bs-crow-mv{display:grid;place-items:center;min-width:26px;height:22px;padding:0 4px;border:1px solid var(--line);border-radius:4px;background:var(--bg3);font-family:var(--num);font-weight:600;font-size:var(--t1);color:var(--ink2)}
 .bs-crow-thumb{width:38px;height:28px;border-radius:3px;object-fit:cover;object-position:50% 25%;background:var(--bg4)}
 .bs-crow-main{display:flex;flex-direction:column;min-width:0}

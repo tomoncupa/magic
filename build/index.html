@@ -5348,7 +5348,7 @@ function itemBadges(it){
 }
 // A row or tile's extra classes (and the shaded copy's mark), left inside the class attribute's open quote: shaded copy, pinned.
 function itCls(it){
-  var a = (it.echo ? ' bs-echo' : '') + (it.pin || (it.board === 'main' && !it.basic && !it.echo && isKept(it.n)) ? ' bs-pin' : ''), at = it.echo ? ' data-echo="1"' : '';
+  var a = (it.echo ? ' bs-echo' : '') + (AUTO_SHOW && !it.echo && catAutoMarked(it.n) ? ' bs-auto' : '') + (it.pin || (it.board === 'main' && !it.basic && !it.echo && isKept(it.n)) ? ' bs-pin' : ''), at = it.echo ? ' data-echo="1"' : '';
   return at ? a + '"' + at.slice(0, -1) : a;
 }
 /* Pin (Tom, 2026-10-21: "Pin is just the same as keep"): one mark. A pinned card is never offered as a cut, wears
@@ -6256,16 +6256,30 @@ function catAutoSort(){
   if(catAutoOld().indexOf(CUR) >= 0){ C.auto = 1; save({ quiet:true }); return; }
   if(!S.pool || !S.deck.length) return;
   var snap = catSnap(), n = 0, left = 0, map = {};
+  C.autoNew = {};   // card key -> the category it was sorted into; highlighted there until he points at it
   CAT_AUTO.forEach(function(p){ map[p[0]] = catFind(p[1]) || (p[0] === 'wipes' ? catFind('Interaction') : ''); });
   S.deck.forEach(function(d){
     if(catOf(d.n)) return;
     var home = map[d.role] || '';
-    if(home){ catSet(d.n, home); n++; } else left++;
+    if(home){ catSet(d.n, home); C.autoNew[moxKey(d.n)] = home; n++; } else left++;
   });
   C.auto = 1; save({ quiet:true });
-  if(n) toast('Sorted ' + n + ' cards into your categories by what they do.' + (left ? ' ' + left + (left === 1 ? ' card has' : ' cards have') + ' no clear job and ' + (left === 1 ? 'waits' : 'wait') + ' under No category yet.' : ''),
+  if(n) toast('Sorted ' + n + ' cards into your categories, highlighted until you point at each one.' + (left ? ' ' + left + (left === 1 ? ' card has' : ' cards have') + ' no clear job and ' + (left === 1 ? 'waits' : 'wait') + ' under No category yet.' : ''),
     { undo:function(){ S.cats = JSON.parse(snap); S.cats.auto = 1; save(); catRedraw(); return true; } });
 }
+/* A card the deck sorted for him is tinted blue in My categories until he points at it (mouse) or taps it
+   (Tom, 2026-11-17: "auto sorted cards sort of highlight themselves until we hover over them"). Moving it
+   anywhere else also ends the tint. */
+var AUTO_SHOW = false;
+function catAutoMarked(n){ var a = S.cats && S.cats.autoNew, k = moxKey(n); return !!(a && a[k] && catOf(n) === a[k]); }
+function catAutoSeen(row){
+  var n = row.getAttribute('data-card'), a = S.cats && S.cats.autoNew; if(!n || !a) return;
+  delete a[moxKey(n)];
+  main.querySelectorAll('.bs-auto[data-card="' + CSS.escape(n) + '"]').forEach(function(el){ el.classList.remove('bs-auto'); });
+  clearTimeout(catAutoSeen.t); catAutoSeen.t = setTimeout(function(){ save({ quiet:true }); }, 800);
+}
+document.addEventListener('pointerover', function(e){ if(e.pointerType !== 'mouse' || !e.target.closest) return; var r = e.target.closest('.bs-auto[data-card]'); if(r) catAutoSeen(r); });
+document.addEventListener('pointerdown', function(e){ if(!e.target.closest) return; var r = e.target.closest('.bs-auto[data-card]'); if(r) catAutoSeen(r); }, true);
 // His categories, pins, extra tags, box places and Keep marks from another deck with the same commander.
 function catsFrom(id){
   var d = deckOf(id); if(!d || !d.cats) return;
@@ -6832,7 +6846,7 @@ function drawDeckPage(){
   }
   LANDS_NOW = null;
   catAutoSort();
-  var lv = listView(), groups = deckGroups(lv), total = S.deck.length + (S.partner ? 2 : 1);
+  var lv = listView(); AUTO_SHOW = lv.g === 'cat'; var groups = deckGroups(lv), total = S.deck.length + (S.partner ? 2 : 1);
   var shown = -1;
   if(fltOn()){
     shown = 0;
