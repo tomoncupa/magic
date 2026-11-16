@@ -45,10 +45,32 @@ def main():
         dst = os.path.join(APP, "site", *f.split("/"))
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copy2(os.path.join(REPO, *f.split("/")), dst)
-    env = dict(os.environ, BREW_VERSION=datetime.date.today().strftime("%Y.%m.%d"))
+    version = datetime.datetime.now().strftime("%Y.%m.%d.%H%M")
+    with open(os.path.join(APP, "version.txt"), "w", encoding="utf-8") as f:
+        f.write(version)
+    env = dict(os.environ, BREW_VERSION=version)
     subprocess.run([iscc(), "/Q", os.path.join(HERE, "BrewingStation.iss")], check=True, env=env)
     out = os.path.join(HERE, "output", "Brewing Station Setup.exe")
-    print("Built", out, round(os.path.getsize(out) / 1e6, 1), "MB")
+    print("Built", out, version, round(os.path.getsize(out) / 1e6, 1), "MB")
+    if "--publish" in sys.argv:
+        publish(out, version)
+
+
+def publish(out, version):
+    """Friends' copies update themselves from this: a GitHub release with the setup, and latest.json naming it."""
+    import hashlib
+    import json
+    tag = "brew-" + version
+    h = hashlib.sha256(open(out, "rb").read()).hexdigest()
+    subprocess.run(["gh", "release", "create", tag, out, "-R", "tomoncupa/magic", "--title", "Brewing Station " + version,
+                    "--notes", "Brewing Station for Windows. Installed copies update themselves."], check=True)
+    url = "https://github.com/tomoncupa/magic/releases/download/%s/Brewing.Station.Setup.exe" % tag
+    with open(os.path.join(HERE, "latest.json"), "w", encoding="utf-8") as f:
+        json.dump({"version": version, "url": url, "sha256": h}, f)
+    subprocess.run(["git", "-C", REPO, "add", "desktop/installer/latest.json"], check=True)
+    subprocess.run(["git", "-C", REPO, "commit", "-q", "-m", "Brewing Station installer " + version], check=True)
+    subprocess.run(["git", "-C", REPO, "push", "-q", "origin", "main"], check=True)
+    print("Published", tag)
 
 
 if __name__ == "__main__":

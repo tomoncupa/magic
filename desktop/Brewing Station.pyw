@@ -995,12 +995,96 @@ def idle_watch(server):
             return
 
 
+# Self-update for the installed copy (Tom, 2026-11-16: "close that gap"). The installer writes version.txt beside
+# the program; build.py --publish puts a new setup on GitHub Releases and its version and SHA-256 in
+# desktop/installer/latest.json, which GitHub Pages serves. Each start checks it in the background and downloads a
+# newer setup; the next start runs that setup silently (Inno closes this program and opens the new one after).
+UPDATE_MANIFEST = LIVE_SITE + "/desktop/installer/latest.json"
+UPDATE_DIR = os.path.join(os.path.dirname(STORE), "update")
+
+
+def my_version():
+    try:
+        with open(os.path.join(os.path.dirname(sys.executable), "version.txt"), encoding="utf-8") as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+def vtuple(v):
+    try:
+        return tuple(int(x) for x in str(v).split("."))
+    except ValueError:
+        return ()
+
+
+def update_pending():
+    """The downloaded setup when it is newer than this program and its SHA-256 still matches, else None."""
+    try:
+        with open(os.path.join(UPDATE_DIR, "pending.json"), encoding="utf-8") as f:
+            p = json.load(f)
+    except (OSError, ValueError):
+        return None
+    exe = os.path.join(UPDATE_DIR, "setup.exe")
+    if vtuple(p.get("version")) <= vtuple(my_version()) or not os.path.exists(exe):
+        return None
+    import hashlib
+    h = hashlib.sha256()
+    with open(exe, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return exe if h.hexdigest() == p.get("sha256") else None
+
+
+def update_fetch():
+    import hashlib
+    import urllib.request
+    try:
+        with urllib.request.urlopen(urllib.request.Request(UPDATE_MANIFEST + "?t=" + str(int(time.time())),
+                                    headers={"User-Agent": "BrewingStation/1.0"}), timeout=15) as r:
+            m = json.loads(r.read().decode("utf-8"))
+        if vtuple(m.get("version")) <= vtuple(my_version()):
+            return
+        url = str(m.get("url") or "")
+        if not url.startswith("https://github.com/tomoncupa/magic/releases/download/"):
+            return              # only Tom's own releases are ever run
+        os.makedirs(UPDATE_DIR, exist_ok=True)
+        tmp = os.path.join(UPDATE_DIR, "setup.part")
+        h = hashlib.sha256()
+        with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "BrewingStation/1.0"}), timeout=60) as r, open(tmp, "wb") as f:
+            for chunk in iter(lambda: r.read(1 << 20), b""):
+                h.update(chunk)
+                f.write(chunk)
+        if h.hexdigest() != m.get("sha256"):
+            os.remove(tmp)
+            return
+        os.replace(tmp, os.path.join(UPDATE_DIR, "setup.exe"))
+        with open(os.path.join(UPDATE_DIR, "pending.json"), "w", encoding="utf-8") as f:
+            json.dump({"version": m["version"], "sha256": m["sha256"]}, f)
+    except Exception:
+        pass                    # offline or GitHub down: try again next start
+
+
+def update_apply():
+    """At start: a newer setup waiting runs silently and this copy steps aside. True when it did."""
+    exe = update_pending()
+    if not exe:
+        return False
+    subprocess.Popen([exe, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/NOICONS"], creationflags=NO_WINDOW)
+    return True
+
+
 def main():
     show = "--no-window" not in sys.argv
     if already_running():
         if show:
             open_window()
         return
+    # Only when no copy is running, so an update never closes a window in use.
+    if FROZEN and update_apply():
+        return
+    if FROZEN:
+        threading.Thread(target=update_fetch, daemon=True).start()
     server = http.server.ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     threading.Thread(target=idle_watch, args=(server,), daemon=True).start()
     # Pictures left unsaved when the server last stopped are saved now.

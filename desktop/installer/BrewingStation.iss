@@ -34,6 +34,8 @@ Name: "{autodesktop}\Brewing Station"; Filename: "{app}\Brewing Station.exe"; Ta
 
 [Run]
 Filename: "{app}\Brewing Station.exe"; Description: "Open Brewing Station now"; Flags: nowait postinstall skipifsilent
+; A self-update runs this setup silently: open the new copy straight after.
+Filename: "{app}\Brewing Station.exe"; Flags: nowait; Check: WizardSilent
 
 [UninstallRun]
 Filename: "{cmd}"; Parameters: "/c taskkill /f /im ""Brewing Station.exe"""; Flags: runhidden; RunOnceId: "StopBrew"
