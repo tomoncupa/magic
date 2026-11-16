@@ -1,13 +1,13 @@
 // Offline support. The app shell is cached up front; card pictures are cached
 // as they are seen. A shop with no wifi can still deal a game, though the two
 // devices will not sync until there is a connection again.
-const SHELL = 'ktm-shell-v26';
+const SHELL = 'ktm-shell-v27';
 const CARDS = 'ktm-cards-v2';
 // Libraries from the CDN, such as the Sealed helper's card-name reader. Their
 // addresses carry a version, so a cached copy never goes stale.
 const LIB = 'ktm-lib-v1';
 const PC_HOST = self.location.hostname === '127.0.0.1' || self.location.hostname === 'localhost';
-const SHELL_FILES =['./', './index.html', './table.html', './decks.js', './config.js'];
+const SHELL_FILES =['./', './index.html', './table.html', './decks.js', './config.js', './tokens.html'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(SHELL).then(c => c.addAll(SHELL_FILES)).then(() => self.skipWaiting()));

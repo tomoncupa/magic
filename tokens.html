@@ -1,0 +1,1005 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tokens</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#080B10">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tokens">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Block, Motherbase's default theme. */
+:root{
+  --bg:#080B10; --bg2:#0E141D; --bg3:#131B26; --bg4:#1B2634;
+  --line:#1E2A38; --line2:#2B3A4D;
+  --ink:#DBE7F0; --ink2:#B8C9D8; --ink3:#7F93A8;
+  --brass:#F0B323; --brass-soft:rgba(240,179,35,.12);
+  --good:#6EE7A8; --wait:#FFB347; --bad:#FF6B81;
+  --tap:44px; --r:6px;
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px;
+  --t12:12px; --t14:14px; --t16:16px; --t20:20px; --t24:24px; --t32:32px; --t48:48px;
+  --disp:'Chakra Petch',system-ui,sans-serif;
+  --ui:'IBM Plex Sans',system-ui,-apple-system,Segoe UI,sans-serif;
+  --fast:.15s;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--ui);font-size:var(--t14);line-height:1.45;min-height:100vh;
+  padding:0 env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0);-webkit-user-select:none;user-select:none}
+input,textarea{-webkit-user-select:text;user-select:text}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+button{font:inherit;color:inherit}
+.btn{min-height:var(--tap);min-width:var(--tap);padding:0 var(--s3);border-radius:var(--r);border:1px solid var(--line2);background:var(--bg3);
+  display:inline-flex;align-items:center;justify-content:center;gap:var(--s2);font-weight:600;cursor:pointer;white-space:nowrap}
+.btn:active{background:var(--bg4)}
+.btn.gold{border-color:var(--brass);color:var(--brass);background:var(--brass-soft)}
+.btn.ghost{background:transparent;border-color:transparent}
+.btn.bad{color:var(--bad);border-color:rgba(255,107,129,.4)}
+.btn[disabled]{opacity:.4;pointer-events:none}
+.ic{padding:0;width:var(--tap)}
+
+/* Top bar */
+.top{position:sticky;top:0;z-index:5;background:var(--bg2);border-bottom:1px solid var(--line);
+  padding:calc(var(--s2) + env(safe-area-inset-top,0px)) var(--s4) var(--s2);display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap}
+.brand{font-family:var(--disp);font-weight:700;font-size:var(--t20);color:var(--brass);letter-spacing:.04em;display:flex;align-items:center;gap:var(--s2);text-decoration:none;min-height:var(--tap)}
+.stats{display:flex;gap:var(--s5);flex:1;min-width:0;flex-wrap:wrap;align-items:center}
+.stat{display:flex;flex-direction:column;line-height:1.1}
+.stat b{font-family:var(--disp);font-size:var(--t24);font-weight:700}
+.stat span{font-size:var(--t12);color:var(--ink3)}
+.stat.hot b{color:var(--brass)}
+.mods{display:flex;gap:var(--s2);flex-wrap:wrap}
+.chip{min-height:32px;padding:0 var(--s3);border-radius:var(--r);border:1px solid var(--line2);background:var(--bg3);display:inline-flex;align-items:center;gap:6px;font-size:var(--t12);color:var(--ink2);font-weight:600;cursor:pointer;position:relative}
+.chip::after{content:"";position:absolute;inset:-6px 0}
+.chip i{font-style:normal;width:8px;height:8px;border-radius:50%;background:var(--brass)}
+.actions{display:flex;gap:var(--s2)}
+
+/* Board */
+.board{min-height:calc(100vh - 90px);align-content:start;display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:var(--s3);padding:var(--s4)}
+.tile{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;display:flex;flex-direction:column;position:relative}
+.tile.sel{border-color:var(--brass)}
+.art{position:relative;aspect-ratio:626/457;background:var(--bg3) center/cover no-repeat;cursor:pointer}
+.art .shade{position:absolute;inset:0;background:linear-gradient(to bottom,rgba(8,11,16,0) 40%,rgba(8,11,16,.92))}
+.art .cnt{position:absolute;left:var(--s3);bottom:var(--s2);font-family:var(--disp);font-weight:700;font-size:var(--t48);line-height:1;color:var(--ink);text-shadow:0 2px 8px #000}
+.art .cnt small{font-size:var(--t24);color:var(--ink2);margin-right:2px}
+.art .pt{position:absolute;right:var(--s3);bottom:var(--s3);font-family:var(--disp);font-weight:700;font-size:var(--t24);background:rgba(8,11,16,.85);border:1px solid var(--line2);border-radius:var(--r);padding:0 var(--s2);line-height:1.4}
+.art .pt.up{border-color:var(--good)}
+.art .pt.down{border-color:var(--bad)}
+.art .more{position:absolute;right:var(--s1);top:var(--s1);background:rgba(8,11,16,.75);border-color:transparent}
+.art .tags{position:absolute;left:var(--s2);top:var(--s2);display:flex;gap:var(--s1);flex-wrap:wrap;max-width:75%}
+.tag{font-size:var(--t12);font-weight:600;background:rgba(8,11,16,.85);border:1px solid var(--line2);border-radius:4px;padding:0 6px;color:var(--ink2)}
+.tag.g{border-color:var(--good)}
+.tag.w{border-color:var(--wait)}
+.tname{padding:var(--s2) var(--s3) 0;font-weight:600;font-size:var(--t16);display:flex;justify-content:space-between;gap:var(--s2)}
+.tname span:last-child{color:var(--ink3);font-size:var(--t12);font-weight:500;text-align:right;padding-top:3px}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2);padding:var(--s2) var(--s3) var(--s3)}
+.half{border:1px solid var(--line);border-radius:var(--r);background:var(--bg3);padding:var(--s2);display:flex;flex-direction:column;gap:var(--s2)}
+.half .hd{display:flex;align-items:baseline;justify-content:space-between}
+.half .hd b{font-family:var(--disp);font-size:var(--t24);line-height:1}
+.half .hd span{font-size:var(--t12);color:var(--ink3)}
+.half.tp .hd b{color:var(--ink2)}
+.half .row{display:flex;gap:var(--s1)}
+.half .row .btn{flex:1;min-width:0;padding:0}
+.qty{display:flex;gap:var(--s2);padding:0 var(--s3) var(--s3)}
+.tapbox{padding:var(--s2) var(--s3) var(--s1)}
+.tapbox .hd{display:flex;justify-content:space-between;color:var(--ink2);font-size:var(--t14)}
+.tapbox .hd b{font-family:var(--disp);font-size:var(--t20);color:var(--ink)}
+.tapbox input{width:100%}
+.qty .btn{flex:1}
+.empty{grid-column:1/-1;text-align:center;padding:var(--s6) var(--s4);color:var(--ink2)}
+.empty p{margin:0 0 var(--s4);font-size:var(--t16)}
+.quick{display:flex;flex-wrap:wrap;gap:var(--s2);justify-content:center;max-width:720px;margin:var(--s4) auto 0}
+
+/* Panels */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:20;opacity:0;pointer-events:none;transition:opacity var(--fast)}
+.scrim.on{opacity:1;pointer-events:auto}
+.panel{position:fixed;z-index:21;background:var(--bg2);border:1px solid var(--line2);display:flex;flex-direction:column;
+  top:0;right:0;bottom:0;width:min(440px,100%);border-radius:var(--r) 0 0 var(--r);transform:translateX(100%);transition:transform var(--fast) ease-out;
+  padding-top:env(safe-area-inset-top,0);padding-bottom:env(safe-area-inset-bottom,0)}
+.panel.on{transform:none}
+.panel.wide{width:min(760px,100%)}
+@media (max-width:640px){
+  .panel,.panel.wide{top:auto;left:0;width:100%;max-height:92vh;border-radius:var(--r) var(--r) 0 0;transform:translateY(100%)}
+}
+@media (prefers-reduced-motion:reduce){.panel,.scrim{transition:none}}
+.ph{display:flex;align-items:center;gap:var(--s2);padding:var(--s2) var(--s2) var(--s2) var(--s4);border-bottom:1px solid var(--line)}
+.ph h2{margin:0;flex:1;font-family:var(--disp);font-size:var(--t20);font-weight:700;min-width:0;overflow-wrap:anywhere}
+.pb{overflow:auto;padding:var(--s4);display:flex;flex-direction:column;gap:var(--s4);-webkit-overflow-scrolling:touch;flex:1}
+.pf{padding:var(--s3) var(--s4);border-top:1px solid var(--line);display:flex;gap:var(--s2)}
+.pf .btn{flex:1}
+.sec{display:flex;flex-direction:column;gap:var(--s2)}
+.sec>label,.lbl{font-size:var(--t12);color:var(--ink3);font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.help{font-size:var(--t12);color:var(--ink3);margin:0}
+.ctl{display:flex;align-items:center;gap:var(--s2)}
+.num{width:76px;min-height:var(--tap);border-radius:var(--r);border:1px solid var(--line2);background:var(--bg);color:var(--ink);font-family:var(--disp);font-size:var(--t20);font-weight:700;text-align:center}
+.txt{width:100%;min-height:var(--tap);border-radius:var(--r);border:1px solid var(--line2);background:var(--bg);color:var(--ink);font-size:var(--t16);padding:0 var(--s3)}
+textarea.txt{padding:var(--s2) var(--s3);min-height:72px;resize:vertical;font-family:var(--ui)}
+input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:var(--tap);background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:var(--line2)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:var(--brass);margin-top:-11px;border:3px solid var(--bg2)}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:var(--line2)}
+input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;background:var(--brass);border:3px solid var(--bg2)}
+.oracle{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r);padding:var(--s3);color:var(--ink2);white-space:pre-wrap;font-size:var(--t14)}
+.math{font-family:var(--disp);font-size:var(--t14);color:var(--ink2)}
+.math b{color:var(--ink);font-size:var(--t20)}
+.ctr{display:flex;align-items:center;gap:var(--s2);background:var(--bg3);border:1px solid var(--line);border-radius:var(--r);padding:var(--s1) var(--s1) var(--s1) var(--s3)}
+.ctr span{flex:1;font-weight:600;overflow-wrap:anywhere}
+.ctr b{font-family:var(--disp);font-size:var(--t20);min-width:32px;text-align:center}
+.seg{display:flex;border:1px solid var(--line2);border-radius:var(--r);overflow:hidden}
+.seg button{flex:1;min-height:var(--tap);background:var(--bg3);border:0;border-right:1px solid var(--line2);font-weight:600;cursor:pointer;color:var(--ink2);padding:0 var(--s2)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--brass-soft);color:var(--brass)}
+.results{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:var(--s3)}
+.res{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;cursor:pointer;text-align:left;padding:0;display:flex;flex-direction:column}
+.res:active{border-color:var(--brass)}
+.res .ra{aspect-ratio:626/457;background:var(--bg) center/cover no-repeat}
+.res .rt{padding:var(--s2);display:flex;flex-direction:column;gap:2px}
+.res .rt b{font-size:var(--t14)}
+.res .rt span{font-size:var(--t12);color:var(--ink3)}
+.res .rt em{font-style:normal;font-size:var(--t12);color:var(--ink2)}
+.msg{color:var(--ink2);text-align:center;padding:var(--s5) 0}
+.addhead{display:flex;gap:var(--s3);align-items:center}
+.addhead .ra{width:120px;aspect-ratio:626/457;border-radius:var(--r);background:var(--bg3) center/cover no-repeat;flex:none}
+.big{font-family:var(--disp);font-size:var(--t32);font-weight:700;color:var(--brass)}
+.check{display:flex;align-items:center;gap:var(--s3);min-height:var(--tap);cursor:pointer}
+.check input{width:22px;height:22px;accent-color:var(--brass)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2)}
+
+/* Undo bar */
+.undo{position:fixed;left:50%;bottom:calc(var(--s4) + env(safe-area-inset-bottom,0));transform:translate(-50%,200%);z-index:30;background:var(--bg4);border:1px solid var(--line2);
+  border-radius:var(--r);padding:var(--s1) var(--s1) var(--s1) var(--s4);display:flex;align-items:center;gap:var(--s3);transition:transform var(--fast);max-width:calc(100% - 32px)}
+.undo.on{transform:translate(-50%,0)}
+@media (hover:hover){.btn:hover{border-color:var(--ink3)}.res:hover{border-color:var(--line2)}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <a class="brand" href="./" aria-label="Back to Magic home">
+    <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>TOKENS
+  </a>
+  <div class="stats" id="stats"></div>
+  <div class="actions">
+    <button class="btn" id="bUndo" title="Undo (Ctrl+Z)"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>Undo</button>
+    <button class="btn" id="bTurn" title="Untap everything and clear end of turn effects"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>New turn</button>
+    <button class="btn gold" id="bAdd"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add token</button>
+    <button class="btn ic" id="bMenu" aria-label="Table settings"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg></button>
+  </div>
+</header>
+
+<main class="board" id="board"></main>
+
+<div class="scrim" id="scrim"></div>
+<aside class="panel" id="panel" role="dialog" aria-modal="true">
+  <div class="ph"><h2 id="pTitle"></h2><button class="btn ic ghost" id="pClose" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="pb" id="pBody"></div>
+  <div class="pf" id="pFoot"></div>
+</aside>
+
+<div class="undo" id="undoBar"><span id="undoMsg"></span><button class="btn gold" id="undoBtn">Undo</button></div>
+
+<script src="decks.js"></script>
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const KEY = 'tokens.v1';
+const COMMON = ['Treasure','Food','Clue','Blood','Map','Goblin','Soldier','Zombie','Spirit','Saproling','Elf Warrior','Thopter','Beast','Cat','Squirrel','Human'];
+
+/* ---------- State ---------- */
+let S = load();
+function blank(){ return {arts:{}, groups:[], doublers:0, ctrDoublers:0, anthem:{p:0,t:0}, recent:[], turn:1, awake:false, nextId:1, deck:'', real:{}}; }
+function load(){
+  try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s && Array.isArray(s.groups)) return Object.assign(blank(), s); }catch(e){}
+  return blank();
+}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+
+const hist = [];
+function snap(){ hist.push(JSON.stringify(S)); if(hist.length > 40) hist.shift(); }
+function undo(){
+  if(!hist.length) return;
+  S = JSON.parse(hist.pop()); save(); hideUndo();
+  if(openGroupId && !grp(openGroupId)) closePanel();
+  render(); if(openGroupId) groupPanel(openGroupId, true);
+}
+/* Every change goes through act(): one undo step, saved, drawn. */
+function act(fn, undoText){ snap(); fn(); save(); render(); if(undoText) showUndo(undoText); }
+
+/* ---------- Token maths ---------- */
+const grp = id => S.groups.find(g => g.id === id);
+const numOr = (v, d) => { const n = parseInt(v, 10); return isNaN(n) ? d : n; };
+function pt(g){
+  const a = g.creature ? S.anthem : {p:0,t:0};
+  const p = numOr(g.basePow, 0) + g.plus + g.temp.p + a.p;
+  const t = numOr(g.baseTou, 0) + g.plus + g.temp.t + a.t;
+  return {p, t, changed: g.plus || g.temp.p || g.temp.t || a.p || a.t, down: (p < numOr(g.basePow,0)) || (t < numOr(g.baseTou,0))};
+}
+function ready(g){
+  if(!g.creature) return g.count - g.tapped;
+  const untapped = g.count - g.tapped;
+  const sick = g.haste ? 0 : Math.min(g.sick, untapped);
+  return Math.max(0, untapped - sick);
+}
+function clampG(g){
+  g.count = Math.max(0, g.count|0);
+  g.tapped = Math.min(Math.max(0, g.tapped|0), g.count);
+  g.sick = Math.min(Math.max(0, g.sick|0), g.count);
+}
+const mult = () => Math.pow(2, S.doublers);
+const cmult = () => Math.pow(2, S.ctrDoublers || 0);
+
+/* ---------- Scryfall ---------- */
+function tplFromCard(c){
+  const face = c.card_faces && !c.image_uris ? c.card_faces[0] : c;
+  const iu = face.image_uris || c.image_uris || {};
+  const type = face.type_line || c.type_line || '';
+  const oracle = face.oracle_text != null ? face.oracle_text : (c.oracle_text || '');
+  const isToken = /\bToken\b/.test(c.type_line || '');
+  return {
+    key: (isToken ? 't:' : 'c:') + (c.oracle_id || c.id),
+    name: face.name || c.name, type, oracle,
+    art: iu.art_crop || iu.normal || '', img: iu.normal || '',
+    basePow: face.power != null ? face.power : (c.power || ''),
+    baseTou: face.toughness != null ? face.toughness : (c.toughness || ''),
+    creature: /Creature/.test(type),
+    haste: /\bHaste\b/i.test((c.keywords || []).join(' ')) || /(^|\n)Haste/.test(oracle),
+    copy: !isToken
+  };
+}
+let lastCall = 0;
+async function sf(url){
+  const wait = Math.max(0, lastCall + 110 - Date.now()); lastCall = Date.now() + wait;
+  if(wait) await new Promise(r => setTimeout(r, wait));
+  const r = await fetch(url, {headers:{Accept:'application/json'}});
+  const j = await r.json();
+  if(!r.ok) { const e = new Error(j.details || 'Scryfall said no'); e.code = r.status; throw e; }
+  return j;
+}
+
+/* ---------- Drawing ---------- */
+const I = {
+  plus:'<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  minus:'<svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>',
+  more:'<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>',
+  tap:'<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5.3"/><path d="M18 3v4h-4"/><path d="M20 12a8 8 0 0 1-14 5.3"/><path d="M6 21v-4h4"/></svg>',
+  search:'<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>'
+};
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const kw = g => (g.oracle.match(/^(Flying|Haste|Vigilance|Trample|Lifelink|Deathtouch|Menace|Reach|First strike|Double strike|Defender|Indestructible|Hexproof|Ward \{?\d\}?)/gim) || []).slice(0,4);
+
+function renderStats(){
+  let total = 0, cre = 0, rdy = 0, rdyPow = 0, allPow = 0, sick = 0;
+  S.groups.forEach(g => {
+    total += g.count;
+    if(g.creature){ const p = Math.max(0, pt(g).p); cre += g.count; if(!g.haste) sick += Math.min(g.sick, g.count - g.tapped); const r = ready(g); rdy += r; rdyPow += r * p; allPow += g.count * p; }
+  });
+  const mods = [];
+  mods.push(`<button class="chip" data-open="dbl">${S.doublers ? '<i></i>' : ''}Tokens x${mult()}</button>`);
+  mods.push(`<button class="chip" data-open="dbl">${S.ctrDoublers ? '<i></i>' : ''}Counters x${cmult()}</button>`);
+  if(S.anthem.p || S.anthem.t) mods.push(`<button class="chip" data-open="menu"><i></i>All creatures ${sign(S.anthem.p)}/${sign(S.anthem.t)}</button>`);
+  $('#stats').innerHTML =
+    `<div class="stat"><b>${total}</b><span>Tokens</span></div>` +
+    `<div class="stat"><b>${cre}</b><span>Creatures</span></div>` +
+    `<div class="stat hot"><b>${rdy}</b><span>Can attack</span></div>` +
+    `<div class="stat hot"><b>${rdyPow}</b><span>Their power</span></div>` +
+    `<div class="stat"><b>${sick}</b><span>Summoning sick</span></div>` +
+    `<div class="stat"><b>${allPow}</b><span>Total power</span></div>` +
+    `<div class="stat"><b>${S.turn}</b><span>Turn</span></div>` +
+    (mods.length ? `<div class="mods">${mods.join('')}</div>` : '');
+  $('#bUndo').disabled = !hist.length;
+}
+const sign = n => (n >= 0 ? '+' : '') + n;
+
+function tileHTML(g){
+  const P = pt(g), r = ready(g);
+  const tags = [];
+  if(g.plus) tags.push(`<span class="tag g">${g.plus > 0 ? '+1/+1' : '-1/-1'} x${Math.abs(g.plus)}</span>`);
+  Object.entries(g.counters).forEach(([n, v]) => { if(v) tags.push(`<span class="tag">${esc(n)} ${v}</span>`); });
+  if(g.temp.p || g.temp.t) tags.push(`<span class="tag w">${sign(g.temp.p)}/${sign(g.temp.t)} this turn</span>`);
+  if(g.creature && g.sick && !g.haste) tags.push(`<span class="tag w">${Math.min(g.sick, g.count)} summoning sick</span>`);
+  if(g.copy) tags.push(`<span class="tag">Copy${g.copyBy ? ' by ' + esc(g.copyBy.split(',')[0]) : ''}</span>`);
+  const ptTxt = g.creature ? `<span class="pt ${P.down ? 'down' : P.changed ? 'up' : ''}">${g.basePow === '' && !P.changed ? '-' : P.p}/${g.baseTou === '' && !P.changed ? '-' : P.t}</span>` : '';
+  const untapped = g.count - g.tapped;
+  return `<div class="tile" data-id="${g.id}">
+    <div class="art" data-act="open" style="background-image:url('${esc(artOf(g))}')">
+      <div class="shade"></div>
+      <div class="tags">${tags.join('')}</div>
+      <button class="btn ic more" data-act="open" aria-label="Everything for ${esc(g.name)}">${I.more}</button>
+      <div class="cnt"><small>x</small>${g.count}</div>${ptTxt}
+    </div>
+    <div class="tname"><span>${esc(g.name)}</span><span>${esc(g.type.replace(/^Token\s*/,''))}</span></div>
+    <div class="tapbox">
+      <div class="hd"><span><b class="tu">${untapped}</b> untapped${g.creature && r !== untapped ? `, <span class="tr">${r}</span> can attack` : ''}</span><span><b class="tt">${g.tapped}</b> tapped</span></div>
+      <input type="range" class="tapr" min="0" max="${g.count}" value="${g.tapped}" aria-label="Slide right to tap, left to untap" ${g.count ? '' : 'disabled'}>
+    </div>
+    <div class="qty">
+      <button class="btn" data-act="dec" aria-label="Remove one">${I.minus}${g.creature ? 'Dies' : 'Use 1'}</button>
+      <button class="btn" data-act="inc" aria-label="Make one more">${I.plus}${S.doublers ? 'Make ' + mult() : 'One'}</button>
+      <button class="btn" data-act="double" aria-label="Double the pile">x2 <span class="help">+${g.count * mult()}</span></button>
+    </div>
+  </div>`;
+}
+
+function render(){
+  renderStats();
+  const b = $('#board');
+  if(!S.groups.length){
+    const recents = S.recent.slice(0, 8);
+    b.innerHTML = `<div class="empty"><p>No tokens on the table.</p>
+      <button class="btn gold" data-open="add">${I.search}Find a token</button>
+      ${recents.length ? `<div class="lbl" style="margin-top:24px">Used before</div><div class="quick">${recents.map((t, i) => `<button class="btn" data-recent="${i}">${esc(t.name)}${t.creature ? ' ' + esc(t.basePow) + '/' + esc(t.baseTou) : ''}</button>`).join('')}</div>` : ''}
+      <div class="lbl" style="margin-top:24px">Common tokens</div>
+      <div class="quick">${COMMON.map(n => `<button class="btn" data-common="${esc(n)}">${esc(n)}</button>`).join('')}</div></div>`;
+    return;
+  }
+  // Keep each tile in its place: update tiles that exist, add new ones, drop removed ones.
+  const have = new Map([...b.querySelectorAll('.tile')].map(t => [t.dataset.id, t]));
+  if(b.querySelector('.empty')) b.innerHTML = '';
+  S.groups.forEach((g, i) => {
+    const html = tileHTML(g);
+    let el = have.get(String(g.id));
+    if(el){ if(el._html !== html){ const n = frag(html); n._html = html; el.replaceWith(n); el = n; } have.delete(String(g.id)); }
+    else { el = frag(html); el._html = html; }
+    if(b.children[i] !== el) b.insertBefore(el, b.children[i] || null);
+    el.classList.toggle('sel', g.id === openGroupId);
+  });
+  have.forEach(el => el.remove());
+}
+function frag(html){ const d = document.createElement('div'); d.innerHTML = html; return d.firstElementChild; }
+
+/* ---------- Board presses ---------- */
+$('#board').addEventListener('click', e => {
+  const rc = e.target.closest('[data-recent]'); if(rc){ addPanel(S.recent[+rc.dataset.recent]); return; }
+  const cm = e.target.closest('[data-common]'); if(cm){ searchPanel(cm.dataset.common); return; }
+  if(e.target.closest('[data-open=add]')){ searchPanel(); return; }
+  const a = e.target.closest('[data-act]'); if(!a) return;
+  const g = grp(+a.closest('.tile').dataset.id); if(!g) return;
+  const k = a.dataset.act;
+  if(k === 'open'){ groupPanel(g.id); return; }
+  if(k === 'inc'){ act(() => { const n = mult(); g.count += n; g.sick += n; }); return; }
+  if(k === 'double'){ const n = g.count * mult(); act(() => { g.count += n; g.sick += n; }, `Made ${n} more ${g.name}.`); return; }
+  if(k === 'dec'){
+    if(g.count <= 1){ removeGroup(g); return; }
+    act(() => { g.count--; if(g.tapped > g.count) g.tapped = g.count; clampG(g); }); return;
+  }
+  act(() => {
+    if(k === 'tap1') g.tapped++;
+    if(k === 'tapall') g.tapped = g.count;
+    if(k === 'untap1') g.tapped--;
+    if(k === 'untapall') g.tapped = 0;
+    clampG(g);
+  });
+  if(openGroupId === g.id) groupPanel(g.id, true);
+});
+// The tap slider: the tile is not redrawn while a finger is on it, only its numbers; one undo step per slide.
+let sliding = null;
+$('#board').addEventListener('input', e => {
+  const r = e.target.closest('.tapr'); if(!r) return;
+  const tile = r.closest('.tile'), g = grp(+tile.dataset.id); if(!g) return;
+  if(sliding !== g.id){ snap(); sliding = g.id; }
+  g.tapped = +r.value; clampG(g); save(); renderStats();
+  tile.querySelector('.tu').textContent = g.count - g.tapped; tile.querySelector('.tt').textContent = g.tapped;
+  const tr = tile.querySelector('.tr'); if(tr) tr.textContent = ready(g);
+});
+$('#board').addEventListener('change', e => { if(e.target.closest('.tapr')){ sliding = null; render(); if(openGroupId) groupPanel(openGroupId, true); } });
+// Hold a tile for its sheet; right click does the same. Hold empty table to add a token.
+let holdT = null;
+$('#board').addEventListener('pointerdown', e => {
+  if(e.target.closest('button, input')) return;
+  const t = e.target.closest('.tile');
+  holdT = setTimeout(() => { holdT = null; if(t) groupPanel(+t.dataset.id); else searchPanel(); }, 500);
+});
+document.addEventListener('pointerdown', e => { if(e.target === document.body || e.target === document.documentElement){ holdT = setTimeout(() => { holdT = null; searchPanel(); }, 500); } });
+document.addEventListener('pointerup', () => clearTimeout(holdT));
+['pointerup','pointercancel','pointerleave','pointermove'].forEach(ev => $('#board').addEventListener(ev, e => { if(ev === 'pointermove' && Math.abs(e.movementX) + Math.abs(e.movementY) < 4) return; clearTimeout(holdT); }));
+$('#board').addEventListener('contextmenu', e => { e.preventDefault(); const t = e.target.closest('.tile'); if(t) groupPanel(+t.dataset.id); else searchPanel(); });
+$('#stats').addEventListener('click', e => { if(e.target.closest('[data-open=menu]')) menuPanel(); if(e.target.closest('[data-open=dbl]')) dblPanel(); });
+
+function removeGroup(g){
+  act(() => { S.groups = S.groups.filter(x => x !== g); }, `${g.name} removed.`);
+  if(openGroupId === g.id) closePanel();
+}
+
+$('#bAdd').onclick = () => searchPanel();
+$('#bUndo').onclick = undo;
+$('#bMenu').onclick = () => menuPanel();
+$('#bTurn').onclick = () => {
+  act(() => { S.turn++; S.groups.forEach(g => { g.tapped = 0; g.sick = 0; g.temp = {p:0,t:0}; }); }, `Turn ${S.turn + 1}: untapped, end of turn effects cleared.`);
+  if(openGroupId) groupPanel(openGroupId, true);
+};
+addEventListener('keydown', e => {
+  if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)){ e.preventDefault(); undo(); }
+  if(e.key === 'Escape') closePanel();
+});
+
+/* ---------- Undo bar ---------- */
+let undoT = null;
+function showUndo(msg){ $('#undoMsg').textContent = msg; $('#undoBar').classList.add('on'); clearTimeout(undoT); undoT = setTimeout(hideUndo, 6000); }
+function hideUndo(){ $('#undoBar').classList.remove('on'); }
+$('#undoBtn').onclick = undo;
+
+/* ---------- Panel ---------- */
+let openGroupId = null;
+function openPanel(title, body, foot, wide){
+  $('#pTitle').textContent = title; $('#pBody').innerHTML = body; $('#pBody').scrollTop = 0; $('#pFoot').innerHTML = foot || '';
+  $('#pFoot').style.display = foot ? '' : 'none';
+  $('#panel').classList.toggle('wide', !!wide);
+  $('#panel').classList.add('on'); $('#scrim').classList.add('on');
+}
+function closePanel(){
+  stopCam();
+  $('#panel').classList.remove('on'); $('#scrim').classList.remove('on');
+  const was = openGroupId; openGroupId = null; if(was) render();
+}
+$('#pClose').onclick = closePanel; $('#scrim').onclick = closePanel;
+
+/* A number you can drag or type. */
+function numCtl(id, val, min, max){
+  return `<div class="ctl"><button class="btn ic" data-step="${id}" data-d="-1" aria-label="Less">${I.minus}</button>
+    <input type="range" id="${id}R" min="${min}" max="${max}" value="${Math.min(Math.max(val, min), max)}">
+    <button class="btn ic" data-step="${id}" data-d="1" aria-label="More">${I.plus}</button>
+    <input class="num" id="${id}" inputmode="numeric" value="${val}" aria-label="Type a number"></div>`;
+}
+/* Wire a numCtl: onChange(value) runs on every change; the slider grows when a typed number passes its end. */
+function wireNum(id, min, onChange, getMax){
+  const r = $('#' + id + 'R'), t = $('#' + id);
+  const setVal = (v, from) => {
+    v = Math.max(min, v);
+    if(getMax){ const m = getMax(); if(v > m) v = m; }
+    if(v > +r.max) r.max = Math.ceil(v * 1.5 / 10) * 10;
+    if(from !== 'r') r.value = v;
+    if(from !== 't') t.value = v;
+    onChange(v);
+  };
+  r.addEventListener('input', () => setVal(+r.value, 'r'));
+  t.addEventListener('input', () => { const n = parseInt(t.value.replace(/[^\d-]/g, ''), 10); if(!isNaN(n)) setVal(n, 't'); });
+  t.addEventListener('focus', () => t.select());
+  t.addEventListener('blur', () => { t.value = r.value === t.value ? t.value : t.value; });
+  document.querySelectorAll(`[data-step="${id}"]`).forEach(b => b.onclick = () => setVal((parseInt(t.value, 10) || 0) + (+b.dataset.d), ''));
+  return setVal;
+}
+
+/* ---------- Your decks ---------- */
+// Krenko and Vorinclex come built in (decks.js); the rest are the Moxfield decks the nightly job saves.
+let deckList = null, deckData = null;
+async function listDecks(){
+  if(deckList) return deckList;
+  const out = [];
+  (window.MTG_DECKS || []).forEach(d => out.push({id:'b:' + d.id, name:d.name, built:d}));
+  try{
+    const j = await fetch('decks/moxfield.json', {cache:'no-cache'}).then(r => r.json());
+    (j.decks || []).forEach(d => out.push({id:'m:' + d.id, name:d.name.replace(/^[\d.]+\s*/, '') + ' (' + (d.commanders[0] || {}).n + ')', mox:d}));
+  }catch(e){}
+  return deckList = out;
+}
+async function collection(ids){
+  const got = [];
+  for(let i = 0; i < ids.length; i += 75){
+    const r = await fetch('https://api.scryfall.com/cards/collection', {method:'POST', headers:{'Content-Type':'application/json', Accept:'application/json'},
+      body: JSON.stringify({identifiers: ids.slice(i, i + 75).map(id => ({id}))})}).then(r => r.json());
+    got.push(...(r.data || []));
+    await new Promise(r => setTimeout(r, 110));
+  }
+  return got;
+}
+/* One deck read down to what a token board needs: its creatures, the tokens it makes and who makes them, its copy effects. */
+async function loadDeck(id){
+  const cacheKey = 'tokens.deck.' + id;
+  try{ const c = JSON.parse(localStorage.getItem(cacheKey)); if(c && c.v === 3) return deckData = c; }catch(e){}
+  const all = await listDecks(); const d = all.find(x => x.id === id); if(!d) throw new Error('Deck not found');
+  let cards;
+  if(d.built){
+    const full = await collection(d.built.cards.map(c => c.id));
+    cards = full;
+  } else {
+    const ids = [...d.mox.commanders, ...d.mox.main].map(c => c.sid).filter(Boolean);
+    cards = await collection(ids);
+  }
+  const tokIds = new Set(), makers = {};
+  cards.forEach(c => (c.all_parts || []).forEach(p => { if(p.component === 'token'){ tokIds.add(p.id); (makers[p.id] = makers[p.id] || []).push(c.name); } }));
+  const toks = await collection([...tokIds]);
+  const tokens = [], seen = {};
+  toks.filter(t => t.name !== 'Copy').forEach(t => {
+    const tpl = tplFromCard(t);
+    const by = makers[t.id] || [];
+    if(seen[tpl.key]){ seen[tpl.key].makers = [...new Set(seen[tpl.key].makers.concat(by))]; return; }
+    tpl.makers = by; seen[tpl.key] = tpl; tokens.push(tpl);
+  });
+  const creatures = cards.filter(c => /Creature/.test(c.type_line || (c.card_faces || [{}])[0].type_line || '')).map(tplFromCard);
+  const copies = cards.map(c => {
+    const o = c.oracle_text || (c.card_faces || []).map(f => f.oracle_text).join('\n');
+    if(!/(token that's a copy|tokens that are copies|token copy|copy of (that|target|it|this|exiled)[^.]*token)/i.test(o)) return null;
+    const m = o.match(/except (?:it'?s|it is|they'?re|they are|it has|it gains)\b([^.]*)/i);
+    return {name:c.name, oracle:o, except: m ? m[0] : ''};
+  }).filter(Boolean);
+  const oracles = {}; cards.forEach(c => { oracles[c.name] = c.oracle_text || ''; });
+  deckData = {v:3, id, name:d.name, tokens, creatures, copies, oracles};
+  try{ localStorage.setItem(cacheKey, JSON.stringify(deckData)); }catch(e){}
+  return deckData;
+}
+/* A copy with the effect's changes: "except it's a 4/4 black Zombie", "an enchantment and loses all other card types". */
+function applyExcept(t, eff){
+  const c = Object.assign({}, t, {copy:true});
+  if(!eff){ c.key = t.key + '|copy'; return c; }
+  const ex = eff.except || '';
+  c.key = t.key + '|' + eff.name; c.copyBy = eff.name;
+  const ptm = ex.match(/(\d+)\/(\d+)/); if(ptm){ c.basePow = ptm[1]; c.baseTou = ptm[2]; }
+  const subs = (ex.match(/\b[A-Z][a-z]+\b/g) || []).filter(w => !/^(It|They|White|Blue|Black|Red|Green|Colorless|Legendary)$/.test(w));
+  const cardT = (ex.match(/\b(enchantment|artifact)\b/gi) || []).map(w => w[0].toUpperCase() + w.slice(1).toLowerCase());
+  let [sup, sub] = c.type.split(/\s+—\s+/);
+  if(/loses all other card types/i.test(ex)){ sup = cardT.join(' '); c.creature = /creature/i.test(ex); }
+  else if(cardT.length) sup = cardT.join(' ') + ' ' + sup;
+  if(/not legendary|isn't legendary|nonlegendary/i.test(ex)) sup = sup.replace('Legendary ', '');
+  if(subs.length) sub = /in addition/i.test(ex) && sub ? sub + ' ' + subs.join(' ') : subs.join(' ');
+  c.type = 'Token ' + sup.trim() + (sub ? ' — ' + sub : '');
+  if(/haste/i.test(ex)) c.haste = true;
+  if(c.creature && !/Creature/.test(c.type)) c.type = c.type.replace('Token ', 'Token Creature ');
+  c.oracle = (t.oracle ? t.oracle + '\n\n' : '') + eff.name + ': ' + ex;
+  return c;
+}
+
+/* ---------- Camera: read a card's name ---------- */
+const TESS = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+let ocrP = null;
+function loadOCR(){
+  if(!ocrP) ocrP = new Promise((res, rej) => { const s = document.createElement('script'); s.src = TESS; s.onload = res; s.onerror = () => { ocrP = null; rej(new Error('The reader did not load')); }; document.head.appendChild(s); })
+    .then(() => Tesseract.createWorker('eng'));
+  return ocrP;
+}
+function lev(a, b){
+  const m = a.length, n = b.length; if(!m || !n) return Math.max(m, n);
+  let prev = Array.from({length:n + 1}, (_, j) => j);
+  for(let i = 1; i <= m; i++){ const cur = [i]; for(let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = cur; }
+  return prev[n];
+}
+const norm = s => s.toLowerCase().replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
+let stream = null;
+function stopCam(){ if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; } }
+/* onPick(template) gets the card the camera read. pool: deck creatures to match first. */
+function scanPanel(onPick, pool, back){
+  openPanel('Scan the card', `
+    <div style="position:relative;border-radius:6px;overflow:hidden;background:#000">
+      <video id="cam" playsinline muted autoplay style="width:100%;display:block"></video>
+      <div style="position:absolute;left:6%;right:6%;top:6%;height:16%;border:2px solid var(--brass);border-radius:6px"></div>
+    </div>
+    <p class="help">Fill the frame with the card, its name inside the gold box.</p>
+    <div class="msg" id="camMsg" style="padding:8px 0"></div>
+    <div id="camRes"></div>`,
+    `<button class="btn" id="camBack">Back</button><button class="btn gold" id="camGo">Read the name</button>`);
+  const panelClose = $('#pClose').onclick;
+  $('#camBack').onclick = () => { stopCam(); back(); };
+  const msg = t => { $('#camMsg').textContent = t; };
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment', width:{ideal:1920}}, audio:false})
+    .then(s => { stream = s; $('#cam').srcObject = s; msg(''); })
+    .catch(() => msg('The camera did not open. Allow it for this site in Settings, Safari, Camera.'));
+  loadOCR().catch(() => {});
+  $('#camGo').onclick = async () => {
+    const v = $('#cam'); if(!v.videoWidth){ msg('No picture from the camera yet.'); return; }
+    const go = $('#camGo'); go.disabled = true; go.textContent = 'Reading…';
+    try{
+      const W = v.videoWidth, H = v.videoHeight, cv = document.createElement('canvas');
+      const sx = W * .06, sy = H * .06, sw = W * .88, sh = H * .16;
+      cv.width = 1200; cv.height = Math.round(1200 * sh / sw);
+      const x = cv.getContext('2d'); x.filter = 'grayscale(1) contrast(1.6)'; x.drawImage(v, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+      const w = await loadOCR();
+      const {data} = await w.recognize(cv);
+      const lines = data.text.split('\n').map(l => l.replace(/[^A-Za-z ',-]/g, '').trim()).filter(l => l.length > 2);
+      let best = null;
+      if(pool && pool.length){
+        lines.forEach(l => { const nl = norm(l); pool.forEach(t => { const nn = norm(t.name.split(' // ')[0]); const sc = 1 - lev(nl.slice(0, nn.length + 3), nn) / Math.max(nn.length, 1); if(!best || sc > best.sc) best = {sc, t}; }); });
+        if(best && best.sc < .55) best = null;
+      }
+      if(!best){
+        for(const l of lines){ try{ const c = await sf('https://api.scryfall.com/cards/named?fuzzy=' + encodeURIComponent(l)); best = {t: tplFromCard(c)}; break; }catch(e){} }
+      }
+      if(!best){ msg('No card name read. Hold it closer, out of glare, and try again.'); return; }
+      stopCam(); onPick(best.t);
+    }catch(e){ msg(e.message); }
+    finally{ if($('#camGo')){ go.disabled = false; go.textContent = 'Read the name'; } }
+  };
+}
+
+/* ---------- Deck tab inside Add ---------- */
+async function deckView(out){
+  out.onclick = null;
+  const decks = await listDecks();
+  out.innerHTML = `<div class="sec"><label for="deckSel">Deck on the table</label>
+    <select class="txt" id="deckSel"><option value="">Pick a deck</option>${decks.map(d => `<option value="${esc(d.id)}" ${d.id === S.deck ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></div><div id="deckBody"></div>`;
+  $('#deckSel').onchange = e => { S.deck = e.target.value; save(); drawDeck(); };
+  drawDeck();
+}
+async function drawDeck(){
+  const box = $('#deckBody'); if(!box) return;
+  if(!S.deck){ box.innerHTML = '<p class="msg">Pick a deck to see the tokens it makes.</p>'; return; }
+  box.innerHTML = '<div class="msg">Reading the deck…</div>';
+  let D;
+  try{ D = await loadDeck(S.deck); }catch(e){ box.innerHTML = `<div class="msg">${navigator.onLine ? 'The deck did not load. ' + esc(e.message) : 'No internet, and this deck has not been read on this iPad yet.'}</div>`; return; }
+  if(!$('#deckBody') || S.deck !== D.id) return;
+  box.innerHTML = `
+    <div class="lbl" style="margin:16px 0 8px">Tokens this deck makes (${D.tokens.length})</div>
+    <div class="results">${D.tokens.map((t, i) => `<button class="res" data-tok="${i}">
+      <div class="ra" style="background-image:url('${esc(t.art)}')"></div>
+      <div class="rt"><b>${esc(t.name)}${t.creature ? ' ' + esc(t.basePow) + '/' + esc(t.baseTou) : ''}</b><span>${esc(t.type)}</span><em>From ${esc(t.makers.slice(0, 2).join(', '))}${t.makers.length > 2 ? ' +' + (t.makers.length - 2) : ''}</em></div></button>`).join('')}</div>
+    <div class="lbl" style="margin:24px 0 8px">Brings a card back as a token</div>
+    <div class="sec">${D.copies.map((c, i) => `<button class="btn" style="justify-content:flex-start;text-align:left;white-space:normal;padding:8px 12px" data-cp="${i}"><span><b>${esc(c.name)}</b><br><span class="help">${esc(c.except || 'A plain copy')}</span></span></button>`).join('')}
+      <button class="btn" style="justify-content:flex-start" data-cp="-1">A plain copy of a creature</button></div>`;
+  box.onclick = e => {
+    const t = e.target.closest('[data-tok]'); if(t){ addPanel(D.tokens[+t.dataset.tok]); return; }
+    const c = e.target.closest('[data-cp]'); if(c){ copyPick(+c.dataset.cp >= 0 ? D.copies[+c.dataset.cp] : null, D); }
+  };
+}
+/* Which creature is coming back: from the deck list, the camera, or a search. */
+function copyPick(eff, D){
+  openPanel(eff ? eff.name : 'Copy a creature', `
+    ${eff ? `<div class="oracle">${esc(eff.oracle)}</div>` : ''}
+    <button class="btn gold" id="cpScan">Scan the card with the camera</button>
+    <input class="txt" id="cpQ" placeholder="Or find it in the deck, or any card by name" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="results" id="cpRes"></div>`, `<button class="btn" id="cpBack">Back</button>`, true);
+  const draw = () => {
+    const q = norm($('#cpQ').value);
+    const list = D.creatures.filter(t => !q || norm(t.name).includes(q));
+    $('#cpRes').innerHTML = list.map(t => `<button class="res" data-k="${esc(t.key)}"><div class="ra" style="background-image:url('${esc(t.art)}')"></div><div class="rt"><b>${esc(t.name)}</b><span>${esc(t.basePow)}/${esc(t.baseTou)} ${esc(t.type)}</span></div></button>`).join('') ||
+      `<button class="btn" id="cpAny">Find “${esc($('#cpQ').value)}” on Scryfall</button>`;
+    const any = $('#cpAny'); if(any) any.onclick = async () => { any.disabled = true; any.textContent = 'Finding…'; try{ const c = await sf('https://api.scryfall.com/cards/named?fuzzy=' + encodeURIComponent($('#cpQ').value)); addPanel(applyExcept(tplFromCard(c), eff)); }catch(e){ any.textContent = 'Not found'; } };
+  };
+  $('#cpQ').addEventListener('input', draw); draw();
+  $('#cpRes').onclick = e => { const b = e.target.closest('[data-k]'); if(b) addPanel(applyExcept(D.creatures.find(t => t.key === b.dataset.k), eff)); };
+  $('#cpScan').onclick = () => scanPanel(t => addPanel(applyExcept(t, eff)), D.creatures, () => copyPick(eff, D));
+  $('#cpBack').onclick = () => { searchMode = 'deck'; searchPanel(); };
+}
+
+/* ---------- Search ---------- */
+let searchMode = S.deck ? 'deck' : 'token', searchSeq = 0;
+function searchPanel(q){
+  openGroupId = null;
+  openPanel('Add a token', `
+    <div class="seg" id="mode">
+      <button data-m="deck">My deck</button><button data-m="token">Tokens</button><button data-m="maker">Made by a card</button><button data-m="copy">Copy of a card</button><button data-m="custom">Make my own</button>
+    </div>
+    <div id="searchBox" class="ctl"><input class="txt" id="q" placeholder="" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="btn" id="qScan">Scan</button></div>
+    <p class="help" id="qHelp"></p>
+    <div id="results"></div>`, '', true);
+  const setMode = m => {
+    searchMode = m;
+    document.querySelectorAll('#mode button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+    $('#searchBox').style.display = m === 'custom' || m === 'deck' ? 'none' : '';
+    const ph = {token:'Goblin, treasure, 2/2 zombie, flying spirit', maker:'A card name, like Krenko, Mob Boss', copy:'The card to copy, like Esika\'s Chariot'}[m] || '';
+    $('#q').placeholder = ph; $('#qScan').style.display = m === 'copy' ? '' : 'none';
+    $('#qHelp').textContent = {token:'Searches every token ever printed. Words like flying, 2/2 or a colour narrow it down.',
+      maker:'Shows the tokens that card makes.', copy:'For effects that make a token copy of a card.', custom:'', deck:''}[m];
+    if(m === 'custom') customForm(); else if(m === 'deck') deckView($('#results')); else runSearch();
+  };
+  $('#qScan').onclick = () => scanPanel(t => addPanel(applyExcept(t, null)), deckData && deckData.creatures, () => searchPanel());
+  $('#mode').onclick = e => { const b = e.target.closest('button'); if(b) setMode(b.dataset.m); };
+  let deb = null;
+  $('#q').addEventListener('input', () => { clearTimeout(deb); deb = setTimeout(runSearch, 350); });
+  $('#q').addEventListener('keydown', e => { if(e.key === 'Enter'){ clearTimeout(deb); runSearch(); $('#q').blur(); } });
+  if(q) $('#q').value = q;
+  setMode(q ? 'token' : searchMode);
+  if(!q && searchMode !== 'custom' && searchMode !== 'deck') $('#q').focus();
+}
+
+const COLORS = {white:'w', blue:'u', black:'b', red:'r', green:'g', colorless:'c'};
+function tokenQuery(q){
+  // Plain words a player says, turned into Scryfall's search words.
+  const parts = [];
+  q.toLowerCase().split(/\s+/).filter(Boolean).forEach(w => {
+    const m = w.match(/^(\d+|x|\*)\/(\d+|x|\*)$/);
+    if(m){ if(/\d/.test(m[1])) parts.push('pow=' + m[1]); if(/\d/.test(m[2])) parts.push('tou=' + m[2]); return; }
+    if(COLORS[w]){ parts.push(w === 'colorless' ? 'c=c' : 'c>=' + COLORS[w]); return; }
+    if(/^(flying|haste|vigilance|trample|lifelink|deathtouch|menace|reach|indestructible|hexproof|defender)$/.test(w)){ parts.push('keyword:' + w); return; }
+    parts.push(w);
+  });
+  return 't:token ' + parts.join(' ');
+}
+
+async function runSearch(){
+  const q = ($('#q') || {}).value ? $('#q').value.trim() : '';
+  const out = $('#results'); if(!out) return;
+  const seq = ++searchSeq;
+  if(!q){ out.innerHTML = searchMode === 'token' ? `<div class="lbl">Common tokens</div><div class="quick" style="justify-content:flex-start">${COMMON.map(n => `<button class="btn" data-common="${esc(n)}">${esc(n)}</button>`).join('')}</div>` : '';
+    out.onclick = e => { const c = e.target.closest('[data-common]'); if(c){ $('#q').value = c.dataset.common; runSearch(); } }; return; }
+  out.innerHTML = '<div class="msg">Searching…</div>';
+  try{
+    let cards = [];
+    if(searchMode === 'token'){
+      const j = await sf('https://api.scryfall.com/cards/search?unique=cards&order=name&q=' + encodeURIComponent(tokenQuery(q)));
+      cards = j.data;
+      // A name match first: "Treasure" should open with Treasure, not Treasure Map.
+      const ql = q.toLowerCase();
+      cards.sort((a, b) => (a.name.toLowerCase() === ql ? 0 : 1) - (b.name.toLowerCase() === ql ? 0 : 1));
+    } else if(searchMode === 'copy'){
+      const j = await sf('https://api.scryfall.com/cards/search?unique=cards&q=' + encodeURIComponent(q + ' -t:token'));
+      cards = j.data.slice(0, 40);
+    } else {
+      const c = await sf('https://api.scryfall.com/cards/named?fuzzy=' + encodeURIComponent(q));
+      const parts = (c.all_parts || []).filter(p => p.component === 'token');
+      if(seq !== searchSeq) return;
+      if(!parts.length){ out.innerHTML = `<div class="msg">${esc(c.name)} makes no tokens Scryfall knows of.</div>`; return; }
+      out.innerHTML = `<div class="msg">Reading the tokens ${esc(c.name)} makes…</div>`;
+      const ids = [...new Set(parts.map(p => p.id))].map(id => ({id}));
+      const j = await fetch('https://api.scryfall.com/cards/collection', {method:'POST', headers:{'Content-Type':'application/json', Accept:'application/json'}, body: JSON.stringify({identifiers: ids})}).then(r => r.json());
+      cards = j.data || [];
+      const seen = new Set(); cards = cards.filter(x => !seen.has(x.oracle_id) && seen.add(x.oracle_id));
+      cards.unshift(null); cards.makerName = c.name;
+    }
+    if(seq !== searchSeq) return;
+    const head = cards[0] === null ? (cards.shift(), `<div class="lbl" style="margin-bottom:8px">Made by ${esc(cards.makerName || '')}</div>`) : '';
+    // Tokens that read the same (name, type, P/T, text) show once.
+    const look = new Set();
+    const tpls = cards.filter(Boolean).map(tplFromCard).filter(t => { const k = [t.name, t.type, t.basePow, t.baseTou, t.oracle].join('|'); return !look.has(k) && look.add(k); });
+    out._tpls = tpls;
+    out.innerHTML = head + `<div class="results">${tpls.map((t, i) => `<button class="res" data-i="${i}">
+      <div class="ra" style="background-image:url('${esc(t.art)}')"></div>
+      <div class="rt"><b>${esc(t.name)}${t.creature ? ' ' + esc(t.basePow) + '/' + esc(t.baseTou) : ''}</b><span>${esc(t.type)}</span>${t.oracle ? `<em>${esc(t.oracle.length > 90 ? t.oracle.slice(0, 88) + '…' : t.oracle)}</em>` : ''}</div>
+    </button>`).join('')}</div>`;
+    out.onclick = e => { const b = e.target.closest('.res'); if(b) addPanel(out._tpls[+b.dataset.i]); };
+  }catch(err){
+    if(seq !== searchSeq) return;
+    out.innerHTML = `<div class="msg">${err.code === 404 ? 'Nothing found for “' + esc(q) + '”.' : navigator.onLine ? 'Scryfall did not answer. ' + esc(err.message) : 'No internet. Tokens you used before are on the empty table.'}</div>`;
+  }
+}
+
+function customForm(){
+  const out = $('#results');
+  out.onclick = null;
+  out.innerHTML = `<div class="sec">
+    <label for="cName">Name</label><input class="txt" id="cName" placeholder="Wolf">
+    <label for="cType">Type</label><input class="txt" id="cType" placeholder="Creature — Wolf" value="Creature">
+    <div class="grid2"><div class="sec"><label for="cP">Power</label><input class="txt" id="cP" inputmode="numeric" placeholder="2"></div>
+    <div class="sec"><label for="cT">Toughness</label><input class="txt" id="cT" inputmode="numeric" placeholder="2"></div></div>
+    <label for="cText">Abilities</label><textarea class="txt" id="cText" placeholder="Flying"></textarea>
+    <button class="btn gold" id="cGo">Next</button></div>`;
+  $('#cName').focus();
+  $('#cGo').onclick = () => {
+    const name = $('#cName').value.trim() || 'Token';
+    const type = $('#cType').value.trim() || 'Creature';
+    const oracle = $('#cText').value.trim();
+    addPanel({key: 'x:' + name + '|' + type + '|' + $('#cP').value + '/' + $('#cT').value + '|' + oracle, name, type, oracle, art:'', img:'',
+      basePow: $('#cP').value.trim(), baseTou: $('#cT').value.trim(), creature: /Creature/i.test(type), haste: /haste/i.test(oracle), copy:false});
+  };
+}
+
+/* ---------- "X is the number of Goblins you control" ---------- */
+// Read off the card that makes the token, so Krenko and anything worded like him counts for you.
+function countRule(t){
+  if(!t.makers || !deckData) return null;
+  for(const m of t.makers){
+    const o = deckData.oracles[m] || '';
+    const r = o.match(/(?:where X is|equal to) the number of (?:other )?([A-Z][a-z]+?)s? you control/) || o.match(/for each (?:other )?([A-Z][a-z]+?) you control/);
+    if(r) return {maker:m, word:r[1]};
+  }
+  return null;
+}
+const onBoard = word => S.groups.reduce((n, g) => n + (new RegExp('\\b' + word + '\\b', 'i').test(g.type) ? g.count : 0), 0);
+function countHelp(t){
+  const r = countRule(t); if(!r) return '';
+  const real = (S.real || {})[r.word] || 0;
+  return `<div class="oracle" style="display:flex;flex-direction:column;gap:8px"><span>${esc(r.maker)}: X is the ${esc(r.word)}s you control.</span>
+    <span class="help">${onBoard(r.word)} ${esc(r.word)} tokens here, plus real cards on the table:</span>
+    ${numCtl('aR', real, 0, 10)}
+    <button class="btn gold" id="aUseX">Use X = <span id="aX">${onBoard(r.word) + real}</span></button></div>`;
+}
+function wireCountHelp(t, setN){
+  const r = countRule(t); if(!r || !$('#aR')) return;
+  let real = (S.real || {})[r.word] || 0;
+  wireNum('aR', 0, v => { real = v; S.real = S.real || {}; S.real[r.word] = v; save(); $('#aX').textContent = onBoard(r.word) + v; });
+  $('#aUseX').onclick = () => setN(Math.max(1, onBoard(r.word) + real), '');
+}
+
+/* ---------- Add: how many ---------- */
+function addPanel(t){
+  let n = 1;
+  openPanel('Add ' + t.name, `
+    <div class="addhead"><div class="ra" style="background-image:url('${esc(t.art)}')"></div>
+      <div><div style="font-weight:600;font-size:16px">${esc(t.name)}${t.creature ? ' ' + esc(t.basePow) + '/' + esc(t.baseTou) : ''}</div><div class="help">${esc(t.type)}</div></div></div>
+    ${t.oracle ? `<div class="oracle">${esc(t.oracle)}</div>` : ''}
+    <div class="sec"><label>How many does the card say</label>${numCtl('aN', 1, 1, 20)}${countHelp(t)}</div>
+    <div class="sec"><label>Token doublers out</label>${numCtl('aD', S.doublers, 0, 4)}<p class="help">Doubling Season, Parallel Lives, Anointed Procession and the like. Kept for the next tokens too.</p></div>
+    <div class="math" id="aMath"></div>
+    ${t.creature ? `<label class="check"><input type="checkbox" id="aTap">They enter tapped (tapped and attacking)</label>` : `<label class="check"><input type="checkbox" id="aTap">They enter tapped</label>`}
+  `, `<button class="btn" id="aBack">Back</button><button class="btn gold" id="aGo">Add</button>`);
+  const show = () => { const m = mult(); $('#aMath').innerHTML = S.doublers ? `${n} x ${m} = <b>${n * m}</b> tokens` : `<b>${n}</b> token${n === 1 ? '' : 's'}`; $('#aGo').textContent = 'Add ' + n * m; };
+  const setN = wireNum('aN', 1, v => { n = v; show(); });
+  wireCountHelp(t, setN);
+  wireNum('aD', 0, v => { S.doublers = Math.min(v, 6); save(); renderStats(); show(); }, () => 6);
+  show();
+  $('#aBack').onclick = () => searchPanel();
+  $('#aGo').onclick = () => {
+    const total = n * mult(), tapped = $('#aTap').checked;
+    let target = null;
+    act(() => {
+      // Same token with nothing on it joins the pile already there.
+      target = S.groups.find(g => g.key === t.key && !g.plus && !g.temp.p && !g.temp.t && !Object.values(g.counters).some(Boolean));
+      if(!target){
+        target = Object.assign({}, t, {id: S.nextId++, count:0, tapped:0, sick:0, plus:0, temp:{p:0,t:0}, counters:{}, note:''});
+        S.groups.push(target);
+      }
+      target.count += total; target.sick += total; if(tapped) target.tapped += total;
+      clampG(target);
+      S.recent = [t].concat(S.recent.filter(r => r.key !== t.key)).slice(0, 12);
+    });
+    closePanel();
+  };
+}
+
+/* ---------- One pile: everything ---------- */
+function groupPanel(id, keepScroll){
+  const g = grp(id); if(!g){ closePanel(); return; }
+  const st = keepScroll ? $('#pBody').scrollTop : 0;
+  const active = keepScroll && document.activeElement && document.activeElement.id;
+  openGroupId = id;
+  const twins = S.groups.filter(x => x !== g && x.key === g.key);
+  const P = pt(g);
+  openPanel(g.name, `
+    ${g.oracle ? `<div class="oracle">${esc(g.oracle)}</div>` : ''}
+    <div class="sec"><label>How many</label>${numCtl('gN', g.count, 0, Math.max(30, Math.ceil(g.count * 1.5 / 10) * 10))}</div>
+    <div class="sec"><label>How many are tapped</label>${numCtl('gT', g.tapped, 0, g.count)}
+      <div class="grid2"><button class="btn" id="gTapAll">${I.tap}Tap all</button><button class="btn" id="gUntapAll">Untap all</button></div></div>
+    ${g.creature ? `
+    <div class="sec"><label>+1/+1 counters on each</label>${numCtl('gC', g.plus, -20, Math.max(20, g.plus * 2))}<button class="btn" id="gPut">${I.plus}Put a +1/+1 counter on each${cmult() > 1 ? ' (doubled to ' + cmult() + ')' : ''}</button>${g.plus > 0 ? `<button class="btn" id="gDblC">Double the counters (+${g.plus * cmult()} each)</button>` : ''}<p class="help">Below zero means -1/-1 counters. The two cancel out, as the rules say.</p></div>
+    <div class="sec"><label>Until end of turn</label>
+      <div class="grid2"><div class="sec"><span class="help">Power</span>${smallStep('gTP', g.temp.p)}</div><div class="sec"><span class="help">Toughness</span>${smallStep('gTT', g.temp.t)}</div></div>
+      <p class="help">Clears itself on New turn.</p></div>
+    <div class="math">Each is <b>${P.p}/${P.t}</b> &nbsp; base ${esc(g.basePow || '0')}/${esc(g.baseTou || '0')}${g.plus ? ', counters ' + sign(g.plus) + '/' + sign(g.plus) : ''}${g.temp.p || g.temp.t ? ', this turn ' + sign(g.temp.p) + '/' + sign(g.temp.t) : ''}${S.anthem.p || S.anthem.t ? ', all creatures ' + sign(S.anthem.p) + '/' + sign(S.anthem.t) : ''}</div>
+    <div class="math">${ready(g)} can attack for <b>${ready(g) * Math.max(0, P.p)}</b> &nbsp; all ${g.count} for ${g.count * Math.max(0, P.p)}</div>
+    ${g.haste ? '' : `<div class="sec"><label>Arrived this turn</label>${numCtl('gS', g.sick, 0, g.count)}<p class="help">These cannot attack yet. New turn clears it.</p></div>`}
+    ` : ''}
+    <div class="sec"><label>Other counters on each</label>
+      ${Object.entries(g.counters).map(([n, v]) => `<div class="ctr"><span>${esc(n)}</span><button class="btn ic" data-ctr="${esc(n)}" data-d="-1" aria-label="Less">${I.minus}</button><b>${v}</b><button class="btn ic" data-ctr="${esc(n)}" data-d="1" aria-label="More">${I.plus}</button></div>`).join('')}
+      <div class="ctl"><input class="txt" id="gNewCtr" placeholder="Shield, flying, oil, stun…"><button class="btn" id="gAddCtr">${I.plus}Add</button></div></div>
+    <div class="sec"><label>Divide the pile</label>
+      <p class="help">Moves some into a pile of their own, to give them counters or attack with them apart.</p>
+      ${numCtl('gSp', Math.max(1, Math.floor(g.count / 2)), 1, Math.max(1, g.count - 1))}
+      <button class="btn" id="gSplit" ${g.count < 2 ? 'disabled' : ''}>Move into a new pile</button>
+      ${twins.map(x => `<button class="btn" data-merge="${x.id}">Join the other pile of ${x.count} ${esc(x.name)}${x.plus ? ' (' + sign(x.plus) + ' counters)' : ''}</button>`).join('')}</div>
+    ${g.creature ? `<div class="sec"><label>Base power and toughness</label><div class="grid2"><input class="txt" id="gBP" inputmode="numeric" value="${esc(g.basePow)}" aria-label="Base power"><input class="txt" id="gBT" inputmode="numeric" value="${esc(g.baseTou)}" aria-label="Base toughness"></div><p class="help">For X/X and star tokens, set what it is right now.</p></div>` : ''}
+    <div class="sec"><label>Picture</label><div class="grid2"><label class="btn" style="cursor:pointer">Take a picture<input type="file" accept="image/*" capture="environment" id="gPic" hidden></label>${(S.arts || {})[g.key] ? '<button class="btn" id="gPicOff">Use the card picture</button>' : ''}</div><p class="help">Every pile of this token uses it, now and in later games.</p></div>
+    <div class="sec"><label for="gNote">Note</label><textarea class="txt" id="gNote" placeholder="Anything to remember about this pile">${esc(g.note)}</textarea></div>
+  `, `<button class="btn bad" id="gDel">Remove the pile</button><button class="btn gold" id="gDone">Done</button>`);
+
+  // Sliders change the pile live; one undo step per drag, not per pixel.
+  let dragSnap = false;
+  const live = fn => v => { if(!dragSnap){ snap(); dragSnap = true; } fn(v); clampG(g); save(); render(); refreshMath(); };
+  document.querySelectorAll('#pBody input, #pBody button').forEach(el => el.addEventListener('pointerup', () => { dragSnap = false; }));
+  document.querySelectorAll('#pBody input').forEach(el => el.addEventListener('change', () => { dragSnap = false; }));
+  document.querySelectorAll('#pBody [data-step]').forEach(el => el.addEventListener('click', () => { dragSnap = false; }, true));
+  const refreshMath = () => {
+    const r1 = $('#gTR'); if(r1){ r1.max = g.count; }
+    const t = $('#gT'); if(t && document.activeElement !== t) t.value = g.tapped;
+    if(r1) r1.value = g.tapped;
+    const s = $('#gSR'); if(s){ s.max = g.count; s.value = g.sick; $('#gS').value = g.sick; }
+    const sp = $('#gSpR'); if(sp){ sp.max = Math.max(1, g.count - 1); }
+    const maths = document.querySelectorAll('#pBody .math');
+    if(maths.length){ const P2 = pt(g);
+      maths[0].innerHTML = `Each is <b>${P2.p}/${P2.t}</b> &nbsp; base ${esc(g.basePow || '0')}/${esc(g.baseTou || '0')}${g.plus ? ', counters ' + sign(g.plus) + '/' + sign(g.plus) : ''}${g.temp.p || g.temp.t ? ', this turn ' + sign(g.temp.p) + '/' + sign(g.temp.t) : ''}${S.anthem.p || S.anthem.t ? ', all creatures ' + sign(S.anthem.p) + '/' + sign(S.anthem.t) : ''}`;
+      if(maths[1]) maths[1].innerHTML = `${ready(g)} can attack for <b>${ready(g) * Math.max(0, P2.p)}</b> &nbsp; all ${g.count} for ${g.count * Math.max(0, P2.p)}`; }
+  };
+  wireNum('gN', 0, live(v => { const grew = v - g.count; g.count = v; if(grew > 0) g.sick += grew; }));
+  wireNum('gT', 0, live(v => { g.tapped = v; }), () => g.count);
+  if($('#gC')) wireNum('gC', -99, live(v => { g.plus = v; }));
+  if($('#gS')) wireNum('gS', 0, live(v => { g.sick = v; }), () => g.count);
+  wireNum('gSp', 1, () => {}, () => Math.max(1, g.count - 1));
+  wireSmall('gTP', v => act(() => { g.temp.p = v; }));
+  wireSmall('gTT', v => act(() => { g.temp.t = v; }));
+  if($('#gDblC')) $('#gDblC').onclick = () => { act(() => { g.plus += g.plus * cmult(); }, 'Counters doubled.'); groupPanel(id, true); };
+  if($('#gPut')) $('#gPut').onclick = () => { act(() => { g.plus += cmult(); }); groupPanel(id, true); };
+  $('#gTapAll').onclick = () => { act(() => { g.tapped = g.count; }); groupPanel(id, true); };
+  $('#gUntapAll').onclick = () => { act(() => { g.tapped = 0; }); groupPanel(id, true); };
+  document.querySelectorAll('[data-ctr]').forEach(b => b.onclick = () => {
+    const n = b.dataset.ctr; act(() => { g.counters[n] = (g.counters[n] || 0) + (+b.dataset.d > 0 ? cmult() : -1); if(g.counters[n] <= 0) delete g.counters[n]; }); groupPanel(id, true);
+  });
+  const addCtr = () => { const n = $('#gNewCtr').value.trim(); if(!n) return; act(() => { g.counters[n] = (g.counters[n] || 0) + cmult(); }); groupPanel(id, true); };
+  $('#gAddCtr').onclick = addCtr; $('#gNewCtr').addEventListener('keydown', e => { if(e.key === 'Enter') addCtr(); });
+  $('#gSplit').onclick = () => {
+    const k = Math.min(Math.max(1, parseInt($('#gSp').value, 10) || 1), g.count - 1);
+    let ng;
+    act(() => {
+      // Untapped ones move first, then tapped.
+      const untapped = g.count - g.tapped, fromUn = Math.min(k, untapped), fromTap = k - fromUn;
+      const sickMove = Math.min(g.sick, k);
+      ng = JSON.parse(JSON.stringify(g)); ng.id = S.nextId++; ng.count = k; ng.tapped = fromTap; ng.sick = sickMove; ng.note = '';
+      g.count -= k; g.tapped -= fromTap; g.sick -= sickMove; clampG(g);
+      S.groups.splice(S.groups.indexOf(g) + 1, 0, ng);
+    });
+    groupPanel(ng.id);
+  };
+  document.querySelectorAll('[data-merge]').forEach(b => b.onclick = () => {
+    const x = grp(+b.dataset.merge);
+    act(() => { g.count += x.count; g.tapped += x.tapped; g.sick += x.sick; Object.entries(x.counters).forEach(([n, v]) => { if(!(n in g.counters)) g.counters[n] = v; }); S.groups = S.groups.filter(y => y !== x); clampG(g); }, `Piles joined.`);
+    groupPanel(id, true);
+  });
+  const bp = $('#gBP'), bt = $('#gBT');
+  if(bp){ const f = () => act(() => { g.basePow = bp.value.trim(); g.baseTou = bt.value.trim(); }); bp.addEventListener('change', f); bt.addEventListener('change', f); }
+  $('#gNote').addEventListener('change', e => act(() => { g.note = e.target.value; }));
+  $('#gPic').onchange = e => { const f = e.target.files[0]; if(f) shrinkPic(f).then(url => { act(() => { S.arts = S.arts || {}; S.arts[g.key] = url; }); groupPanel(id, true); }); };
+  if($('#gPicOff')) $('#gPicOff').onclick = () => { act(() => { delete S.arts[g.key]; }); groupPanel(id, true); };
+  $('#gDel').onclick = () => removeGroup(g);
+  $('#gDone').onclick = closePanel;
+  $('#pBody').scrollTop = st;
+  if(active && $('#' + active)) $('#' + active).focus({preventScroll:true});
+  render();
+}
+function smallStep(id, v){ return `<div class="ctl"><button class="btn ic" data-ss="${id}" data-d="-1" aria-label="Less">${I.minus}</button><input class="num" id="${id}" inputmode="numeric" value="${sign(v)}" aria-label="Type a number"><button class="btn ic" data-ss="${id}" data-d="1" aria-label="More">${I.plus}</button></div>`; }
+function wireSmall(id, fn){
+  const t = $('#' + id); if(!t) return;
+  const cur = () => parseInt(t.value.replace(/[^\d-]/g, ''), 10) || 0;
+  document.querySelectorAll(`[data-ss="${id}"]`).forEach(b => b.onclick = () => { const v = cur() + (+b.dataset.d); t.value = sign(v); fn(v); refreshOpen(); });
+  t.addEventListener('focus', () => t.select());
+  t.addEventListener('change', () => { const v = cur(); t.value = sign(v); fn(v); refreshOpen(); });
+}
+const refreshOpen = () => { if(openGroupId) groupPanel(openGroupId, true); };
+
+/* ---------- Your own pictures ---------- */
+const artOf = g => (S.arts || {})[g.key] || g.art;
+// A photo shrunk to 720px wide, so dozens fit in the iPad's storage for this page.
+function shrinkPic(file){
+  return new Promise((res, rej) => {
+    const img = new Image(); img.onload = () => {
+      const W = Math.min(720, img.width), H = Math.round(img.height * W / img.width);
+      const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      cv.getContext('2d').drawImage(img, 0, 0, W, H); URL.revokeObjectURL(img.src); res(cv.toDataURL('image/jpeg', .8));
+    }; img.onerror = rej; img.src = URL.createObjectURL(file);
+  });
+}
+
+/* ---------- Doublers, from the top bar ---------- */
+function dblPanel(){
+  openGroupId = null;
+  openPanel('Doublers', `
+    <div class="sec"><label>Token doublers out</label>${numCtl('dT', S.doublers, 0, 4)}<p class="help">Doubling Season, Parallel Lives, Anointed Procession. Now x${mult()} tokens.</p></div>
+    <div class="sec"><label>Counter doublers out</label>${numCtl('dC', S.ctrDoublers || 0, 0, 4)}<p class="help">Vorinclex, Doubling Season, Branching Evolution. Now x${cmult()} counters.</p></div>`,
+    `<button class="btn gold" id="dDone">Done</button>`);
+  wireNum('dT', 0, v => { S.doublers = v; save(); render(); }, () => 6);
+  wireNum('dC', 0, v => { S.ctrDoublers = v; save(); render(); }, () => 6);
+  $('#dDone').onclick = closePanel;
+}
+
+/* ---------- Table settings ---------- */
+function menuPanel(){
+  openGroupId = null;
+  openPanel('Table', `
+    <div class="sec"><label>Token doublers out</label>${numCtl('mD', S.doublers, 0, 4)}<p class="help">Each doubles the tokens you make. Now x${mult()}.</p></div>
+    <div class="sec"><label>Counter doublers out</label>${numCtl('mC', S.ctrDoublers || 0, 0, 4)}<p class="help">Vorinclex, Doubling Season, Branching Evolution. Each doubles the counters you put on.</p></div>
+    <div class="sec"><label>All your creature tokens get</label>
+      <div class="grid2"><div class="sec"><span class="help">Power</span>${smallStep('mAP', S.anthem.p)}</div><div class="sec"><span class="help">Toughness</span>${smallStep('mAT', S.anthem.t)}</div></div>
+      <p class="help">For lords and anthems that stay on the table.</p></div>
+    <div class="sec"><label>Whole table</label>
+      <button class="btn" id="mPump">Every creature token +1/+1 counter</button>
+      <button class="btn" id="mDouble">Double every pile</button>
+      <button class="btn" id="mTapAll">Tap every creature token</button>
+      <label class="check"><input type="checkbox" id="mAwake" ${S.awake ? 'checked' : ''}>Keep the screen on</label>
+    </div>
+    <div class="sec"><label>New game</label><button class="btn bad" id="mNew">Clear the table</button><p class="help">Tokens used before stay on the empty table for one tap.</p></div>
+  `);
+  wireNum('mD', 0, v => { S.doublers = v; save(); renderStats(); render(); }, () => 6);
+  wireNum('mC', 0, v => { S.ctrDoublers = v; save(); renderStats(); }, () => 6);
+  wireSmall('mAP', v => act(() => { S.anthem.p = v; }));
+  wireSmall('mAT', v => act(() => { S.anthem.t = v; }));
+  $('#mPump').onclick = () => act(() => S.groups.forEach(g => { if(g.creature) g.plus += cmult(); }), cmult() > 1 ? 'Every creature token got ' + cmult() + ' +1/+1 counters.' : 'Every creature token got a +1/+1 counter.');
+  $('#mDouble').onclick = () => act(() => S.groups.forEach(g => { g.sick += g.count; g.count *= 2; }), 'Every pile doubled.');
+  $('#mTapAll').onclick = () => act(() => S.groups.forEach(g => { if(g.creature) g.tapped = g.count; }), 'Every creature token tapped.');
+  $('#mAwake').onchange = e => { S.awake = e.target.checked; save(); wake(); };
+  $('#mNew').onclick = () => { act(() => { S.groups = []; S.turn = 1; S.anthem = {p:0,t:0}; }, 'Table cleared.'); closePanel(); };
+}
+
+/* ---------- Keep the iPad awake ---------- */
+let lock = null;
+async function wake(){
+  try{
+    if(S.awake && 'wakeLock' in navigator && document.visibilityState === 'visible'){ if(!lock){ lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release', () => { lock = null; }); } }
+    else if(lock){ await lock.release(); lock = null; }
+  }catch(e){}
+}
+document.addEventListener('visibilitychange', wake);
+
+if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+render(); wake();
+</script>
+</body>
+</html>
