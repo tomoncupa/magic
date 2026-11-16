@@ -286,7 +286,7 @@ function readKinds(oracle, name){
     const when = /^At the beginning of your upkeep/i.test(L) ? 'upkeep' : /^At the beginning of combat/i.test(L) ? 'combat' : /^At the beginning of your end step/i.test(L) ? 'end'
       : /^(Landfall|Whenever a land)/i.test(L) ? 'landfall' : /^Whenever [^,]*attacks?\b/i.test(L) ? 'attack' : /^\{[^:]*\}[^:]*:/.test(L) ? 'ability' : '';
     if(!when) return;
-    const t = {k:'trig', when, text: L};
+    const t = {k:'trig', when, text: L, monarch: /if you(?:'|’)re the monarch/i.test(L)};
     let d = L.match(/double the number of \+1\/\+1 counters on (each creature you control|target creature|each of those creatures|this creature)/i);
     if(d && !/this creature/i.test(d[1])) t.act = {do:'dbl', all: /each creature/i.test(d[1])};
     d = !t.act && L.match(/put (a|an|one|two|three|X|\d+) \+1\/\+1 counters? on (each creature you control|target creature(?: you control)?)/i);
@@ -390,6 +390,7 @@ function renderStats(){
   const mods = [];
   mods.push(`<button class="chip" data-open="dbl">${mult() > 1 ? '<i></i>' : ''}Tokens x${mult()}</button>`);
   mods.push(`<button class="chip" data-open="dbl">${cmult() > 1 ? '<i></i>' : ''}1 counter puts ${cmult()}</button>`);
+  mods.push(`<button class="chip${S.monarch ? ' on' : ''}" data-open="monarch" aria-pressed="${!!S.monarch}">${S.monarch ? '<i></i>' : ''}${S.monarch ? 'You are the monarch' : 'Not the monarch'}</button>`);
   if(S.anthem.p || S.anthem.t) mods.push(`<button class="chip" data-open="menu"><i></i>All creatures ${sign(S.anthem.p)}/${sign(S.anthem.t)}</button>`);
   $('#stats').innerHTML =
     `<div class="stat"><b>${total}</b><span>Tokens</span></div>` +
@@ -427,8 +428,8 @@ function tileHTML(g){
       <input type="range" class="tapr" min="0" max="${g.count}" value="${g.tapped}" aria-label="Slide right to tap, left to untap" ${g.count ? '' : 'disabled'}>
     </div>
     <div class="qty">
-      <button class="btn" data-act="dec" aria-label="Remove one">${I.minus}${g.creature ? 'Dies' : 'Use 1'}</button>
-      <button class="btn" data-act="inc" aria-label="Make one more">${I.plus}${tokenMath(g, 1).total > 1 ? 'Make ' + tokenMath(g, 1).total : 'One'}</button>
+      <button class="btn" data-act="dec" aria-label="Remove one">-1</button>
+      <button class="btn" data-act="inc" aria-label="Make one more">+${tokenMath(g, 1).total}</button>
       ${g.creature ? `<button class="btn" data-act="ctr" aria-label="Put a +1/+1 counter on each">+1/+1${counterMath(1).total > 1 ? ` <span class="help">=${counterMath(1).total}</span>` : ''}</button>` : ''}
     </div>
   </div>`;
@@ -534,7 +535,9 @@ document.addEventListener('pointerdown', e => { if(e.target === document.body ||
 document.addEventListener('pointerup', () => clearTimeout(holdT));
 ['pointerup','pointercancel','pointerleave','pointermove'].forEach(ev => $('#board').addEventListener(ev, e => { if(ev === 'pointermove' && Math.abs(e.movementX) + Math.abs(e.movementY) < 4) return; clearTimeout(holdT); }));
 $('#board').addEventListener('contextmenu', e => { e.preventDefault(); const t = e.target.closest('.tile'); if(t) holdPanel(+t.dataset.id); else searchPanel(); });
-$('#stats').addEventListener('click', e => { if(e.target.closest('[data-open=menu]')) menuPanel(); if(e.target.closest('[data-open=dbl]')) dblPanel(); });
+$('#stats').addEventListener('click', e => { if(e.target.closest('[data-open=menu]')) menuPanel(); if(e.target.closest('[data-open=dbl]')) dblPanel();
+  // Monarch (Tom, 2026-11-17: Court of Garenbrig, and his Marchesa deck): cards that say "if you're the monarch" go by it.
+  if(e.target.closest('[data-open=monarch]')) act(() => { S.monarch = !S.monarch; }, S.monarch ? 'Not the monarch.' : 'You are the monarch.'); });
 
 function removeGroup(g, extra){
   act(() => { S.groups = S.groups.filter(x => x !== g); }, `${g.name} removed.${extra ? ' ' + extra : ''}`);
@@ -1200,6 +1203,7 @@ function cardSheet(name){
 /* ---------- Triggers ---------- */
 function trigLabel(c, k){
   const n = c.name.split(',')[0], a = k.act;
+  if(k.monarch && !S.monarch && a.do === 'dbl') return `${n}: no doubling, you are not the monarch`;
   if(a.do === 'dbl') return `${n}: double the counters on ${a.all ? 'every creature token' : 'one pile'}`;
   if(a.do === 'put') return `${n}: put ${a.n === 'X' ? 'X' : a.n} counter${a.n === 1 ? '' : 's'} on ${a.all ? 'every creature token' : 'one pile'}`;
   if(a.do === 'token') return `${n}: make ${a.n === 'X' ? 'X' : a.n} ${(deckData.tokens.find(t => t.key === c.toks[0]) || {name:'token'}).name}${a.attacking ? ', tapped and attacking' : a.tapped ? ', tapped' : ''}`;
@@ -1207,6 +1211,7 @@ function trigLabel(c, k){
 }
 function runTrig(c, k, back){
   const a = k.act, creaturePiles = S.groups.filter(g => g.creature && g.count);
+  if(k.monarch && !S.monarch && a.do === 'dbl'){ if(back) back(); else closePanel(); return; }
   if(a.do === 'token'){
     const t = deckData.tokens.find(x => x.key === c.toks[0]); if(!t){ cardSheet(c.name); return; }
     if(a.n === 'X'){ addPanel(Object.assign({}, t, {makers:[c.name]})); return; }
