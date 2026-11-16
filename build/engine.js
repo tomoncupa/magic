@@ -927,7 +927,8 @@ E.pillars = function(){
     var inter = [
       part('removal', 'Targeted removal', remHave, tgt('removal'), fUp(remHave, tgt('removal')), removal,
         'Pings of 1 or 2 damage, answers to players only and colour-hosers count half.'),
-      X.goWide ? part('wipes', 'Board wipes', wipes.length, 0, 1, wipes, 'This deck wins with a wide board (' + X.goWide + '), so board wipes of its own are not scored. One that spares your creatures can still help.', 0)
+      window.NO_WIPES ? part('wipes', 'Board wipes', wipes.length, 0, 1, wipes, 'This copy leaves board wipes out, so none are scored.', 0)
+      : X.goWide ? part('wipes', 'Board wipes', wipes.length, 0, 1, wipes, 'This deck wins with a wide board (' + X.goWide + '), so board wipes of its own are not scored. One that spares your creatures can still help.', 0)
         : part('wipes', 'Board wipes', wipes.length, tgt('wipes'), fUp(wipes.length, tgt('wipes')), wipes),
       part('counterspells', 'Counterspells', counters.length, tgt('counterspells'), fUp(counters.length, tgt('counterspells')), counters,
         blue ? '' : 'Blue has most counterspells and this deck is not blue, so not scored.', blue && tgt('counterspells') ? null : 0),
@@ -2490,7 +2491,7 @@ E.answers = function(){
     if(R.creature.n && !R.creature.t3) gaps.push('No creature answer you can cast by turn 3.');
     if(!R.stack.n && (S.ci || []).indexOf('U') >= 0) gaps.push('No counterspells in a blue deck.');
     if(!R.graveyard.n) gaps.push('Nothing exiles a graveyard.');
-    if(!R.board.n && !X.goWide) gaps.push('No board wipe to come back from a board that got away.');
+    if(!R.board.n && !X.goWide && !window.NO_WIPES) gaps.push('No board wipe to come back from a board that got away.');
     return { rows:rows, gaps:gaps, goWide:X.goWide };
   }catch(e){ return { rows:[], gaps:[], note:'Could not read the answers: ' + e.message }; }
 };
@@ -2690,6 +2691,7 @@ E.targets = function(b){
   var i = (b || bk()) - 1, o = {}; Object.keys(TARGET).forEach(function(k){ o[k] = TARGET[k][i]; });
   // This deck's own adjustment: a go-wide deck has no board wipe target (see the Interaction pillar).
   try{ if(has() && (!b || b === bk()) && ctx().goWide) o.wipes = null; }catch(e){}
+  if(window.NO_WIPES) o.wipes = null;
   return o;
 };
 E.version = '1';

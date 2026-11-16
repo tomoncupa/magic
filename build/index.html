@@ -1449,6 +1449,7 @@ function makeSkeleton(){
   if(q.tutor > tutors) mv('tutor', tutors - q.tutor, 'Only ' + tutors + ' tutor' + (tutors === 1 ? '' : 's') + ' fit this deck and its rules.');
   Object.keys(q).forEach(function(k){ q[k] = Math.max(k === 'lands' ? 26 : k === 'wipes' || k === 'tutor' ? 0 : 1, q[k]); });
   if(br >= 4) q.wipes = Math.max(0, q.wipes);
+  if(window.NO_WIPES){ q.wipes = 0; why.wipes = ['This copy leaves board wipes out.']; }
   S.quotas = q; S.why = why;
   S.sources = sourceTargets(top, q.lands);
 }
@@ -2072,7 +2073,8 @@ function tableLines(){
 }
 // Said to Claude in every prompt: money is no object, the bracket (as his table bends it) is.
 function budgetLines(){
-  var L = ['Budget is no object. Price never matters: pick the strongest card for the job, expensive staples included. The Game Changer limit and bracket rules still apply.'];
+  var L = window.NO_WIPES ? ['Never suggest a board wipe or any card that destroys, exiles or damages all creatures or permanents.'] : [];
+  L.push('Budget is no object. Price never matters: pick the strongest card for the job, expensive staples included. The Game Changer limit and bracket rules still apply.');
   var hl = houseLines();
   if(hl.length) L.push('House rules at their table, these override the bracket: ' + hl.join('; ') + '.');
   if(gcMode() === 'mine') L.push('They chose their own Game Changers: ' + ((S.gcPick || []).join(', ') || 'none') + '. Never suggest any other Game Changer.');
@@ -2673,6 +2675,9 @@ var MOXUSER = (function(){
   try{ u = localStorage.getItem('forge.moxUser') || ''; }catch(e){ u = ''; }
   return ok.test(u) ? u : 'amoncupa';
 })();
+// Copies for other people (the friend installer, or ?user=<their name>) never push board wipes (Tom, 2026-11-16:
+// "I don't want them playing board wipes against me"): no Board Wipes category, no wipe slots, no wipe advice.
+window.NO_WIPES = MOXUSER.toLowerCase() !== 'amoncupa';
 function moxFeedFile(){ return MOXUSER.toLowerCase() === 'amoncupa' ? '../decks/moxfield.json' : '../decks/moxfield-' + MOXUSER.toLowerCase() + '.json'; }
 var CL = { status:null, busy:false, err:'' };
 // Who the AI is talking to: the name saved in AI settings, Tom on his own decks, else "the player" (friends' copies).
@@ -6187,10 +6192,11 @@ function cats(){
   if(!Array.isArray(c.list)) c.list = []; if(!c.of) c.of = {}; if(!c.also) c.also = {};
   if(!c.base){ var w = c.list.map(catWords); CAT_BASE.forEach(function(t){ if(w.indexOf(catWords(t)) < 0) c.list.push(t); }); c.base = 1; }
   /* Board Wipes joins his own decks' baseline (Tom, 2026-11-16: "I like board wipes"), placed after Interaction, once per
-     deck, so deleting it from a deck keeps it deleted. Friends' copies (?user=<their name>) are not given it. */
-  if(c.base < 2 && MOXUSER.toLowerCase() === 'amoncupa'){
-    var w2 = c.list.map(catWords);
-    if(w2.indexOf(catWords('Board Wipes')) < 0){ var ii = w2.indexOf(catWords('Interaction')); c.list.splice(ii >= 0 ? ii + 1 : c.list.length, 0, 'Board Wipes'); }
+     deck, so deleting it from a deck keeps it deleted. */
+  // Copies for other people get Theme instead (Tom, 2026-11-16: "all the default categories and themes except for board wipes").
+  if(c.base < 2){
+    var w2 = c.list.map(catWords), add = window.NO_WIPES ? 'Theme' : 'Board Wipes';
+    if(w2.indexOf(catWords(add)) < 0){ var ii = window.NO_WIPES ? -1 : w2.indexOf(catWords('Interaction')); c.list.splice(ii >= 0 ? ii + 1 : c.list.length, 0, add); }
     c.base = 2;
   }
   if(!c.pos || typeof c.pos !== 'object') c.pos = {};   // where he put each box on the board, per grouping
