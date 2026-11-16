@@ -593,6 +593,8 @@ function slim(c){
     bk:!c.image_uris && f[1] && f[1].image_uris ? f[1].image_uris.normal || '' : '',
     // A reprint (Chaos Warp in an upcoming set) is out already: only a first printing has a release date to wait for.
     rel:c.reprint ? '' : c.released_at || '', usd:usdOfRaw(c),
+    // A creature's power ('*' counts), '' for a card with none. Cards kept from before have no pw: powNeeded() asks.
+    pw:c.power != null ? String(c.power) : f[0] && f[0].power != null ? String(f[0].power) : '',
     // The printing's other name (Tom, 2026-10-21: "include the alt names"): Kefka Palazzo is Purphoros, God of the Forge.
     fn:c.flavor_name || f.map(function(x){ return x.flavor_name || ''; }).filter(Boolean).join(' // ') || '' };
 }
@@ -1738,8 +1740,8 @@ var GROUP_PLURAL = { Creature:'Creatures', Planeswalker:'Planeswalkers', Instant
   Artifact:'Artifacts', Enchantment:'Enchantments', Battle:'Battles', Land:'Lands', Other:'Other' };
 function listView(){
   // s: the order inside each group, per grouping (Tom, 2026-10-19: "manacost, or alphabetical"); each grouping keeps the order it had.
-  var v = { g:'type', p:0, s:{ type:'az', job:'mv', cat:'mv' } };
-  try { var s = JSON.parse(localStorage.getItem('forge.listView') || '{}'); if(s.g === 'job' || s.g === 'cat') v.g = s.g; if(s.p) v.p = s.p === 2 ? 2 : 1;
+  var v = { g:'type', p:0, s:{ type:'az', job:'mv', cat:'mv', mv:'az', pow:'mv' } };
+  try { var s = JSON.parse(localStorage.getItem('forge.listView') || '{}'); if(['job', 'cat', 'mv', 'pow'].indexOf(s.g) >= 0) v.g = s.g; if(s.p) v.p = s.p === 2 ? 2 : 1;
     if(s.s && typeof s.s === 'object') Object.keys(v.s).forEach(function(g){ if(s.s[g] === 'mv' || s.s[g] === 'az') v.s[g] = s.s[g]; }); } catch(e){}
   return v;
 }
@@ -6185,7 +6187,12 @@ function ctileHtml(it){
    decks with categories had in common that day. Each deck gets the ones it lacks once (c.base); one he deletes from
    a deck stays deleted there. A name with the same words in another order ("Defensive/Utility") counts as there.
    A later addition gets its own c.base step below, adding only that name, so deleted ones stay deleted. */
-var CAT_BASE = ['Land', 'Ramp', 'Card Draw', 'Tutor', 'Interaction', 'Utility/ Defensive', 'Combos, Win Cons', 'Economics'];
+// His own copy names removal his way (Tom, 2026-11-17: "I like my definition of mogging and removal. So use that instead
+// of the normal interaction"). Copies for other people keep Interaction.
+var CAT_INTER = window.NO_WIPES ? 'Interaction' : 'Oppression/ Removal/ Mogging';
+var CAT_BASE = ['Land', 'Ramp', 'Card Draw', 'Tutor', CAT_INTER, 'Utility/ Defensive', 'Combos, Win Cons', 'Economics'];
+// Where removal goes in this deck: his removal category, else Interaction.
+function catRemoval(){ return catFind(CAT_INTER) || catFind('Interaction'); }
 function catWords(t){ return String(t || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).sort().join(' '); }
 function cats(){
   var c = S.cats;
@@ -6198,7 +6205,7 @@ function cats(){
   // Copies for other people get Theme instead (Tom, 2026-11-16: "all the default categories and themes except for board wipes").
   if(c.base < 2){
     var w2 = c.list.map(catWords), add = window.NO_WIPES ? 'Theme' : 'Board Wipes';
-    if(w2.indexOf(catWords(add)) < 0){ var ii = window.NO_WIPES ? -1 : w2.indexOf(catWords('Interaction')); c.list.splice(ii >= 0 ? ii + 1 : c.list.length, 0, add); }
+    if(w2.indexOf(catWords(add)) < 0){ var ii = window.NO_WIPES ? -1 : w2.indexOf(catWords(CAT_INTER)); if(ii < 0 && !window.NO_WIPES) ii = w2.indexOf(catWords('Interaction')); c.list.splice(ii >= 0 ? ii + 1 : c.list.length, 0, add); }
     c.base = 2;
   }
   if(!c.pos || typeof c.pos !== 'object') c.pos = {};   // where he put each box on the board, per grouping
@@ -6243,7 +6250,7 @@ function catUndo(snap){ return function(){ S.cats = JSON.parse(snap); save(); ca
    automatically sort them into ... the default categories we do have"), by each card's job, the one By job shows.
    Cards Moxfield already tagged keep their tag; a card with no clear job waits under No category yet.
    Each card has one job (By job's group), and that job's category is its home. */
-var CAT_AUTO = [['lands', 'Land'], ['wipes', 'Board Wipes'], ['removal', 'Interaction'], ['tutor', 'Tutor'],
+var CAT_AUTO = [['lands', 'Land'], ['wipes', 'Board Wipes'], ['removal', CAT_INTER], ['tutor', 'Tutor'],
   ['wincon', 'Combos, Win Cons'], ['ramp', 'Ramp'], ['draw', 'Card Draw'], ['protection', 'Utility/ Defensive'], ['synergy', 'Theme']];
 // Decks already on the shelf when this arrived are never sorted for him, even ones that had no categories yet.
 function catAutoOld(){
@@ -6257,7 +6264,7 @@ function catAutoSort(){
   if(!S.pool || !S.deck.length) return;
   var snap = catSnap(), n = 0, left = 0, map = {};
   C.autoNew = C.autoNew || {};   // card key -> the category it was sorted into; highlighted there until he points at it
-  CAT_AUTO.forEach(function(p){ map[p[0]] = catFind(p[1]) || (p[0] === 'wipes' ? catFind('Interaction') : ''); });
+  CAT_AUTO.forEach(function(p){ map[p[0]] = catFind(p[1]) || (p[0] === 'wipes' || p[0] === 'removal' ? catRemoval() : ''); });
   S.deck.forEach(function(d){
     if(catOf(d.n)) return;
     var home = map[d.role] || '';
@@ -6310,7 +6317,8 @@ function catCopy(){
     var k = moxKey(d.n); if(C.noCopy[k]) return;
     picks = picks || catPicks();
     var l = picks[k] || [], home = '';
-    for(var i = 0; i < l.length && !home; i++) home = catFind(l[i]);
+    // Interaction in another deck lands in his removal category here when this deck has it.
+    for(var i = 0; i < l.length && !home; i++) home = catWords(l[i]) === catWords('Interaction') ? catRemoval() : catFind(l[i]);
     if(!home) return;
     snap = snap || catSnap();
     catSet(d.n, home); (C.autoNew = C.autoNew || {})[k] = home; done.push(k);
@@ -6803,6 +6811,29 @@ function deckGroups(lv){
       groups.push({ t:t, cat:t, items:l.sort(function(a, b){ return (a.pin || 1e9) - (b.pin || 1e9) || srt(a, b); }) });
     });
     if(none.length || cats().list.length) groups.push({ t:'No category yet', cat:'', none:true, items:none.sort(srt) });
+  } else if(lv.g === 'mv' || lv.g === 'pow'){
+    /* Grouped by mana value, or creatures by power (Tom, 2026-11-17: "group cards by mana cost ... group creatures by
+       attack power"). Lands sit apart under mana value; under power everything that is not a creature sits last. */
+    var byV = {}, keys = [], rest = [], restT = lv.g === 'mv' ? 'Lands' : 'Not creatures';
+    items.forEach(function(it){
+      var c = it.c || {}, k;
+      it.sub = it.basic ? 'Basic land' : jobSub(it);
+      if(lv.g === 'mv'){ if(it.basic || isLand(c)){ rest.push(it); return; } k = Math.min(Math.floor(c.mv || 0), 7); }
+      else {
+        if(!/creature/i.test(String(c.type || '').split('//')[0])){ rest.push(it); return; }
+        var p = c.pw; k = p == null ? 'unk' : /^\d+$/.test(p) ? Math.min(+p, 7) : 'x';
+        it.sub = typeShort(c) + ', power ' + (p == null ? 'loading' : p) + (c.mv != null ? ', mana value ' + c.mv : '');
+      }
+      if(!byV[k]){ byV[k] = []; keys.push(k); }
+      byV[k].push(it);
+    });
+    keys.sort(function(a, b){ var na = typeof a === 'number', nb = typeof b === 'number'; return na && nb ? a - b : na ? -1 : nb ? 1 : a === 'x' ? -1 : 1; });
+    var label = function(k){
+      if(lv.g === 'mv') return k === 7 ? 'Mana value 7+' : 'Mana value ' + k;
+      return k === 7 ? 'Power 7+' : k === 'x' ? 'Power changes (*)' : k === 'unk' ? 'Power loading' : 'Power ' + k;
+    };
+    keys.forEach(function(k){ groups.push({ t:label(k), items:byV[k].sort(itemOrder(lv)) }); });
+    if(rest.length) groups.push({ t:restT, items:rest.sort(itemOrder(lv)) });
   } else {
     var byT = {};
     items.forEach(function(it){ var t = typeGroup(it.d); (byT[t] = byT[t] || []).push(it); it.sub = it.basic ? 'Basic land' : jobSub(it); });
@@ -6932,8 +6963,10 @@ function drawDeckPage(){
     '<div class="bs-seg" role="group" aria-label="Show as"><button type="button" data-lv="p:0"' + (!lv.p ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>List</button><button type="button" data-lv="p:1"' + (lv.p === 1 ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Pictures</button>' +
     '<button type="button" data-lv="p:2"' + (lv.p === 2 ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Assemble</button></div>' +
     '<div class="bs-seg" role="group" aria-label="Group by"><button type="button" data-lv="g:type"' + (lv.g === 'type' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>By type</button><button type="button" data-lv="g:job"' + (lv.g === 'job' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>By job</button>' +
-    '<button type="button" data-lv="g:cat"' + (lv.g === 'cat' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>My categories</button></div>' +
-    '<div class="bs-seg" role="group" aria-label="Sort"><button type="button" data-lv="s:mv"' + (lv.s[lv.g] === 'mv' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Mana value</button><button type="button" data-lv="s:az"' + (lv.s[lv.g] === 'az' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>A to Z</button></div>' +
+    '<button type="button" data-lv="g:cat"' + (lv.g === 'cat' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>My categories</button>' +
+    '<button type="button" data-lv="g:mv"' + (lv.g === 'mv' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Mana value</button>' +
+    '<button type="button" data-lv="g:pow"' + (lv.g === 'pow' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Power</button></div>' + (lv.g === 'mv' ? '' :
+    '<div class="bs-seg" role="group" aria-label="Sort"><button type="button" data-lv="s:mv"' + (lv.s[lv.g] === 'mv' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>Mana value</button><button type="button" data-lv="s:az"' + (lv.s[lv.g] === 'az' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>A to Z</button></div>') +
     '<button class="bs-btn bs-sm' + (lv.g === 'cat' ? '' : ' bs-primary') + '" type="button" data-addcard>' + ico('plus', 'bs-i16') + 'Add a card</button>' +
     (lv.g === 'cat' ? '<button class="bs-btn bs-sm bs-primary" type="button" data-catnew>' + ico('plus', 'bs-i16') + 'New category</button>' : '') +
     '</div></div>' + (lv.p === 2 ? asmHead() : '') + fltBar() + (shown >= 0 ? '<p class="pg-fine bs-flt-n">' + (shown ? shown + (shown === 1 ? ' card' : ' cards') + ' in the 99 match.' : 'No card in the 99 matches.') + '</p>' : '');
@@ -7000,6 +7033,7 @@ function drawDeckPage(){
   loadBasicPics();   // the basics' art, for the list's thumbnails and the pictures alike
   backsNeeded();
   altNeeded();
+  if(lv.g === 'pow') powNeeded();
 }
 /* ---------- two-faced cards flip (Tom, 2026-10-19: "Let me flip cards as well") ----------
    FLIP holds the cards turned to their back, for this visit only. Every picture of the card follows it:
@@ -7051,6 +7085,21 @@ function backsNeeded(){
       [S.cmd, S.partner].forEach(function(x){ if(x && sameName(x.n, c.n)) x.bk = c.bk; }); });
     if(any && APP.view === 'deck' && S.page === 'deck' && !main.classList.contains('bs-dragging')) drawDeckPage();
   }, function(){ BACKS.busy = false; });
+}
+// Cards kept from before power was stored: ask Scryfall once for the creatures in this deck.
+var POWS = { asked:{}, busy:false };
+function powNeeded(){
+  if(POWS.busy || !S.cmd) return;
+  var need = S.deck.map(function(d){ return d.basic ? null : poolCard(d.n); })
+    .filter(function(c){ return c && c.pw === undefined && /creature/i.test(String(c.type || '')) && !POWS.asked[c.n]; });
+  if(!need.length) return;
+  need.forEach(function(c){ POWS.asked[c.n] = 1; });
+  POWS.busy = true; var tok = CUR;
+  sfCollectionFetch(need.map(function(c){ return { id:c.id, n:c.n }; })).then(function(r){
+    POWS.busy = false; if(CUR !== tok) return;
+    need.forEach(function(c){ var s = r.cards[c.id || c.n.toLowerCase()]; c.pw = s && s.pw != null ? s.pw : ''; });
+    if(APP.view === 'deck' && S.page === 'deck' && !main.classList.contains('bs-dragging')) drawDeckPage();
+  }, function(){ POWS.busy = false; });
 }
 /* ---------- right click (and a held finger) on any card: what can be done with it, where it is ---------- */
 function cardMenuItems(n, board, cat){
