@@ -6113,14 +6113,21 @@ function ctileHtml(it){
 /* Every deck shares one baseline (Tom, 2026-11-03: "each deck will share the same baseline"): the categories his
    decks with categories had in common that day. Each deck gets the ones it lacks once (c.base); one he deletes from
    a deck stays deleted there. A name with the same words in another order ("Defensive/Utility") counts as there.
-   Bump CAT_BASE_V when the list changes so every deck gets the new ones. */
-var CAT_BASE = ['Land', 'Ramp', 'Card Draw', 'Tutor', 'Interaction', 'Utility/ Defensive', 'Combos, Win Cons', 'Economics'], CAT_BASE_V = 1;
+   A later addition gets its own c.base step below, adding only that name, so deleted ones stay deleted. */
+var CAT_BASE = ['Land', 'Ramp', 'Card Draw', 'Tutor', 'Interaction', 'Utility/ Defensive', 'Combos, Win Cons', 'Economics'];
 function catWords(t){ return String(t || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).sort().join(' '); }
 function cats(){
   var c = S.cats;
   if(!c || typeof c !== 'object') c = S.cats = { list:[], of:{}, also:{} };
   if(!Array.isArray(c.list)) c.list = []; if(!c.of) c.of = {}; if(!c.also) c.also = {};
-  if(c.base !== CAT_BASE_V){ var w = c.list.map(catWords); CAT_BASE.forEach(function(t){ if(w.indexOf(catWords(t)) < 0) c.list.push(t); }); c.base = CAT_BASE_V; }
+  if(!c.base){ var w = c.list.map(catWords); CAT_BASE.forEach(function(t){ if(w.indexOf(catWords(t)) < 0) c.list.push(t); }); c.base = 1; }
+  /* Board Wipes joins his own decks' baseline (Tom, 2026-11-16: "I like board wipes"), placed after Interaction, once per
+     deck, so deleting it from a deck keeps it deleted. Friends' copies (?user=<their name>) are not given it. */
+  if(c.base < 2 && MOXUSER.toLowerCase() === 'amoncupa'){
+    var w2 = c.list.map(catWords);
+    if(w2.indexOf(catWords('Board Wipes')) < 0){ var ii = w2.indexOf(catWords('Interaction')); c.list.splice(ii >= 0 ? ii + 1 : c.list.length, 0, 'Board Wipes'); }
+    c.base = 2;
+  }
   if(!c.pos || typeof c.pos !== 'object') c.pos = {};   // where he put each box on the board, per grouping
   if(!c.pin || typeof c.pin !== 'object') c.pin = {};   // category -> card keys pinned to its top, newest first
   return c;
