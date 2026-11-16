@@ -6256,7 +6256,7 @@ function catAutoSort(){
   if(catAutoOld().indexOf(CUR) >= 0){ C.auto = 1; save({ quiet:true }); return; }
   if(!S.pool || !S.deck.length) return;
   var snap = catSnap(), n = 0, left = 0, map = {};
-  C.autoNew = {};   // card key -> the category it was sorted into; highlighted there until he points at it
+  C.autoNew = C.autoNew || {};   // card key -> the category it was sorted into; highlighted there until he points at it
   CAT_AUTO.forEach(function(p){ map[p[0]] = catFind(p[1]) || (p[0] === 'wipes' ? catFind('Interaction') : ''); });
   S.deck.forEach(function(d){
     if(catOf(d.n)) return;
@@ -6280,6 +6280,46 @@ function catAutoSeen(row){
 }
 document.addEventListener('pointerover', function(e){ if(e.pointerType !== 'mouse' || !e.target.closest) return; var r = e.target.closest('.bs-auto[data-card]'); if(r) catAutoSeen(r); });
 document.addEventListener('pointerdown', function(e){ if(!e.target.closest) return; var r = e.target.closest('.bs-auto[data-card]'); if(r) catAutoSeen(r); }, true);
+/* A card he already placed in another deck goes to the same category here (Tom, 2026-11-17: "certain cards will appear
+   repeatedly in certain decks. Just copy the role I put in those cards already"). Only cards with no category yet, and
+   only into a category this deck has. Picks disagree between decks: the most recently changed deck wins. A card he sets
+   to No category by hand here stays there (C.noCopy). */
+var CATPICK = { key:'', of:null };
+function catPicks(){
+  var rows = shelf().filter(function(r){ return r.id !== CUR; }).sort(function(a, b){ return (b.at || 0) - (a.at || 0); });
+  var key = rows.map(function(r){ return r.id + ':' + (r.rev || r.at || 0); }).join('|');
+  if(CATPICK.key === key && CATPICK.of) return CATPICK.of;
+  var of = {};
+  rows.forEach(function(r){
+    var d = deckOf(r.id), C = d && d.cats; if(!C || !C.of || !Array.isArray(C.list)) return;
+    var auto = C.autoNew || {};
+    Object.keys(C.of).forEach(function(k){
+      var t = C.of[k]; if(!t || C.list.indexOf(t) < 0 || auto[k] === t) return;   // a sort he has not looked at yet is not his pick
+      (of[k] = of[k] || []).push(t);
+    });
+  });
+  CATPICK = { key:key, of:of };
+  return of;
+}
+function catCopy(){
+  if(!S.deck || !S.deck.length) return;
+  var C = cats(), picks = null, done = [], snap = null;
+  C.noCopy = C.noCopy || {};
+  S.deck.forEach(function(d){
+    if(d.basic || catOf(d.n)) return;
+    var k = moxKey(d.n); if(C.noCopy[k]) return;
+    picks = picks || catPicks();
+    var l = picks[k] || [], home = '';
+    for(var i = 0; i < l.length && !home; i++) home = catFind(l[i]);
+    if(!home) return;
+    snap = snap || catSnap();
+    catSet(d.n, home); (C.autoNew = C.autoNew || {})[k] = home; done.push(k);
+  });
+  if(!done.length) return;
+  save({ quiet:true });
+  toast('Put ' + done.length + (done.length === 1 ? ' card' : ' cards') + ' in the categories you gave ' + (done.length === 1 ? 'it' : 'them') + ' in your other decks, highlighted until you point at each one.',
+    { undo:function(){ S.cats = JSON.parse(snap); var N = cats().noCopy = cats().noCopy || {}; done.forEach(function(k){ N[k] = 1; }); save(); catRedraw(); return true; } });
+}
 // His categories, pins, extra tags, box places and Keep marks from another deck with the same commander.
 function catsFrom(id){
   var d = deckOf(id); if(!d || !d.cats) return;
@@ -6292,7 +6332,9 @@ function catsFrom(id){
 function catRedraw(){ if(APP.view === 'deck' && S.page === 'deck') drawDeckPage(); if(CS && !CS.closed) drawCardSheet(); }
 function catMove(n, cat){
   if(catOf(n) === cat) return;
-  var snap = catSnap(); catSet(n, cat); save(); catRedraw();
+  var snap = catSnap(), C = cats(); catSet(n, cat);
+  C.noCopy = C.noCopy || {}; if(cat) delete C.noCopy[moxKey(n)]; else C.noCopy[moxKey(n)] = 1;
+  save(); catRedraw();
   toast('<b>' + esc(n) + '</b> ' + (cat ? 'is in ' + esc(cat) : 'has no category now') + '.', { undo:catUndo(snap) });
 }
 function catAlsoAdd(n, cat){
@@ -6845,6 +6887,7 @@ function drawDeckPage(){
     return;
   }
   LANDS_NOW = null;
+  catCopy();
   catAutoSort();
   var lv = listView(); AUTO_SHOW = lv.g === 'cat'; var groups = deckGroups(lv), total = S.deck.length + (S.partner ? 2 : 1);
   var shown = -1;
