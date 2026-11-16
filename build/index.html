@@ -844,6 +844,7 @@ function newId(){ return 'd' + Date.now().toString(36) + Math.random().toString(
   }
   if(!CUR || !lsGet('forge.deck.' + CUR)){ var l = shelf(); CUR = l.length ? l[0].id : newId(); lsSet('forge.cur', CUR); }
 })();
+catAutoOld();   // note the decks here before auto-sorting arrived, so only new ones sort themselves
 var IMPORT = { busy:false };   // a deck coming in from Moxfield: save() waits until it is whole
 var S = upgradeS(load()) || fresh();
 save({ quiet:true });   // the shelf shows this deck's commander and step from the start
@@ -6188,7 +6189,8 @@ var CAT_BASE = ['Land', 'Ramp', 'Card Draw', 'Tutor', 'Interaction', 'Utility/ D
 function catWords(t){ return String(t || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).sort().join(' '); }
 function cats(){
   var c = S.cats;
-  if(!c || typeof c !== 'object') c = S.cats = { list:[], of:{}, also:{} };
+  // auto:0 marks a deck made from now on: its cards get sorted once (catAutoSort). Older decks have no auto and are left as they are.
+  if(!c || typeof c !== 'object') c = S.cats = { list:[], of:{}, also:{}, auto:0 };
   if(!Array.isArray(c.list)) c.list = []; if(!c.of) c.of = {}; if(!c.also) c.also = {};
   if(!c.base){ var w = c.list.map(catWords); CAT_BASE.forEach(function(t){ if(w.indexOf(catWords(t)) < 0) c.list.push(t); }); c.base = 1; }
   /* Board Wipes joins his own decks' baseline (Tom, 2026-11-16: "I like board wipes"), placed after Interaction, once per
@@ -6237,6 +6239,33 @@ function catSet(n, cat){
 }
 function catSnap(){ return JSON.stringify(cats()); }
 function catUndo(snap){ return function(){ S.cats = JSON.parse(snap); save(); catRedraw(); }; }
+/* A new deck sorts itself into the default categories once (Tom, 2026-11-17: "when we first create a deck, could it
+   automatically sort them into ... the default categories we do have"), by each card's job, the one By job shows.
+   Cards Moxfield already tagged keep their tag; a card with no clear job waits under No category yet.
+   Each card has one job (By job's group), and that job's category is its home. */
+var CAT_AUTO = [['lands', 'Land'], ['wipes', 'Board Wipes'], ['removal', 'Interaction'], ['tutor', 'Tutor'],
+  ['wincon', 'Combos, Win Cons'], ['ramp', 'Ramp'], ['draw', 'Card Draw'], ['protection', 'Utility/ Defensive'], ['synergy', 'Theme']];
+// Decks already on the shelf when this arrived are never sorted for him, even ones that had no categories yet.
+function catAutoOld(){
+  var t = lsGet('forge.catAutoOld');
+  if(t == null){ t = JSON.stringify(shelf().map(function(r){ return r.id; })); lsSet('forge.catAutoOld', t); }
+  try{ return JSON.parse(t) || []; }catch(e){ return []; }
+}
+function catAutoSort(){
+  var C = cats(); if(C.auto !== 0) return;
+  if(catAutoOld().indexOf(CUR) >= 0){ C.auto = 1; save({ quiet:true }); return; }
+  if(!S.pool || !S.deck.length) return;
+  var snap = catSnap(), n = 0, left = 0, map = {};
+  CAT_AUTO.forEach(function(p){ map[p[0]] = catFind(p[1]) || (p[0] === 'wipes' ? catFind('Interaction') : ''); });
+  S.deck.forEach(function(d){
+    if(catOf(d.n)) return;
+    var home = map[d.role] || '';
+    if(home){ catSet(d.n, home); n++; } else left++;
+  });
+  C.auto = 1; save({ quiet:true });
+  if(n) toast('Sorted ' + n + ' cards into your categories by what they do.' + (left ? ' ' + left + (left === 1 ? ' card has' : ' cards have') + ' no clear job and ' + (left === 1 ? 'waits' : 'wait') + ' under No category yet.' : ''),
+    { undo:function(){ S.cats = JSON.parse(snap); S.cats.auto = 1; save(); catRedraw(); return true; } });
+}
 // His categories, pins, extra tags, box places and Keep marks from another deck with the same commander.
 function catsFrom(id){
   var d = deckOf(id); if(!d || !d.cats) return;
@@ -6802,6 +6831,7 @@ function drawDeckPage(){
     return;
   }
   LANDS_NOW = null;
+  catAutoSort();
   var lv = listView(), groups = deckGroups(lv), total = S.deck.length + (S.partner ? 2 : 1);
   var shown = -1;
   if(fltOn()){
