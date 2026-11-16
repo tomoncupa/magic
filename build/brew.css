@@ -1053,3 +1053,16 @@ button.bs-rt-n.bs-cardlink{font-family:var(--disp);font-weight:600;font-size:var
 .bs-rt-end{max-width:560px;margin:var(--s7) auto;display:flex;flex-direction:column;align-items:center;gap:var(--s3);text-align:center}
 .bs-rt-end .bs-btn{min-height:var(--tap)}
 @media (prefers-reduced-motion:reduce){ .bs-rt-card{transition:none} }
+
+/* Settings: Moxfield name and AI (2026-11-16) */
+.ai-set{display:flex;flex-direction:column;gap:var(--s2)}
+.ai-set input{min-height:var(--tap);font-size:16px}
+.ai-help{margin:0 0 var(--s2);color:var(--ink3);font-size:var(--t1)}
+.ai-opts{display:flex;flex-direction:column;gap:var(--s2);margin-bottom:var(--s2)}
+.ai-opt{display:flex;flex-direction:column;align-items:flex-start;gap:var(--s1);min-height:var(--tap);padding:var(--s3) var(--s4);text-align:left;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg3);color:var(--ink);cursor:pointer}
+.ai-opt b{font-family:var(--disp);font-weight:600}
+.ai-opt span{color:var(--ink2);font-size:var(--t1)}
+.ai-opt[aria-checked="true"]{border-color:var(--brass);box-shadow:inset 3px 0 0 var(--brass)}
+.ai-steps{margin:0 0 var(--s2);padding-left:var(--s5);color:var(--ink2);display:flex;flex-direction:column;gap:var(--s2)}
+.ai-steps .bs-btn{margin-top:var(--s1)}
+.ai-err{margin:0;color:var(--danger)}

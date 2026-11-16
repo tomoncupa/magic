@@ -47,7 +47,14 @@ def _arg(name, default):
 
 
 PORT = int(_arg("--port", 8766))
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# The installed copy for friends (Tom, 2026-11-16): a PyInstaller program whose site files sit in "site" beside it.
+FROZEN = getattr(sys, "frozen", False)
+ROOT = (os.path.join(os.path.dirname(sys.executable), "site") if FROZEN
+        else os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# The installed copy takes the page from the live site, so a friend always has Tom's newest Brewing Station
+# without installing again; the copy on disk is used when GitHub cannot be reached. --live tests it from source.
+LIVE = FROZEN or "--live" in sys.argv
+LIVE_SITE = "https://tomoncupa.github.io/magic"
 URL = f"http://127.0.0.1:{PORT}/build/"
 STORE = _arg("--store", os.path.join(os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"),
                                      "Brewing Station", "store.json"))
@@ -83,7 +90,7 @@ def find_claude():
     return hits[-1] if hits else None
 
 
-def claude_status():
+def claude_cli_status():
     exe = find_claude()
     if not exe:
         return {"available": False, "signed_in": False,
@@ -95,6 +102,190 @@ def claude_status():
     except (OSError, ValueError, subprocess.TimeoutExpired):
         signed_in = False
     return {"available": True, "signed_in": signed_in}
+
+
+# Which AI answers (Tom, 2026-11-16: friends get "either Gemini or a prompt to Claude").
+#   claude: the Claude desktop app's command, signed in with the user's own paid plan (Tom's PC).
+#   gemini: Google's Gemini with the user's own free key from aistudio.google.com. The key stays in
+#           this file on this PC; the page only ever learns whether one is saved.
+#   paste:  no AI here. The page copies each prompt to paste into claude.ai (free works) and takes the answer back.
+AI_FILE = os.path.join(os.path.dirname(STORE), "ai.json")
+GEMINI_KEY = re.compile(r"[A-Za-z0-9_-]{20,80}")
+
+
+def ai_read():
+    try:
+        with open(AI_FILE, encoding="utf-8") as f:
+            d = json.load(f)
+        return d if isinstance(d, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def ai_write(d):
+    os.makedirs(os.path.dirname(AI_FILE), exist_ok=True)
+    tmp = AI_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(d, f)
+    os.replace(tmp, AI_FILE)
+
+
+def ai_provider():
+    """The saved choice; with none saved, the Claude app when it is here (Tom's PC), else paste."""
+    p = ai_read().get("provider")
+    if p in ("claude", "gemini", "paste"):
+        return p
+    return "claude" if find_claude() else "paste"
+
+
+def claude_status():
+    """What the page needs to decide between asking directly and the copy / paste box."""
+    s = ai_read()
+    p = ai_provider()
+    base = {"provider": p, "name": s.get("name") or "", "set": "provider" in s,
+            "claude_here": bool(find_claude()), "gemini_key": bool(s.get("gemini_key")),
+            "model": s.get("gemini_model") or ""}
+    if p == "claude":
+        base.update(claude_cli_status())
+    elif p == "gemini":
+        ok = bool(s.get("gemini_key"))
+        base.update({"available": ok, "signed_in": ok})
+    else:
+        base.update({"available": False, "signed_in": False})
+    return base
+
+
+def ai_settings_save(data):
+    s = ai_read()
+    p = data.get("provider")
+    if p not in ("claude", "gemini", "paste"):
+        raise RuntimeError("Pick Claude, Gemini or copy and paste.")
+    key = str(data.get("gemini_key") or "").strip()
+    if key:
+        if not GEMINI_KEY.fullmatch(key):
+            raise RuntimeError("That does not look like a Gemini key. Copy the whole key from Google AI Studio.")
+        gemini_check(key)
+        s["gemini_key"] = key
+        s.pop("gemini_model", None)
+    if p == "gemini" and not s.get("gemini_key"):
+        raise RuntimeError("Paste your Gemini key first.")
+    s["provider"] = p
+    if "name" in data:
+        s["name"] = re.sub(r"[^\w .'-]", "", str(data.get("name") or ""))[:30].strip()
+    ai_write(s)
+    return claude_status()
+
+
+GEMINI_API = "https://generativelanguage.googleapis.com/v1beta"
+gemini_models_cache = {}
+
+
+def gemini_http(url, key, body=None, timeout=60):
+    import urllib.request
+    import urllib.error
+    req = urllib.request.Request(url, data=json.dumps(body).encode("utf-8") if body is not None else None,
+                                 headers={"x-goog-api-key": key, "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        try:
+            msg = json.loads(e.read().decode("utf-8")).get("error", {}).get("message", "")
+        except ValueError:
+            msg = ""
+        err = RuntimeError(msg or f"Gemini answered {e.code}.")
+        err.code = e.code
+        raise err
+    except urllib.error.URLError:
+        raise RuntimeError("Could not reach Google. Check the internet connection.")
+
+
+def gemini_models(key):
+    """The text models this key may use, best first: Pro, then Flash, then Flash-Lite, newest version first.
+    Read from Google each day, so a new model name never needs an update here."""
+    hit = gemini_models_cache.get(key)
+    if hit and time.time() - hit[0] < 86400:
+        return hit[1]
+    names, page = [], ""
+    for _ in range(5):
+        j = gemini_http(GEMINI_API + "/models?pageSize=200" + ("&pageToken=" + page if page else ""), key)
+        for m in j.get("models", []):
+            n = str(m.get("name", "")).replace("models/", "")
+            if "generateContent" not in (m.get("supportedGenerationMethods") or []):
+                continue
+            if not n.startswith("gemini-") or re.search(r"image|tts|audio|live|embed|vision|robotics|computer|thinking-exp|learnlm|aqa", n):
+                continue
+            names.append(n)
+        page = j.get("nextPageToken") or ""
+        if not page:
+            break
+
+    def rank(n):
+        tier = 0 if "-pro" in n else 2 if "lite" in n else 1
+        v = re.match(r"gemini-(\d+)(?:\.(\d+))?", n)
+        ver = (int(v.group(1)), int(v.group(2) or 0)) if v else (0, 0)
+        return (tier, -ver[0], -ver[1], "preview" in n or "exp" in n, n.count("-"))
+    names = sorted(set(names), key=rank)
+    gemini_models_cache[key] = (time.time(), names)
+    return names
+
+
+def gemini_check(key):
+    try:
+        if not gemini_models(key):
+            raise RuntimeError("That key works but has no Gemini text models.")
+    except RuntimeError as e:
+        if getattr(e, "code", 0) in (400, 401, 403):
+            raise RuntimeError("Google refused that key. Copy it again from aistudio.google.com/apikey.")
+        raise
+
+
+def gemini_ask(prompt, web=False, want_json=False):
+    s = ai_read()
+    key = s.get("gemini_key")
+    if not key:
+        raise RuntimeError("No Gemini key saved. Open AI settings and paste one.")
+    models = gemini_models(key)
+    # The saved model first (the last one that answered), then every other one: a free key has no Pro and a
+    # small daily count on the best Flash, so a refusal moves on to the next model instead of failing.
+    order = ([s["gemini_model"]] if s.get("gemini_model") in models else []) + [m for m in models if m != s.get("gemini_model")]
+    body = {"systemInstruction": {"parts": [{"text": SYSTEM}]},
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.4}}
+    if web:
+        body["tools"] = [{"google_search": {}}]
+    elif want_json:
+        body["generationConfig"]["responseMimeType"] = "application/json"
+    last = None
+    for m in order[:6]:
+        try:
+            j = gemini_http(f"{GEMINI_API}/models/{m}:generateContent", key, body, timeout=600)
+        except RuntimeError as e:
+            last = e
+            if getattr(e, "code", 0) in (429, 403, 404, 400, 503, 500):
+                continue
+            raise
+        cand = (j.get("candidates") or [{}])[0]
+        text = "".join(p.get("text", "") for p in (cand.get("content") or {}).get("parts", []) if not p.get("thought"))
+        if not text.strip():
+            last = RuntimeError("Gemini gave an empty answer (" + str(cand.get("finishReason") or "no reason") + ").")
+            continue
+        if s.get("gemini_model") != m:
+            s["gemini_model"] = m
+            ai_write(s)
+        return text
+    if last and getattr(last, "code", 0) == 429:
+        raise RuntimeError("Gemini's free limit for today is used up. It resets each day, or switch to copy and paste in AI settings.")
+    raise last or RuntimeError("Gemini did not answer.")
+
+
+def ai_ask(prompt, web=False, want_json=False):
+    p = ai_provider()
+    if p == "gemini":
+        return gemini_ask(prompt, web, want_json)
+    if p == "claude":
+        return claude_ask(prompt, web)
+    raise RuntimeError("No AI is connected here. Use the copy and paste box, or pick one in AI settings.")
 
 
 def claude_login():
@@ -523,7 +714,67 @@ def cards_view():
     return d
 
 
+SITE_CACHE = os.path.join(os.path.dirname(STORE), "site")
+# build/steps/ holds 82 MB of combo steps in 64 files; the installer leaves them out and each is fetched the first time a combo needs it.
+LIVE_FILES = re.compile(r"/(?:build/(?:steps/)?[A-Za-z0-9_.-]+\.(?:html|js|css|json|png)|sw\.js|apple-touch-icon\.png)")
+live_meta = {}                  # path -> {"etag", "checked"}
+live_lock = threading.Lock()
+LIVE_RECHECK = 600              # seconds before asking GitHub about the same file again
+
+
+def live_file(path):
+    """The newest copy of a page file: GitHub Pages when it answers (asked with the saved ETag, so an unchanged
+    file costs nothing), else the last saved copy, else the copy the installer put down. None to fall through."""
+    if not LIVE_FILES.fullmatch(path):
+        return None
+    import urllib.request
+    import urllib.error
+    local = os.path.join(SITE_CACHE, *path.strip("/").split("/"))
+    with live_lock:
+        if not live_meta:
+            try:
+                with open(os.path.join(SITE_CACHE, "meta.json"), encoding="utf-8") as f:
+                    live_meta.update(json.load(f))
+            except (OSError, ValueError):
+                pass
+        m = live_meta.get(path) or {}
+    if not os.path.exists(local) or time.time() - m.get("checked", 0) > LIVE_RECHECK:
+        req = urllib.request.Request(LIVE_SITE + path, headers={"User-Agent": "BrewingStation/1.0"})
+        if m.get("etag") and os.path.exists(local):
+            req.add_header("If-None-Match", m["etag"])
+        try:
+            with urllib.request.urlopen(req, timeout=8) as r:
+                body = r.read()
+            os.makedirs(os.path.dirname(local), exist_ok=True)
+            with open(local + ".tmp", "wb") as f:
+                f.write(body)
+            os.replace(local + ".tmp", local)
+            m = {"etag": r.headers.get("ETag") or "", "checked": time.time()}
+        except urllib.error.HTTPError as e:
+            if e.code == 304:
+                m = dict(m, checked=time.time())
+        except (urllib.error.URLError, OSError, TimeoutError):
+            pass                # offline: the saved copy below
+        with live_lock:
+            live_meta[path] = m
+            try:
+                os.makedirs(SITE_CACHE, exist_ok=True)
+                with open(os.path.join(SITE_CACHE, "meta.json"), "w", encoding="utf-8") as f:
+                    json.dump(live_meta, f)
+            except OSError:
+                pass
+    return local if os.path.exists(local) else None
+
+
 class Handler(http.server.SimpleHTTPRequestHandler):
+    def translate_path(self, path):
+        if LIVE:
+            p = urllib.parse.urlsplit(path).path
+            hit = live_file(p + "index.html" if p == "/build/" else p)
+            if hit:
+                return hit
+        return super().translate_path(path)
+
     def __init__(self, *a, **k):
         super().__init__(*a, directory=ROOT, **k)
 
@@ -685,7 +936,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 prompt = str(data.get("prompt") or "")
                 if not prompt:
                     raise RuntimeError("Nothing to ask.")
-                return self.send_json({"text": claude_ask(prompt, bool(data.get("web")))})
+                return self.send_json({"text": ai_ask(prompt, bool(data.get("web")), bool(data.get("json")))})
+            if path == "/api/ai/settings":
+                return self.send_json(ai_settings_save(data))
             self.send_error(404)
         except Exception as e:  # the page shows the message
             self.send_json({"error": str(e)}, 500)

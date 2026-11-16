@@ -512,16 +512,18 @@ function pillarCard(ctx, def, p){
 var CHK = {};
 function claudeChecks(res, purpose, done){
   if(!res.length || typeof window.askDeckPage !== 'function' || !window.askCanDirect || !window.askCanDirect()) return null;
+  // On Gemini's free plan these automatic checks would use up the day's questions before any are asked.
+  if(typeof CL !== 'undefined' && CL.status && CL.status.provider === 'gemini') return null;
   var e = E(), key = (e.key ? e.key() : '') + '|' + res.map(function(p){ return p.out + '>' + p.inn.n; }).join(',');
   var c = CHK[key]; if(c){ if(done){ if(c.busy) (c.cbs = c.cbs || []).push(done); } return c; }
   c = CHK[key] = { busy:true, v:null, cbs:done ? [done] : [] };
-  var L = ['You are a Magic: The Gathering Commander deckbuilding expert checking swaps a rules engine suggested for Tom\'s deck in his app, Brewing Station.',
+  var L = ['You are a Magic: The Gathering Commander deckbuilding expert checking swaps a rules engine suggested for ' + (window.WHO ? WHO() : 'Tom') + '\'s deck in their app, Brewing Station.',
     'The engine counts jobs and scores; it does not understand the deck\'s plan. Judge each swap against the whole deck: what the card going out does in this deck\'s plan, his categories, combos, and what the card coming in really does (read the rules text).',
     'Purpose of these swaps: ' + purpose + '.',
     'Answer with JSON only, no other text: [{"i":0,"ok":true,"why":"one plain sentence under 20 words"}, ...], one entry per swap. ok is false when the swap hurts the deck\'s plan more than it helps.',
     '', window.askDeckPage(), '', '=== THE SWAPS ==='];
   res.forEach(function(p, i){ L.push(i + ': out ' + p.out + ', in ' + p.inn.n + (p.inn.o ? ' (' + String(p.inn.type || '') + ': ' + String(p.inn.o).replace(/\s+/g, ' ') + ')' : '')); });
-  fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:L.join(String.fromCharCode(10)) }) })
+  fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:L.join(String.fromCharCode(10)) , json:true }) })
     .then(function(r){ return r.json(); }).then(function(j){
       if(j.error) throw new Error(j.error);
       var t = String(j.text || ''), a = t.indexOf('['), b = t.lastIndexOf(']');
@@ -781,7 +783,7 @@ var BENCH_Q = [
 ];
 var BENCH_PTS = { S:8, A:7, B:6, C:4, D:2, F:0 }, BENCH = { busy:'', err:'' };
 function benchPrompt(){
-  var L = ['You are grading Tom\'s Commander deck on twelve fixed benchmarks for his app, Brewing Station.',
+  var L = ['You are grading ' + (window.WHO ? WHO() : 'Tom') + '\'s Commander deck on twelve fixed benchmarks for their app, Brewing Station.',
     'Grade each benchmark S, A, B, C, D or F against all Commander decks (S is the top tournament level, C an average decent deck, F missing entirely), not against its bracket.',
     'For each, give one plain sentence why (under 25 words) and up to 5 cards from the deck behind the grade, exact names.',
     'Answer with JSON only, no other text: [{"k":"speed","g":"B","why":"...","cards":["..."]}, ...] in this order, all twelve.', '', '=== THE BENCHMARKS ==='];
@@ -792,7 +794,7 @@ function benchPrompt(){
 function benchRun(){
   var mine = curId(), D = S, e = E(), key = e.key ? e.key() : '';
   BENCH.busy = mine; BENCH.err = ''; redraw();
-  fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:benchPrompt() }) })
+  fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:benchPrompt(), json:true }) })
     .then(function(r){ return r.json(); }).then(function(j){
       if(j.error) throw new Error(j.error);
       var t = String(j.text || ''), a = t.indexOf('['), z = t.lastIndexOf(']'), v = JSON.parse(t.slice(a, z + 1)), by = {};
@@ -1118,7 +1120,7 @@ function spellbook(o){ return o.id ? comboBtn(o.id) : o.url ? '<a class="bs-btn 
 var PLAN = { busy:'', err:'', auto:{} };
 var PART_W = { engine:'Engine', payoff:'Payoff', enabler:'Enabler', support:'Support' };
 function planPrompt(){
-  return ['You are mapping the plan of Tom\'s Commander deck for his app, Brewing Station, as a top player would read it.',
+  return ['You are mapping the plan of ' + (window.WHO ? WHO() : 'Tom') + '\'s Commander deck for their app, Brewing Station, as a top player would read it.',
     'Name the deck\'s real plans (1 to 4), in plain words he would use, such as "copy Jin-Gitaxias\'s card draw" or "reanimate big creatures": what each plan does and how it wins or what it gets.',
     'Then give every nonland card in the deck its plan and its part in it: engine (makes the plan run, the deck is built round it), payoff (what the plan is for), enabler (feeds the plan), support (helps the deck generally: ramp, removal, draw that is not plan-specific), or none (does nothing for any plan). Exact card names.',
     'Then name up to 12 pairs of cards that are much stronger together in this deck than apart, with why in under 15 words.',
@@ -1128,7 +1130,7 @@ function planPrompt(){
 function planRun(){
   var mine = curId(), D = S, e = E(), key = e.key ? e.key() : '';
   PLAN.busy = mine; PLAN.err = ''; redraw();
-  fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:planPrompt() }) })
+  fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:planPrompt(), json:true }) })
     .then(function(r){ return r.json(); }).then(function(j){
       if(j.error) throw new Error(j.error);
       var t = String(j.text || ''), a = t.indexOf('{'), z = t.lastIndexOf('}'), v = JSON.parse(t.slice(a, z + 1));

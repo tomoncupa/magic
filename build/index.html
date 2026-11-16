@@ -81,7 +81,7 @@ p{margin:0 0 var(--s3);max-width:68ch}
 .bar .row{max-width:980px;margin:0 auto;justify-content:flex-end}
 .bar .msg{flex:1;min-width:0;font-size:var(--t2);color:var(--ink2)}
 
-input[type=text],input[type=number],textarea,select{width:100%;background:var(--bg3);border:1px solid var(--line);border-radius:var(--r-sm);
+input[type=text],input[type=password],input[type=number],textarea,select{width:100%;background:var(--bg3);border:1px solid var(--line);border-radius:var(--r-sm);
   padding:10px 12px;min-height:var(--tap);font-size:16px}
 input:focus,textarea:focus,select:focus{border-color:var(--brass-line);outline:none}
 input:focus-visible,textarea:focus-visible,select:focus-visible{box-shadow:0 0 0 2px var(--brass)}
@@ -302,6 +302,7 @@ pre.out{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r
   <symbol id="i-side" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M15 5v14"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
   <symbol id="i-import" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M4 17v3h16v-3"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1"/></symbol>
   <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></symbol>
 </svg>
 <header class="bs-head" id="head">
@@ -311,6 +312,7 @@ pre.out{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r
     <nav class="bs-tabs" id="topTabs" aria-label="Main"></nav>
     <div class="spacer"></div>
     <div class="bs-mox" id="moxChip"></div>
+    <button class="bs-ibtn" type="button" id="aiBtn" aria-label="Settings: Moxfield name and AI" hidden><svg class="bs-ico"><use href="#i-gear"/></svg></button>
   </div></div>
   <div class="bs-deckrow" id="deckRow" hidden><div class="bs-wrap" id="deckRowIn"></div></div>
   <div class="bs-subrow" id="subRow" hidden><div class="bs-wrap"><nav class="steps" id="steps" aria-label="Build steps"></nav></div></div>
@@ -2053,7 +2055,7 @@ var TABLE_LINE = 'His table: high bracket 3. Strong, tuned decks with Game Chang
 // His own words on what the deck should do. They outrank the strategy tags when the two disagree.
 function intentLines(){
   var L = [TABLE_LINE];
-  if((S.intentText || '').trim()) L.push('What Tom wants this deck to do, in his words (follow this over the strategy tags if they disagree): ' + S.intentText.trim());
+  if((S.intentText || '').trim()) L.push('What ' + WHO() + ' wants this deck to do, in their words (follow this over the strategy tags if they disagree): ' + S.intentText.trim());
   return L;
 }
 function tableLines(){
@@ -2072,13 +2074,13 @@ function tableLines(){
 function budgetLines(){
   var L = ['Budget is no object. Price never matters: pick the strongest card for the job, expensive staples included. The Game Changer limit and bracket rules still apply.'];
   var hl = houseLines();
-  if(hl.length) L.push('House rules at his table, these override the bracket: ' + hl.join('; ') + '.');
-  if(gcMode() === 'mine') L.push('He chose his own Game Changers: ' + ((S.gcPick || []).join(', ') || 'none') + '. Never suggest any other Game Changer.');
+  if(hl.length) L.push('House rules at their table, these override the bracket: ' + hl.join('; ') + '.');
+  if(gcMode() === 'mine') L.push('They chose their own Game Changers: ' + ((S.gcPick || []).join(', ') || 'none') + '. Never suggest any other Game Changer.');
   return L;
 }
 function roundPrompt(job){
   var open = openSlots(job), n = Math.min(12, Math.max(6, open * 2)), passed = S.draft.passed[job] || [];
-  var L = ['You are helping Tom build a Magic: The Gathering Commander deck one job at a time. He plays with a regular group.', ''];
+  var L = ['You are helping ' + WHO() + ' build a Magic: The Gathering Commander deck one job at a time. They play with a regular group.', ''];
   L = L.concat(tableLines());
   if(window.PRO_DOCTRINE) L.push(window.PRO_DOCTRINE, '');
   L.push('Game Changers in the deck now: ' + draftGcs() + '.');
@@ -2086,7 +2088,8 @@ function roundPrompt(job){
   L.push('', 'Picked so far, ' + S.deck.length + ' of ' + deckSlots() + ':');
   L = L.concat(S.deck.length ? deckByJob() : ['(nothing yet)']);
   L.push('', 'This round\'s job: ' + ROLE_NAMES[job] + '. ' + JOB_DEF[job] + ' ' + open + ' slot' + (open > 1 ? 's' : '') + ' open.');
-  if(passed.length) L.push('He already passed on these for this job, never suggest them: ' + passed.join(', ') + '.');
+  if(passed.length) L.push('They already passed on these for this job, never suggest them: ' + passed.join(', ') + '.');
+  if(window.rulesBlock) L = L.concat(window.rulesBlock());
   L.push('', 'Suggest ' + n + ' cards for this job, best first. Judge each one by how it works with the commander and the cards picked so far, not by the job alone.');
   L.push('Rules: legal in Commander, inside the colour identity, not already picked, not on the never-add list, released already, within the Game Changer limit and the bracket rules.' + (job === 'lands' ? ' Nonbasic lands only.' : ' No lands.'));
   L.push('why is one sentence saying how the card works with the rest of this deck. Plain English, no em dashes.');
@@ -2098,7 +2101,7 @@ async function askRound(job){
   var box = S.step === 4 && main.querySelector('.clround');
   if(box && S.draft.round && S.draft.round.job === job) box.outerHTML = claudeRoundHtml(job);
   try{
-    var mine = CUR, r = await fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:roundPrompt(job) }) });
+    var mine = CUR, r = await fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:roundPrompt(job), json:true }) });
     var j = await r.json();
     if(CUR !== mine) return;
     if(j.error) throw new Error(j.error);
@@ -2672,13 +2675,16 @@ var MOXUSER = (function(){
 })();
 function moxFeedFile(){ return MOXUSER.toLowerCase() === 'amoncupa' ? '../decks/moxfield.json' : '../decks/moxfield-' + MOXUSER.toLowerCase() + '.json'; }
 var CL = { status:null, busy:false, err:'' };
+// Who the AI is talking to: the name saved in AI settings, Tom on his own decks, else "the player" (friends' copies).
+window.AI_NAME = function(){ return CL.status && CL.status.provider === 'gemini' ? 'Gemini' : 'Claude'; };
+window.WHO = function(){ var n = CL.status && CL.status.name; return n || (MOXUSER.toLowerCase() === 'amoncupa' ? 'Tom' : 'the player'); };
 function deckKey(){ return S.deck.map(function(d){ return d.n; }).sort().join('|'); }
 function claudePrompt(){
   var r = S.lastCheck || {}, B = BRACKETS[S.bracket], lim = gcLimit();
   var th = themeLabel();
   var L = [];
   if(window.PRO_DOCTRINE) L.push(window.PRO_DOCTRINE, '');
-  L.push('You are reviewing a Magic: The Gathering Commander deck for Tom.', '');
+  L.push('You are reviewing a Magic: The Gathering Commander deck for ' + WHO() + '.', '');
   L.push('Commander: ' + S.cmd.n + (S.partner ? ' + ' + S.partner.n : '') + '. Colour identity: ' + (S.ci.join('') || 'colourless') + '.');
   L.push('Bracket ' + S.bracket + ' (' + B.name + '): ' + B.desc + ' Game Changer limit: ' + (lim === Infinity ? 'none' : lim) + '.');
   if((S.gcNames || []).length) L.push('The current official Game Changer list (your memory of it is out of date; cards not on it are not Game Changers): ' + S.gcNames.join('; ') + '.');
@@ -2705,6 +2711,7 @@ function claudePrompt(){
     list.forEach(function(d){ if(!counts[d.n]){ counts[d.n] = 0; order.push(d); } counts[d.n]++; });
     L.push(ROLE_NAMES[role] + ' (' + list.length + '): ' + order.map(function(d){ return (counts[d.n] > 1 ? counts[d.n] + ' ' : '') + d.n + (d.basic ? '' : ' [' + d.mv + ']') + (d.gc ? ' (Game Changer)' : ''); }).join(', '));
   });
+  if(window.rulesBlock) L = L.concat(window.rulesBlock());
   L.push('', 'Do three things.');
   L.push('1. verdict: 3 to 5 plain sentences. What the deck does well, its weakest area, and how it tends to lose.');
   L.push('2. swaps: up to 8 one-for-one swaps that make the deck better at its bracket, strongest first. Rules: "out" is a card in the list above, never a commander or a must-stay card. "in" is legal in Commander, inside the colour identity, not already in the deck, not on the never-add list. Stay within the Game Changer limit and the bracket rules. Prefer swaps that keep the count of each job the same. Use exact English card names. why is one sentence.');
@@ -2739,7 +2746,7 @@ async function claudeStatus(){
 async function askClaude(){
   CL.busy = true; CL.err = ''; drawClaude();
   try{
-    var mine = CUR, r = await fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:claudePrompt() }) });
+    var mine = CUR, r = await fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:claudePrompt(), json:true }) });
     var j = await r.json();
     if(CUR !== mine) return;
     if(j.error) throw new Error(j.error);
@@ -3046,13 +3053,15 @@ function guideMd(){
 }
 function guidePrompt(){
   var r = S.lastCheck || {}, L = [];
-  L.push('Write a short piloting guide for Tom for the Magic: The Gathering Commander deck below. He reads it on his phone before and during games.', '');
+  L.push('Write a short piloting guide for ' + WHO() + ' for the Magic: The Gathering Commander deck below. They read it on their phone before and during games. Speak to them as "you".', '');
+  if(window.PRO_DOCTRINE) L.push(window.PRO_DOCTRINE, '');
   L = L.concat(tableLines());
   if(S.companion) L.push('Companion: ' + S.companion + '.');
   if(r.sim) L.push('Simulation: ' + pct(r.sim.p3) + ' of opening hands have 3+ lands; goldfish win around turn ' + (r.sim.winTurn || '15+') + '.');
   if((r.combos || []).length) L.push('Combos in the deck: ' + r.combos.slice(0, 8).map(function(o){ return o.cards.join(' + ') + ' (' + o.res + ')'; }).join('; ') + '.');
   L.push('', 'The 99, by job:');
   L = L.concat(deckByJob());
+  if(window.rulesBlock) L = L.concat(window.rulesBlock());
   L.push('', 'Use these sections, each as a heading starting with ##:');
   L.push('## The plan: two or three sentences on how this deck wins.');
   L.push('## Mulligan: what to keep and what to send back, naming cards from this list.');
@@ -3276,8 +3285,8 @@ function tasteDrop(id){ var l = tasteLog(), n = l.length; l = l.filter(function(
 window.tasteRejected = function(){ var s = {}; tasteLog().forEach(function(x){ if(x.k === 'no' && x.inn) s[x.inn.toLowerCase()] = 1; }); return s; };
 function tasteLines(){
   var l = tasteLog(), made = l.filter(function(x){ return x.k === 'swap'; }).slice(-25), no = l.filter(function(x){ return x.k === 'no'; }).slice(-25), L = [];
-  if(made.length) L.push('Swaps he made, newest last: ' + made.map(function(x){ return x.out + ' -> ' + x.inn + ' (' + shortName(x.d || '') + (x.src ? ', ' + x.src : '') + ')'; }).join('; '));
-  if(no.length) L.push('Swaps he turned down, newest last: ' + no.map(function(x){ return (x.out ? x.out + ' -> ' : '') + x.inn + ' (' + shortName(x.d || '') + ')'; }).join('; '));
+  if(made.length) L.push('Swaps they made, newest last: ' + made.map(function(x){ return x.out + ' -> ' + x.inn + ' (' + shortName(x.d || '') + (x.src ? ', ' + x.src : '') + ')'; }).join('; '));
+  if(no.length) L.push('Swaps they turned down, newest last: ' + no.map(function(x){ return (x.out ? x.out + ' -> ' : '') + x.inn + ' (' + shortName(x.d || '') + ')'; }).join('; '));
   return L.concat(rateLines());
 }
 /* His ratings from Sets (Tom, 2026-11-05: "Yes, feed Claude"): cards he rated 4 or 5, cards he rated 1 or 2 and his
@@ -3289,9 +3298,9 @@ function rateLines(){
   function list(o){ return Object.keys(o).map(function(k){ return o[k]; }).filter(fits).sort(function(a, b){ return (b.at || 0) - (a.at || 0); }); }
   var r = list(stRates()), it = list(stInts()), L = [];
   var love = r.filter(function(x){ return x.r >= 4; }).sort(function(a, b){ return b.r - a.r; }).slice(0, 80), no = r.filter(function(x){ return x.r <= 2; }).slice(0, 60);
-  if(love.length) L.push('Cards he rated 4 or 5 out of 5 while looking through sets (he likes them; one that fits and is not in the deck is worth suggesting): ' + love.map(function(x){ return x.n + ' ' + x.r; }).join('; '));
-  if(no.length) L.push('Cards he rated 1 or 2 out of 5 (he does not like them; do not suggest them unless he asks): ' + no.map(function(x){ return x.n + ' ' + x.r; }).join('; '));
-  if(it.length) L.push('Cards he marked Interesting in new sets (he wants to find a home for them): ' + it.slice(0, 80).map(function(x){ return x.n; }).join('; '));
+  if(love.length) L.push('Cards they rated 4 or 5 out of 5 while looking through sets (they like them; one that fits and is not in the deck is worth suggesting): ' + love.map(function(x){ return x.n + ' ' + x.r; }).join('; '));
+  if(no.length) L.push('Cards they rated 1 or 2 out of 5 (they do not like them; do not suggest them unless they ask): ' + no.map(function(x){ return x.n + ' ' + x.r; }).join('; '));
+  if(it.length) L.push('Cards they marked Interesting in new sets (they want to find a home for them): ' + it.slice(0, 80).map(function(x){ return x.n; }).join('; '));
   return L;
 }
 var LASTCHG = null;
@@ -4236,6 +4245,60 @@ function renderHead(){
     '<div class="bs-deck-meta">' + (S.cmd ? '<span class="bs-pips">' + pipHtml(S.ci) + '</span>' : '') + br + '<span class="bs-num">' + n + ' card' + (n === 1 ? '' : 's') + '</span></div></div>' +
     '<nav class="bs-dtabs" aria-label="This deck">' + tabs + '</nav>';
 }
+/* Setup on the PC copy (Tom, 2026-11-16: friends pick "either Gemini or a prompt to Claude"): whose Moxfield
+   decks to show, the name the AI calls them, and which AI answers. The key stays in the server's ai.json. */
+function openSetup(first){
+  var st = CL.status || {}, pick = st.provider || 'paste', saved = '';
+  try{ saved = localStorage.getItem('forge.moxUser') || ''; }catch(e){}
+  var opts = [['gemini', 'Gemini, inside the app', 'Free. Answers here with a key from Google. The free plan has a daily limit.'],
+              ['paste', 'Claude, copy and paste', 'Free Claude account works. The app copies each question for claude.ai and takes the answer back.']];
+  if(st.claude_here) opts.push(['claude', 'Claude app, inside the app', 'Answers here through the Claude desktop app. Needs a paid Claude plan.']);
+  var h = bsSheet({ title:first ? 'Set up Brewing Station' : 'Settings', size:'center',
+    body:'<div class="ai-set">' +
+      '<label class="bs-label" for="setMox">Your Moxfield name</label><input type="text" id="setMox" autocomplete="off" spellcheck="false" value="' + esc(saved || (MOXUSER !== 'amoncupa' ? MOXUSER : '')) + '">' +
+      '<p class="ai-help">Shows the public decks of this Moxfield account.</p>' +
+      '<label class="bs-label" for="setName">Your name</label><input type="text" id="setName" autocomplete="off" value="' + esc(st.name || '') + '">' +
+      '<p class="ai-help">Optional. The AI calls you by it.</p>' +
+      '<p class="bs-label" id="setAiL">AI help</p><div class="ai-opts" role="radiogroup" aria-labelledby="setAiL">' + opts.map(function(o){
+        return '<button type="button" class="ai-opt" role="radio" data-ai="' + o[0] + '" aria-checked="' + (o[0] === pick) + '"><b>' + o[1] + '</b><span>' + o[2] + '</span></button>'; }).join('') + '</div>' +
+      '<div id="setKey"' + (pick === 'gemini' ? '' : ' hidden') + '>' +
+        '<ol class="ai-steps"><li>Open Google AI Studio and sign in with a Google account. <button type="button" class="bs-btn bs-sm" id="setStudio">' + ico('ext', 'bs-i16') + 'Open AI Studio</button></li><li>Press Create API key and copy it.</li><li>Paste it here.</li></ol>' +
+        '<label class="bs-label" for="setKeyIn">Gemini key</label><input type="password" id="setKeyIn" autocomplete="off" spellcheck="false" placeholder="' + (st.gemini_key ? 'A key is saved. Paste a new one to replace it.' : 'Paste the key') + '">' +
+      '</div><p class="ai-err" id="setErr" role="alert" hidden></p></div>',
+    actions:[{ label:'Cancel', kind:'quiet' }, { label:'Save', kind:'primary', fn:function(){ save(); return false; } }] });
+  var el = h.el;
+  el.querySelector('.ai-opts').onclick = function(e){
+    var b = e.target.closest('[data-ai]'); if(!b) return; pick = b.getAttribute('data-ai');
+    el.querySelectorAll('[data-ai]').forEach(function(x){ x.setAttribute('aria-checked', String(x === b)); });
+    el.querySelector('#setKey').hidden = pick !== 'gemini';
+  };
+  el.querySelector('#setStudio').onclick = function(){ openOut('https://aistudio.google.com/apikey'); };
+  async function save(){
+    var go = el.querySelector('.bs-sheet-foot .bs-primary'), err = el.querySelector('#setErr');
+    var mox = el.querySelector('#setMox').value.trim(), key = el.querySelector('#setKeyIn').value.trim();
+    if(mox && !/^[A-Za-z0-9_.-]{1,40}$/.test(mox)){ err.textContent = 'That is not a Moxfield name.'; err.hidden = false; return; }
+    go.disabled = true; go.textContent = key ? 'Checking the key…' : 'Saving…'; err.hidden = true;
+    try{
+      var r = await fetch('/api/ai/settings', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ provider:pick, gemini_key:key, name:el.querySelector('#setName').value.trim() }) });
+      var j = await r.json(); if(j.error) throw new Error(j.error);
+      CL.status = j;
+    }catch(x){ err.textContent = x.message; err.hidden = false; go.disabled = false; go.textContent = 'Save'; return; }
+    var moved = mox && mox.toLowerCase() !== MOXUSER.toLowerCase();
+    if(mox) lsSet('forge.moxUser', mox);
+    h.close();
+    if(moved){ location.href = location.pathname + '?user=' + encodeURIComponent(mox); return; }
+    toast('Saved.'); render();
+  }
+}
+// The PC copy: show the settings button, and open setup by itself the first time on a PC without the Claude app.
+if(LOCAL){
+  $('aiBtn').hidden = false;
+  fetch('/api/claude/status').then(function(r){ return r.ok ? r.json() : null; }).then(function(j){
+    if(!j) return; CL.status = j;
+    DECK_TABS.forEach(function(t){ if(t[0] === 'ask') t[1] = 'Ask ' + AI_NAME(); }); if(window.PAGES && PAGES.ask) PAGES.ask.label = 'Ask ' + AI_NAME(); if(APP.view === 'deck') render();
+    if(!j.set && !j.claude_here) openSetup(true);
+  }).catch(function(){});
+}
 function drawMoxChip(){
   var el = $('moxChip'); if(!el) return;
   var f = FEED.data, n = f ? f.decks.length : 0;
@@ -4250,6 +4313,7 @@ function drawMoxChip(){
 }
 $('head').addEventListener('click', function(e){
   var t = e.target;
+  if(t.closest('#aiBtn')){ openSetup(); return; }
   if(t.closest('#moxRefresh')){ moxCheck(); return; }
   // A tap on the chip itself says what the dot means (the title is not reachable by touch).
   if(t.closest('#moxChip')){ toast(esc($('moxChip').title || 'Moxfield')); return; }
@@ -4428,7 +4492,8 @@ function drawDecks(){
   if(rows.length < all.length){ all.forEach(function(r){ if(!r.cmd && r.id !== CUR) lsDel('forge.deck.' + r.id); }); putShelf(all.filter(function(r){ return r.cmd || r.id === CUR; })); }
   // Only decks he brought in show (Tom, 2026-10-27: "I don't want to see decks I specifically haven't brought in"). A Moxfield
   // deck comes in through Import a deck, From a link, linked. SHOW_REMOTE = true brings the "Not brought in yet" tiles back.
-  var f = FEED.data, remote = f && SHOW_REMOTE ? f.decks.filter(function(d){ return !rows.some(function(r){ return r.mox && r.mox.id === d.id; }); }) : [];
+  // An empty shelf (a friend's first open) shows their Moxfield decks to bring in, else they see nothing.
+  var f = FEED.data, remote = f && (SHOW_REMOTE || !rows.length) ? f.decks.filter(function(d){ return !rows.some(function(r){ return r.mox && r.mox.id === d.id; }); }) : [];
   // Hidden decks (Tom, 2026-10-27: "the 4 decks I actually open in BS, and the 2 new ones I made today"): kept, shown only
   // while Hidden decks is pressed. A deck is hidden or shown from its ⋯ menu.
   var hidN = rows.filter(function(r){ return r.hid; }).length, showHid = lsGet('brew.showhid') === '1';

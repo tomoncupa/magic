@@ -224,8 +224,25 @@ var DOCTRINE = [
   '7. The table. It is a four-player game: threat assessment, not becoming the archenemy too early, what the table will answer, what to play around.',
   '8. Swaps. Each one names the job, the card out and why it is the right cut in this deck, the card in and what it really does (read its rules text below), and the cost: curve, colours, synergy lost. Never cut combo pieces, engine pieces or cards he pinned unless he asks. Prefer cards from his side deck. Weigh each swap against the whole deck, never on its own.',
   '9. Truth. Read the rules text given; never go from memory for card text, rulings, Game Changers or legality. Use the app\'s numbers. If you are not sure, say so in a few words rather than guess.',
-  '10. One-colour decks need no colour fixing: never suggest Commander\'s Sphere, Command Tower, Chromatic Lantern, any-colour lands or other fixing in a deck of one colour.'
+  '10. One-colour decks need no colour fixing: never suggest Commander\'s Sphere, Command Tower, Chromatic Lantern, any-colour lands or other fixing in a deck of one colour.',
+  // 11 and 12: what the best deck AI tools guard against (research 2026-11-16: mtg-skills, DeckFlow, Scryfall MCP, DeckCheck).
+  '11. Evidence. Facts come from the page: rules text, the app\'s counts, EDHREC numbers, Commander Spellbook combos. A card you suggest that is not on the page: only name it if you are sure it exists and what it does; otherwise leave it out. Never make up prices, win rates or what the metagame plays. When something is your judgement rather than a number on the page, it is fine, but do not dress it up as a fact.',
+  '12. Exact counts. A Commander deck is exactly 100 cards with the commander. Every set of changes you give keeps it at 100. The commander counts toward the Game Changer limit.',
+  // 13 to 16: how Tom's decks actually got better after the first draft (his 102 swaps and 62 questions, read 2026-11-16).
+  'WHAT FIRST DRAFTS GET WRONG (learnt from the changes players kept after the builder\'s first list):',
+  '13. The mana base is the weakest part of a first draft. In two or more colours, basics and slow tapped lands should give way to fetch lands, shock lands, triomes and lands that also do something, unless the deck plan asks for a budget. Cheap ramp on turns 1 and 2 beats a four-mana rock.',
+  '14. Cut what does not serve the plan even when the card is good: slow equipment, pillowfort and taxes, symmetrical stax that hurts the deck too, board wipes that kill its own board. Put in payoffs and doublers that multiply the plan, and cheap instant-speed answers.',
+  '15. When the player names a card they want, fit it in: give the best cut for it, and if the card is weak here say so in one line, then still give the swap. When they paste a list of candidates, rank every one of them.',
+  '16. Timing and heat. Check when each card wants to land relative to the commander (a piece that does nothing until the commander is out is weaker than it looks) and how much attention the commander draws from the table.'
 ].join('\n');
+// Who is asking: Tom on his own decks, a friend's name from AI settings, else "the player". Answers speak to them as "you".
+function who(){ return typeof window.WHO === 'function' ? window.WHO() : 'Tom'; }
+// Every card's rules text, for the builder's prompts (review, rounds, guide), which had only names before.
+window.rulesBlock = function(){
+  var seen = {}, rows = [];
+  [S.cmd, S.partner].filter(Boolean).concat(S.deck || []).forEach(function(d){ if(!d || d.basic || seen[d.n]) return; seen[d.n] = 1; var c = poolCard(d.n) || (d.o ? d : null); if(c) rows.push('- ' + c.n + ' ' + (c.cost || '') + ' | ' + (c.type || '') + ' | ' + String(c.o || '').replace(/\n/g, ' / ')); });
+  return rows.length ? ['', 'Rules text of every card in the deck (read these, do not go from memory):'].concat(rows) : [];
+};
 window.PRO_DOCTRINE = DOCTRINE;
 var ASK = { busy:'', err:'', draft:'', paste:'', stage:'' };
 // Memory (Tom, 2026-11-04: "save context of the entire convo, not just the last 3 answers"; it had been the last 10
@@ -255,9 +272,9 @@ function deckSheet(){
     L.push(g + (g === 'Sorcery' ? ' cards' : 's') + ' (' + n + '): ' + names.map(function(k){ return (m[k] > 1 ? m[k] + ' ' : '') + k; }).join('; '));
   });
   var B = S.boards || {};
-  if((B.side || []).length) L.push('Side deck (cards he owns for this deck, not in it now): ' + B.side.map(function(x){ return (x.q > 1 ? x.q + ' ' : '') + x.n; }).join('; '));
+  if((B.side || []).length) L.push('Side deck (cards they own for this deck, not in it now): ' + B.side.map(function(x){ return (x.q > 1 ? x.q + ' ' : '') + x.n; }).join('; '));
   if((B.maybe || []).length) L.push('Considering: ' + B.maybe.map(function(x){ return x.n; }).join('; '));
-  if((S.rejects || []).length) L.push('He turned these down before, do not suggest them: ' + S.rejects.map(function(x){ return x.inn; }).join('; '));
+  if((S.rejects || []).length) L.push('They turned these down before, do not suggest them: ' + S.rejects.map(function(x){ return x.inn; }).join('; '));
   // Every card's rules text, so Claude reads what the cards do instead of remembering (Tom picked E, 2026-10-20);
   // side deck cards only when newer than Claude may know.
   var seen = {}, rows = [];
@@ -265,7 +282,7 @@ function deckSheet(){
   (B.side || []).forEach(function(x){ var c = poolCard(x.n); if(c && !seen[c.n] && c.rel && c.rel >= NEW_SINCE){ seen[c.n] = 1; rows.push(c); } });
   if(rows.length){
     L.push('', 'Rules text of every card above (read these, do not go from memory):');
-    rows.forEach(function(c){ L.push('- ' + c.n + (c.fn ? ' (his printing is named ' + c.fn + ')' : '') + ' ' + (c.cost || '') + ' | ' + c.type + ' | ' + String(c.o || '').replace(/\n/g, ' / ')); });
+    rows.forEach(function(c){ L.push('- ' + c.n + (c.fn ? ' (their printing is named ' + c.fn + ')' : '') + ' ' + (c.cost || '') + ' | ' + c.type + ' | ' + String(c.o || '').replace(/\n/g, ' / ')); });
   }
   return L.join('\n');
 }
@@ -339,7 +356,7 @@ function edhLines(){
   var side = {}; ((S.boards || {}).side || []).forEach(function(x){ side[x.n.toLowerCase()] = 1; });
   var miss = pool.filter(function(c){ var e = edhOf(c); return c && c.n && !inDeck[c.n.toLowerCase()] && e && e.pd && !(typeof isBasicName === 'function' && isBasicName(c.n)) && (typeof withinCI !== 'function' || withinCI(c)) && c.legal === 'legal'; })
     .sort(function(a, b){ return edhOf(b).inc - edhOf(a).inc; }).slice(0, 30);
-  if(miss.length) L.push('Most played cards for this commander that the deck does not run: ' + miss.map(function(c){ var e = edhOf(c); return c.n + ' ' + pc(e.inc) + (e.syn != null ? ', synergy ' + (e.syn >= 0 ? '+' : '') + pc(e.syn) : '') + (side[c.n.toLowerCase()] ? ', in his side deck' : '') + (typeof isGC === 'function' && isGC(c) ? ', Game Changer' : ''); }).join('; '));
+  if(miss.length) L.push('Most played cards for this commander that the deck does not run: ' + miss.map(function(c){ var e = edhOf(c); return c.n + ' ' + pc(e.inc) + (e.syn != null ? ', synergy ' + (e.syn >= 0 ? '+' : '') + pc(e.syn) : '') + (side[c.n.toLowerCase()] ? ', in their side deck' : '') + (typeof isGC === 'function' && isGC(c) ? ', Game Changer' : ''); }).join('; '));
   if((ASK.near || []).length) L.push('Combos one card away (Commander Spellbook): ' + ASK.near.join('; '));
   var E = window.ENGINE;
   if(E && E.saltOf){ var sl = []; S.deck.forEach(function(d){ var v = E.saltOf(d.n); if(v >= 1 && sl.indexOf(d.n + ' ' + v) < 0) sl.push(d.n + ' ' + v); }); if(sl.length) L.push('EDHREC salt (0 to 4, how unhappy the card makes opponents), cards at 1 or more: ' + sl.join('; ')); }
@@ -355,34 +372,34 @@ function deckDiff(was){
 }
 function askPrompt(q){
   var L = [];
-  L.push('You are a Magic: The Gathering Commander deckbuilding expert. Tom is asking about one of his decks in his deck app, Brewing Station.');
-  L.push('Answer his question about the deck below. Plain English, direct. No em dashes. No tables. Use exact English card names.');
+  L.push('You are a Magic: The Gathering Commander deckbuilding expert. ' + who() + ' is asking about one of their decks in their deck app, Brewing Station. Speak to them directly as "you".');
+  L.push('Answer their question about the deck below. Plain English, direct. No em dashes. No tables. Use exact English card names.');
   L.push(DOCTRINE, '');
   // Tom, 2026-11-04: "have it suggest more than 3 cards". Under a 250-word cap with rule 8's paragraph per swap,
   // his 70 saved answers averaged 2 changes, and "give me 5 options" came back with 1 button.
-  L.push('LENGTH: a question about the deck, under 250 words. When he asks for cards (what to add, cut or swap, options, upgrades, what would make it better), give 6 to 12 changes, strongest first, or exactly the number he names. Never stop at 2 or 3 to keep the answer short: one line per change (rule 8 in a few words: the job, what it does here, the cost) keeps a long list readable.');
+  L.push('LENGTH: a question about the deck, under 250 words. When they ask for cards (what to add, cut or swap, options, upgrades, what would make it better), give 6 to 12 changes, strongest first, or exactly the number they name. Never stop at 2 or 3 to keep the answer short: one line per change (rule 8 in a few words: the job, what it does here, the cost) keeps a long list readable.');
   // Tom, 2026-11-04: "suggest changes in clusters, since cards don't work in isolation".
-  L.push('CLUSTERS: cards do not work alone, so suggest changes as clusters. A cluster is 2 to 5 changes that do one job together and are worth more together than apart: an engine with its enablers and payoff, a combo with its tutor and protection, a new plan with the cards it needs, mana fixes with the spells they make castable. Say what the cluster does as a whole and what breaks if he takes only part of it. Make every cut in a cluster something the cluster replaces, so the deck stays at 100. A change that stands alone needs no cluster.');
-  L.push('OPTIONS: when he asks for options for one slot, each option gets its own SWAP line with the same card going out, so he can press the one he picks. Every card you recommend gets its own SWAP, CUT or ADD line; a card named only in the text has no button.');
-  L.push('Write every card name in double square brackets, like [[Sol Ring]], so his app can show the card.');
+  L.push('CLUSTERS: cards do not work alone, so suggest changes as clusters. A cluster is 2 to 5 changes that do one job together and are worth more together than apart: an engine with its enablers and payoff, a combo with its tutor and protection, a new plan with the cards it needs, mana fixes with the spells they make castable. Say what the cluster does as a whole and what breaks if they takes only part of it. Make every cut in a cluster something the cluster replaces, so the deck stays at 100. A change that stands alone needs no cluster.');
+  L.push('OPTIONS: when they ask for options for one slot, each option gets its own SWAP line with the same card going out, so they can press the one they pick. Every card you recommend gets its own SWAP, CUT or ADD line; a card named only in the text has no button.');
+  L.push('Write every card name in double square brackets, like [[Sol Ring]], so their app can show the card.');
   if(canDirect()) L.push('You can search the web (WebSearch, WebFetch) for rulings, current EDHREC pages and recent tournament or high-power lists when that would change your answer. Do not search for what is already given below.');
   L.push('Game Changers and bracket rules: use only the Game Changer list and count given below. Your memory of the list is out of date.');
   L.push('If you recommend changing cards, end the answer with the changes in exactly this form, and nothing after them. Each cluster starts with its CLUSTER line and its changes follow it; changes that stand alone come last, after a line that says only CLUSTER: On their own.');
   L.push('CLUSTER: <short name> | <what these changes do together, under 25 words>', 'SWAP: <card in the deck> -> <card to put in>', 'CUT: <card in the deck>', 'ADD: <card>');
-  L.push('A card going in must be legal in Commander and inside the colour identity. Prefer cards from his side deck when they do the job, since he owns them.');
+  L.push('A card going in must be legal in Commander and inside the colour identity. Prefer cards from their side deck when they do the job, since they own them.');
   L.push('When you mention a combo, detail it: the pieces, what must be in play first, each step as a numbered list, and what it gets you. For a combo listed below, follow its Commander Spellbook steps.');
-  L.push('Tom changes the deck between questions. THE DECK below is the deck as it is right now; earlier answers were about the deck as it was then. Never apologise for or correct an earlier answer because the deck changed, and never say a card count was wrong. When a change matters to the question, say it in one plain line ("Since then you added X").');
+  L.push(who() + ' changes the deck between questions. THE DECK below is the deck as it is right now; earlier answers were about the deck as it was then. Never apologise for or correct an earlier answer because the deck changed, and never say a card count was wrong. When a change matters to the question, say it in one plain line ("Since then you added X").');
   L.push('', '=== THE DECK ===', deckSheet());
   var an = analysisLines();
   if(an.length){ L.push('', '=== WHAT THE APP MEASURED (its own numbers; use them, and say so when you disagree) ==='); an.forEach(function(x){ L.push(x); }); }
   var ed = edhLines();
   if(ed.length){ L.push('', '=== EDHREC AND COMMANDER SPELLBOOK ==='); ed.forEach(function(x){ L.push(x); }); }
   var kp = S.deck.filter(function(d, i, a){ return !d.basic && a.findIndex(function(x){ return x.n === d.n; }) === i && typeof isKept === 'function' && isKept(d.n); }).map(function(d){ return d.n; });
-  if(kp.length) L.push('', 'Cards he pinned, never suggest cutting them: ' + kp.join('; '));
+  if(kp.length) L.push('', 'Cards they pinned, never suggest cutting them: ' + kp.join('; '));
   var tl = typeof tasteLines === 'function' ? tasteLines() : [];
-  if(tl.length){ L.push('', '=== HIS PAST CHOICES ACROSS HIS DECKS (learn his taste from these; do not suggest what he keeps turning down) ==='); tl.forEach(function(x){ L.push(x); }); }
+  if(tl.length){ L.push('', '=== THEIR PAST CHOICES ACROSS THEIR DECKS (learn their taste from these; do not suggest what they keep turning down) ==='); tl.forEach(function(x){ L.push(x); }); }
   var cl = catLines();
-  if(cl.length) L.push('', '=== HIS OWN CATEGORIES (how he groups the deck; use his names when you talk about a group) ==='); cl.forEach(function(x){ L.push(x); });
+  if(cl.length) L.push('', '=== THEIR OWN CATEGORIES (how they group the deck; use their names when you talk about a group) ==='); cl.forEach(function(x){ L.push(x); });
   if((ASK.cmb || []).length) L.push('', '=== COMBOS IN THE DECK (Commander Spellbook) ===', ASK.cmb.join('\n'));
   var all = thread().filter(function(m){ return m.a; }), room = HISTORY_CAP, cut = all.length;
   for(var hi = all.length - 1; hi >= 0; hi--){ room -= all[hi].q.length + all[hi].a.length + 12; if(room < 0) break; cut = hi; }
@@ -396,10 +413,10 @@ function askPrompt(q){
       : 'Nothing in the 99.');
   }
   if(t.length){
-    L.push('', '=== THIS CONVERSATION SO FAR (' + (older.length ? 'the last ' + t.length + ' in full' : 'all ' + t.length + ', in full') + ', oldest first; what he decided earlier still stands unless he changed it) ===');
-    t.forEach(function(m){ L.push('Tom: ' + m.q, 'You: ' + m.a, ''); });
+    L.push('', '=== THIS CONVERSATION SO FAR (' + (older.length ? 'the last ' + t.length + ' in full' : 'all ' + t.length + ', in full') + ', oldest first; what they decided earlier still stands unless they changed it) ===');
+    t.forEach(function(m){ L.push(who() + ': ' + m.q, 'You: ' + m.a, ''); });
   }
-  L.push('', '=== TOM ASKS ===', q);
+  L.push('', '=== ' + who().toUpperCase() + ' ASKS ===', q);
   return L.join('\n');
 }
 // Claude's answer -> { text, moves:[{kind:'swap'|'cut'|'add', out, inn, g}], groups:[{name, why}] }. g is the
@@ -445,8 +462,8 @@ window.askDeckPage = function(){
   var L = [DOCTRINE, '', '=== THE DECK ===', deckSheet()], an = analysisLines(), cl = catLines(), tl = typeof tasteLines === 'function' ? tasteLines() : [], ed = edhLines();
   if(an.length){ L.push('', '=== WHAT THE APP MEASURED ==='); an.forEach(function(x){ L.push(x); }); }
   if(ed.length){ L.push('', '=== EDHREC AND COMMANDER SPELLBOOK ==='); ed.forEach(function(x){ L.push(x); }); }
-  if(cl.length){ L.push('', '=== HIS OWN CATEGORIES ==='); cl.forEach(function(x){ L.push(x); }); }
-  if(tl.length){ L.push('', '=== HIS PAST CHOICES ==='); tl.forEach(function(x){ L.push(x); }); }
+  if(cl.length){ L.push('', '=== THEIR OWN CATEGORIES ==='); cl.forEach(function(x){ L.push(x); }); }
+  if(tl.length){ L.push('', '=== THEIR PAST CHOICES ==='); tl.forEach(function(x){ L.push(x); }); }
   return L.join(String.fromCharCode(10));
 };
 window.askCanDirect = function(){ claudeOk(); return canDirect(); };
@@ -570,7 +587,7 @@ function drawAsk(el){
   claudeOk();
   var T = thread(), direct = canDirect(), busy = ASK.busy === CUR;
   var h = '<div class="mn-wide"><div class="pg-root mn-ask">';
-  h += '<div class="mn-head"><div><h2 class="mn-title">Ask Claude about this deck</h2>' +
+  h += '<div class="mn-head"><div><h2 class="mn-title">Ask ' + (window.AI_NAME ? AI_NAME() : 'Claude') + ' about this deck</h2>' +
     '<p class="pg-fine">Each question sends Claude one page about this deck and this whole conversation, so it remembers what you decided. Start a new conversation to change subject.</p></div>' +
     (T.length ? '<button class="bs-btn bs-sm bs-quiet" type="button" id="askNew">' + ico('refresh', 'bs-i16') + 'New conversation</button>' : '') + '</div>';
   if(!T.length){
@@ -586,7 +603,7 @@ function drawAsk(el){
       noteCardNames(A.moves.reduce(function(L, mv){ return L.concat(mv.out || [], mv.inn || []); }, []));
       h += '<div class="mn-a">' + md(A.text) + movesHtml(A, k) + '</div>';
     } else if(busy && k === T.length - 1){
-      h += '<div class="mn-a">' + loadingLine(ASK.stage || 'Claude is answering') + '</div>';
+      h += '<div class="mn-a">' + loadingLine(ASK.stage || (window.AI_NAME ? AI_NAME() : 'Claude') + ' is answering') + '</div>';
     } else if(k === T.length - 1 && !direct){
       h += '<div class="mn-a mn-paste"><p class="pg-fine">Off the PC: copy the question, paste it into Claude, then paste Claude\'s whole answer here.</p>' +
         '<button class="bs-btn bs-sm" type="button" id="askCopy">' + ico('copy', 'bs-i16') + 'Copy the question for Claude</button>' +
@@ -634,14 +651,14 @@ async function askSend(q){
   if(CUR !== mine || S !== D){ ASK.busy = ''; askRedraw(); return; }
   T.pop(); var prompt = askPrompt(q); T.push(msg);
   try{
-    ASK.stage = 'Claude is answering'; askRedraw();
+    ASK.stage = (window.AI_NAME ? AI_NAME() : 'Claude') + ' is answering'; askRedraw();
     var r = await fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:prompt, web:true }) });
     var j = await r.json();
     if(j.error) throw new Error(j.error);
     var draft = String(j.text || '').trim();
     // E: a second read of its own answer against the same page before he sees it.
     if(draft && CUR === mine && S === D){
-      ASK.stage = 'Claude is checking its answer'; askRedraw();
+      ASK.stage = (window.AI_NAME ? AI_NAME() : 'Claude') + ' is checking its answer'; askRedraw();
       try{
         var r2 = await fetch('/api/claude/ask', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ prompt:checkPrompt(prompt, draft) }) });
         var j2 = await r2.json();
@@ -659,7 +676,7 @@ async function askSend(q){
 function checkPrompt(prompt, draft){
   return [prompt, '', '=== YOUR DRAFT ANSWER ===', draft, '', '=== NOW CHECK IT ===',
     'You wrote the draft above. Check every claim in it against the page: card rules text, counts, which cards are in the deck or the side deck, legality, colour identity, Game Changers, bracket rules, combos and their pieces, and the app\'s numbers. Check each swap against the whole deck (rule 8). Fix every mistake, cut anything you cannot back, keep what is right. Keep the number of suggestions: put a better card in place of a wrong one rather than leaving the list shorter. Check each cluster as a whole: do its cards really work together, does any piece need a card the cluster leaves out, and does it keep the deck at 100.',
-    'Reply with only the final answer for Tom, in the same format (card names in [[ ]], CLUSTER / SWAP / CUT / ADD lines last). Do not mention the checking.'].join('\n');
+    'Reply with only the final answer for ' + who() + ', in the same format (card names in [[ ]], CLUSTER / SWAP / CUT / ADD lines last). Do not mention the checking.'].join('\n');
 }
 // The card a change puts in: a basic by name, else the pool's card, else Scryfall's. null when Scryfall has none.
 async function moveIn(mv){
