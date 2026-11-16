@@ -151,6 +151,18 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2)}
 
 /* Undo bar */
+.deckbar{background:var(--bg2);border-bottom:1px solid var(--line);padding:var(--s2) var(--s4);display:flex;flex-direction:column;gap:var(--s2)}
+.brow{display:flex;gap:var(--s2);align-items:center;flex-wrap:wrap}
+.brow.inplay .lbl{margin-right:var(--s1)}
+.chip.on{border-color:var(--brass);color:var(--ink)}
+.pl{min-height:var(--tap);min-width:72px;border-radius:var(--r);border:1px solid var(--line2);background:var(--bg3);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2px var(--s3);cursor:pointer;line-height:1.1}
+.pl span{font-size:var(--t12);color:var(--ink3);max-width:110px;overflow-wrap:anywhere;text-align:center}
+.pl b{font-family:var(--disp);font-size:var(--t20)}
+.pl em{font-style:normal;font-size:var(--t12);color:var(--wait)}
+.pl.dead{border-color:var(--bad)}
+.cue{display:flex;flex-direction:column;gap:var(--s2);border-bottom:1px solid var(--line);padding-bottom:var(--s3)}
+.cardrow{align-items:flex-start;padding:var(--s2) 0;border-bottom:1px solid var(--line)}
+.cardrow input{margin-top:4px;flex:none}
 .undo{position:fixed;left:50%;bottom:calc(var(--s4) + env(safe-area-inset-bottom,0));transform:translate(-50%,200%);z-index:30;background:var(--bg4);border:1px solid var(--line2);
   border-radius:var(--r);padding:var(--s1) var(--s1) var(--s1) var(--s4);display:flex;align-items:center;gap:var(--s3);transition:transform var(--fast);max-width:calc(100% - 32px)}
 .undo.on{transform:translate(-50%,0)}
@@ -172,6 +184,7 @@ input[type=range]::-moz-range-thumb{width:24px;height:24px;border-radius:50%;bac
   </div>
 </header>
 
+<nav class="deckbar" id="deckbar"></nav>
 <main class="board" id="board"></main>
 
 <div class="scrim" id="scrim"></div>
@@ -192,7 +205,7 @@ const COMMON = ['Treasure','Food','Clue','Blood','Map','Goblin','Soldier','Zombi
 
 /* ---------- State ---------- */
 let S = load();
-function blank(){ return {arts:{}, groups:[], doublers:0, ctrDoublers:0, anthem:{p:0,t:0}, recent:[], turn:1, awake:false, nextId:1, deck:'', real:{}}; }
+function blank(){ return {inPlay:{}, players:[{name:'You', life:40, poison:0, cmd:{}}], arts:{}, groups:[], doublers:0, ctrDoublers:0, anthem:{p:0,t:0}, recent:[], turn:1, awake:false, nextId:1, deck:'', real:{}}; }
 function load(){
   try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s && Array.isArray(s.groups)) return Object.assign(blank(), s); }catch(e){}
   return blank();
@@ -215,23 +228,117 @@ const grp = id => S.groups.find(g => g.id === id);
 const numOr = (v, d) => { const n = parseInt(v, 10); return isNaN(n) ? d : n; };
 function pt(g){
   const a = g.creature ? S.anthem : {p:0,t:0};
-  const p = numOr(g.basePow, 0) + g.plus + g.temp.p + a.p;
-  const t = numOr(g.baseTou, 0) + g.plus + g.temp.t + a.t;
-  return {p, t, changed: g.plus || g.temp.p || g.temp.t || a.p || a.t, down: (p < numOr(g.basePow,0)) || (t < numOr(g.baseTou,0))};
+  const e = g.creature ? engineAnthem(g) : {p:0,t:0};
+  const p = numOr(g.basePow, 0) + g.plus + g.temp.p + a.p + e.p;
+  const t = numOr(g.baseTou, 0) + g.plus + g.temp.t + a.t + e.t;
+  return {p, t, changed: g.plus || g.temp.p || g.temp.t || a.p || a.t || e.p || e.t, down: (p < numOr(g.basePow,0)) || (t < numOr(g.baseTou,0))};
 }
+const hasHaste = g => g.haste || inPlayKinds('haste').some(k => typeMatch(g, k.type));
 function ready(g){
   if(!g.creature) return g.count - g.tapped;
   const untapped = g.count - g.tapped;
-  const sick = g.haste ? 0 : Math.min(g.sick, untapped);
+  const sick = hasHaste(g) ? 0 : Math.min(g.sick, untapped);
   return Math.max(0, untapped - sick);
+}
+
+/* ---------- Cards in play: read off their own text ---------- */
+// Each deck card is read once into "kinds": what it does to tokens and counters. Only cards marked in play count.
+const W2N = {a:1, an:1, one:1, two:2, three:3, four:4, five:5, six:6, x:'X'};
+const wn = w => { w = String(w).toLowerCase(); return W2N[w] != null ? W2N[w] : (parseInt(w, 10) || 1); };
+function readKinds(oracle, name){
+  const kinds = [];
+  const self = (name || '').split(',')[0].split(' // ')[0];
+  (oracle || '').split('\n').forEach(line => {
+    const L = line.replace(/\([^)]*\)/g, '').trim(); if(!L) return;
+    if(/^If an opponent/i.test(L)) return;
+    // Token replacement: Doubling Season, Parallel Lives, Primal Vigor, Peregrin Took
+    if(/tokens? would be created|would create one or more tokens/i.test(L)){
+      const f = /three times that many/i.test(L) ? 3 : /twice that many/i.test(L) ? 2 : 0;
+      if(f) kinds.push({k:'tokX', f, creatureOnly: /creature tokens/i.test(L)});
+      const ex = L.match(/plus an additional (\w[\w ]*?) token/i); if(ex) kinds.push({k:'tokExtra', what: ex[1]});
+      if(/that many plus one/i.test(L)) kinds.push({k:'tokAdd', n:1});
+    }
+    // Counter replacement: Vorinclex, Hardened Scales, Ozolith, Kami, Branching Evolution, The Earth Crystal
+    if(/counters? would be put|would put one or more counters|put one or more counters on a permanent/i.test(L) && /instead/i.test(L)){
+      const plusOnly = /\+1\/\+1 counters? would|would put one or more \+1\/\+1/i.test(L) || (/\+1\/\+1/.test(L) && !/each of those kinds/i.test(L));
+      const others = /another creature/i.test(L);
+      if(/twice that many/i.test(L)) kinds.push({k:'ctrX', f:2, plusOnly, others});
+      if(/that many plus one/i.test(L)) kinds.push({k:'ctrAdd', n:1, plusOnly, others});
+    }
+    // Enters with counters: Renata, Arwen
+    let m = L.match(/Each other creature you control enters with (?:an additional|a number of additional) \+1\/\+1 counters?(?: on it)?(?: equal to ([^.]+))?/i);
+    if(m) kinds.push({k:'enters', n: m[1] ? 'V' : 1, what: m[1] || ''});
+    m = L.match(/Whenever a creature you control enters, draw a card if its power is (\d+) or greater\. Otherwise, put (\w+) \+1\/\+1 counters on it/i);
+    if(m) kinds.push({k:'entersIf', below:+m[1], n: wn(m[2])});
+    // Anthems and haste, only the plain sentence
+    L.split(/(?<=\.)\s+/).forEach(s => {
+      let a = s.match(/^(Other )?(creature|[A-Z][a-z]+?)s? you control get \+(\d+)\/\+(\d+)(?: and have [^.]+)?\.?$/i);
+      if(a) kinds.push({k:'anthem', type: a[2], p:+a[3], t:+a[4]});
+      a = s.match(/^(?:Other )?(creature|[A-Z][a-z]+?)s? you control (?:have|gain) haste\.?$/i);
+      if(a) kinds.push({k:'haste', type: a[1]});
+    });
+    // Shared Animosity
+    if(/for each other attacking creature that shares a creature type/i.test(L)) kinds.push({k:'animosity'});
+    // Death triggers that hit someone: Pashalik Mons
+    m = L.match(/Whenever [^,]*?(?:another )?([A-Z][a-z]+?)s? you control dies, [^.]*?deals (\d+) damage/);
+    if(m) kinds.push({k:'death', type:m[1], dmg:+m[2]});
+    // Triggers and abilities the app can do for you
+    const when = /^At the beginning of your upkeep/i.test(L) ? 'upkeep' : /^At the beginning of combat/i.test(L) ? 'combat' : /^At the beginning of your end step/i.test(L) ? 'end'
+      : /^(Landfall|Whenever a land)/i.test(L) ? 'landfall' : /^Whenever [^,]*attacks?\b/i.test(L) ? 'attack' : /^\{[^:]*\}[^:]*:/.test(L) ? 'ability' : '';
+    if(!when) return;
+    const t = {k:'trig', when, text: L};
+    let d = L.match(/double the number of \+1\/\+1 counters on (each creature you control|target creature|each of those creatures|this creature)/i);
+    if(d && !/this creature/i.test(d[1])) t.act = {do:'dbl', all: /each creature/i.test(d[1])};
+    d = !t.act && L.match(/put (a|an|one|two|three|X|\d+) \+1\/\+1 counters? on (each creature you control|target creature(?: you control)?)/i);
+    if(d) t.act = {do:'put', n: wn(d[1]), all: /each/i.test(d[2]), xWhat: (L.match(/where X is ([^.]+)/i) || [])[1]};
+    d = !t.act && L.match(/create (a|an|one|two|three|X|\d+) (?:tapped )?(\d+\/\d+ )?[^.]*?token/i);
+    if(d && !/copy of/i.test(L)) t.act = {do:'token', n: wn(d[1]), tapped: /tapped/i.test(L), attacking: /attacking/i.test(L)};
+    if(t.act || when !== 'ability') kinds.push(t);
+  });
+  return kinds;
+}
+function deckCard(name){ return deckData && deckData.cards.find(c => c.name === name); }
+function inPlayCards(){ return deckData ? deckData.cards.filter(c => S.inPlay && S.inPlay[c.name]) : []; }
+function inPlayKinds(k){ const out = []; inPlayCards().forEach(c => c.kinds.forEach(x => { if(x.k === k) out.push(Object.assign({card:c.name}, x)); })); return out; }
+function typeMatch(g, type){ return g.creature && (/^creature$/i.test(type) || new RegExp('\\b' + type + '\\b', 'i').test(g.type)); }
+function engineAnthem(g){
+  let p = 0, t = 0;
+  inPlayKinds('anthem').forEach(a => { if(typeMatch(g, a.type)){ p += a.p; t += a.t; } });
+  return {p, t};
+}
+/* How many tokens an effect really makes. */
+function tokenMath(tpl, n){
+  let f = Math.pow(2, S.doublers); const why = [];
+  if(S.doublers) why.push('x' + f + ' (doublers you set)');
+  let add = 0; inPlayKinds('tokAdd').forEach(k => { add += k.n; why.unshift('+' + k.n + ' ' + k.card); });
+  inPlayKinds('tokX').forEach(k => { if(!k.creatureOnly || tpl.creature){ f *= k.f; why.push('x' + k.f + ' ' + k.card); } });
+  const extras = inPlayKinds('tokExtra').map(k => ({what:k.what, card:k.card}));
+  return {total: (n + add) * f, f, add, why, extras};
+}
+const mult = () => tokenMath({creature:true}, 1).f;
+/* How many counters really go on. Pluses first, then doublers: the order that gives you the most. */
+function counterMath(n, plusOne = true, other = true){
+  let add = 0, f = Math.pow(2, S.ctrDoublers || 0); const why = [];
+  inPlayKinds('ctrAdd').forEach(k => { if((plusOne || !k.plusOnly) && (other || !k.others)){ add += k.n; why.push('+' + k.n + ' ' + k.card); } });
+  if(S.ctrDoublers) why.push('x' + f + ' (doublers you set)');
+  inPlayKinds('ctrX').forEach(k => { if((plusOne || !k.plusOnly) && (other || !k.others)){ f *= k.f; why.push('x' + k.f + ' ' + k.card); } });
+  return {total: n > 0 ? (n + add) * f : 0, why};
+}
+const cmult = () => counterMath(1).total;
+/* Counters a new creature token arrives with: Renata and Arwen together, Tribute to the World Tree on its own. */
+function entersMath(tpl){
+  if(!tpl.creature) return {total:0, why:[]};
+  let base = 0; const why = [];
+  inPlayKinds('enters').forEach(k => { const v = k.n === 'V' ? numOr((S.inPlay[k.card] || {}).v, 0) : k.n; if(v){ base += v; why.push(k.card + ' ' + v); } });
+  let total = base ? counterMath(base).total : 0;
+  inPlayKinds('entersIf').forEach(k => { if(numOr(tpl.basePow, 0) < k.below){ const c = counterMath(k.n).total; total += c; why.push(k.card + ' ' + c); } });
+  return {total, why};
 }
 function clampG(g){
   g.count = Math.max(0, g.count|0);
   g.tapped = Math.min(Math.max(0, g.tapped|0), g.count);
   g.sick = Math.min(Math.max(0, g.sick|0), g.count);
 }
-const mult = () => Math.pow(2, S.doublers);
-const cmult = () => Math.pow(2, S.ctrDoublers || 0);
 
 /* ---------- Scryfall ---------- */
 function tplFromCard(c){
@@ -267,7 +374,9 @@ const I = {
   minus:'<svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>',
   more:'<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>',
   tap:'<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 14-5.3"/><path d="M18 3v4h-4"/><path d="M20 12a8 8 0 0 1-14 5.3"/><path d="M6 21v-4h4"/></svg>',
-  search:'<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>'
+  search:'<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
+  cam:'<svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+  sword:'<svg viewBox="0 0 24 24"><path d="M14.5 4H20v5.5L9 20.5 3.5 15z"/><path d="M6 18l-2 2M13 7l4 4"/></svg>'
 };
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const kw = g => (g.oracle.match(/^(Flying|Haste|Vigilance|Trample|Lifelink|Deathtouch|Menace|Reach|First strike|Double strike|Defender|Indestructible|Hexproof|Ward \{?\d\}?)/gim) || []).slice(0,4);
@@ -276,11 +385,11 @@ function renderStats(){
   let total = 0, cre = 0, rdy = 0, rdyPow = 0, allPow = 0, sick = 0;
   S.groups.forEach(g => {
     total += g.count;
-    if(g.creature){ const p = Math.max(0, pt(g).p); cre += g.count; if(!g.haste) sick += Math.min(g.sick, g.count - g.tapped); const r = ready(g); rdy += r; rdyPow += r * p; allPow += g.count * p; }
+    if(g.creature){ const p = Math.max(0, pt(g).p); cre += g.count; if(!hasHaste(g)) sick += Math.min(g.sick, g.count - g.tapped); const r = ready(g); rdy += r; rdyPow += r * p; allPow += g.count * p; }
   });
   const mods = [];
-  mods.push(`<button class="chip" data-open="dbl">${S.doublers ? '<i></i>' : ''}Tokens x${mult()}</button>`);
-  mods.push(`<button class="chip" data-open="dbl">${S.ctrDoublers ? '<i></i>' : ''}Counters x${cmult()}</button>`);
+  mods.push(`<button class="chip" data-open="dbl">${mult() > 1 ? '<i></i>' : ''}Tokens x${mult()}</button>`);
+  mods.push(`<button class="chip" data-open="dbl">${cmult() > 1 ? '<i></i>' : ''}1 counter puts ${cmult()}</button>`);
   if(S.anthem.p || S.anthem.t) mods.push(`<button class="chip" data-open="menu"><i></i>All creatures ${sign(S.anthem.p)}/${sign(S.anthem.t)}</button>`);
   $('#stats').innerHTML =
     `<div class="stat"><b>${total}</b><span>Tokens</span></div>` +
@@ -301,7 +410,7 @@ function tileHTML(g){
   if(g.plus) tags.push(`<span class="tag g">${g.plus > 0 ? '+1/+1' : '-1/-1'} x${Math.abs(g.plus)}</span>`);
   Object.entries(g.counters).forEach(([n, v]) => { if(v) tags.push(`<span class="tag">${esc(n)} ${v}</span>`); });
   if(g.temp.p || g.temp.t) tags.push(`<span class="tag w">${sign(g.temp.p)}/${sign(g.temp.t)} this turn</span>`);
-  if(g.creature && g.sick && !g.haste) tags.push(`<span class="tag w">${Math.min(g.sick, g.count)} summoning sick</span>`);
+  if(g.creature && g.sick && !hasHaste(g)) tags.push(`<span class="tag w">${Math.min(g.sick, g.count)} summoning sick</span>`);
   if(g.copy) tags.push(`<span class="tag">Copy${g.copyBy ? ' by ' + esc(g.copyBy.split(',')[0]) : ''}</span>`);
   const ptTxt = g.creature ? `<span class="pt ${P.down ? 'down' : P.changed ? 'up' : ''}">${g.basePow === '' && !P.changed ? '-' : P.p}/${g.baseTou === '' && !P.changed ? '-' : P.t}</span>` : '';
   const untapped = g.count - g.tapped;
@@ -319,14 +428,14 @@ function tileHTML(g){
     </div>
     <div class="qty">
       <button class="btn" data-act="dec" aria-label="Remove one">${I.minus}${g.creature ? 'Dies' : 'Use 1'}</button>
-      <button class="btn" data-act="inc" aria-label="Make one more">${I.plus}${S.doublers ? 'Make ' + mult() : 'One'}</button>
-      <button class="btn" data-act="double" aria-label="Double the pile">x2 <span class="help">+${g.count * mult()}</span></button>
+      <button class="btn" data-act="inc" aria-label="Make one more">${I.plus}${tokenMath(g, 1).total > 1 ? 'Make ' + tokenMath(g, 1).total : 'One'}</button>
+      <button class="btn" data-act="double" aria-label="Double the pile">x2 <span class="help">+${tokenMath(g, g.count).total}</span></button>
     </div>
   </div>`;
 }
 
 function render(){
-  renderStats();
+  renderStats(); renderBar();
   const b = $('#board');
   if(!S.groups.length){
     const recents = S.recent.slice(0, 8);
@@ -361,11 +470,11 @@ $('#board').addEventListener('click', e => {
   const g = grp(+a.closest('.tile').dataset.id); if(!g) return;
   const k = a.dataset.act;
   if(k === 'open'){ groupPanel(g.id); return; }
-  if(k === 'inc'){ act(() => { const n = mult(); g.count += n; g.sick += n; }); return; }
-  if(k === 'double'){ const n = g.count * mult(); act(() => { g.count += n; g.sick += n; }, `Made ${n} more ${g.name}.`); return; }
+  if(k === 'inc'){ makeTokens(g, 1); return; }
+  if(k === 'double'){ makeTokens(g, g.count); return; }
   if(k === 'dec'){
-    if(g.count <= 1){ removeGroup(g); return; }
-    act(() => { g.count--; if(g.tapped > g.count) g.tapped = g.count; clampG(g); }); return;
+    if(g.count <= 1){ removeGroup(g, deathText([[g, 1]])); return; }
+    const d = deathText([[g, 1]]); act(() => { g.count--; if(g.tapped > g.count) g.tapped = g.count; clampG(g); }, d || null); return;
   }
   act(() => {
     if(k === 'tap1') g.tapped++;
@@ -400,8 +509,8 @@ document.addEventListener('pointerup', () => clearTimeout(holdT));
 $('#board').addEventListener('contextmenu', e => { e.preventDefault(); const t = e.target.closest('.tile'); if(t) groupPanel(+t.dataset.id); else searchPanel(); });
 $('#stats').addEventListener('click', e => { if(e.target.closest('[data-open=menu]')) menuPanel(); if(e.target.closest('[data-open=dbl]')) dblPanel(); });
 
-function removeGroup(g){
-  act(() => { S.groups = S.groups.filter(x => x !== g); }, `${g.name} removed.`);
+function removeGroup(g, extra){
+  act(() => { S.groups = S.groups.filter(x => x !== g); }, `${g.name} removed.${extra ? ' ' + extra : ''}`);
   if(openGroupId === g.id) closePanel();
 }
 
@@ -410,6 +519,7 @@ $('#bUndo').onclick = undo;
 $('#bMenu').onclick = () => menuPanel();
 $('#bTurn').onclick = () => {
   act(() => { S.turn++; S.groups.forEach(g => { g.tapped = 0; g.sick = 0; g.temp = {p:0,t:0}; }); }, `Turn ${S.turn + 1}: untapped, end of turn effects cleared.`);
+  if(cuePanel(['upkeep'], 'Upkeep')) return;
   if(openGroupId) groupPanel(openGroupId, true);
 };
 addEventListener('keydown', e => {
@@ -490,14 +600,15 @@ async function collection(ids){
 /* One deck read down to what a token board needs: its creatures, the tokens it makes and who makes them, its copy effects. */
 async function loadDeck(id){
   const cacheKey = 'tokens.deck.' + id;
-  try{ const c = JSON.parse(localStorage.getItem(cacheKey)); if(c && c.v === 3) return deckData = c; }catch(e){}
+  try{ const c = JSON.parse(localStorage.getItem(cacheKey)); if(c && c.v === 4) return deckData = c; }catch(e){}
   const all = await listDecks(); const d = all.find(x => x.id === id); if(!d) throw new Error('Deck not found');
-  let cards;
+  let cards; const sideNames = new Set();
   if(d.built){
-    const full = await collection(d.built.cards.map(c => c.id));
-    cards = full;
+    d.built.cards.forEach(c => { if(c.side) sideNames.add(c.n); });
+    cards = await collection(d.built.cards.map(c => c.id));
   } else {
-    const ids = [...d.mox.commanders, ...d.mox.main].map(c => c.sid).filter(Boolean);
+    (d.mox.side || []).forEach(c => sideNames.add(c.n));
+    const ids = [...d.mox.commanders, ...d.mox.main, ...(d.mox.side || [])].map(c => c.sid).filter(Boolean);
     cards = await collection(ids);
   }
   const tokIds = new Set(), makers = {};
@@ -518,7 +629,12 @@ async function loadDeck(id){
     return {name:c.name, oracle:o, except: m ? m[0] : ''};
   }).filter(Boolean);
   const oracles = {}; cards.forEach(c => { oracles[c.name] = c.oracle_text || ''; });
-  deckData = {v:3, id, name:d.name, tokens, creatures, copies, oracles};
+  // Every card, side deck too, read for what it does to tokens and counters.
+  const slim = cards.map(c => { const t = tplFromCard(c); const o = c.oracle_text || (c.card_faces || []).map(f => f.oracle_text).join('\n');
+    return Object.assign(t, {oracle:o, side: sideNames.has(c.name), kinds: readKinds(o, c.name), toks: (c.all_parts || []).filter(p => p.component === 'token').map(p => p.id)}); });
+  const tokById = {}; toks.forEach(x => { tokById[x.id] = tplFromCard(x).key; });
+  slim.forEach(c => { c.toks = [...new Set(c.toks.map(i => tokById[i]).filter(Boolean))]; });
+  deckData = {v:4, id, name:d.name, tokens, creatures, copies, oracles, cards: slim};
   try{ localStorage.setItem(cacheKey, JSON.stringify(deckData)); }catch(e){}
   return deckData;
 }
@@ -610,7 +726,7 @@ async function deckView(out){
   const decks = await listDecks();
   out.innerHTML = `<div class="sec"><label for="deckSel">Deck on the table</label>
     <select class="txt" id="deckSel"><option value="">Pick a deck</option>${decks.map(d => `<option value="${esc(d.id)}" ${d.id === S.deck ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></div><div id="deckBody"></div>`;
-  $('#deckSel').onchange = e => { S.deck = e.target.value; save(); drawDeck(); };
+  $('#deckSel').onchange = e => { S.deck = e.target.value; save(); drawDeck().then(render); };
   drawDeck();
 }
 async function drawDeck(){
@@ -792,6 +908,41 @@ function wireCountHelp(t, setN){
   $('#aUseX').onclick = () => setN(Math.max(1, onBoard(r.word) + real), '');
 }
 
+/* ---------- Making tokens: one path for every button ---------- */
+function makeText(t, n){
+  const m = tokenMath(t, n), e = entersMath(t);
+  let h = m.why.length ? `${n} ${m.why.map(esc).join(' ')} = <b>${m.total}</b> tokens` : `<b>${m.total}</b> token${m.total === 1 ? '' : 's'}`;
+  if(m.extras.length) h += `<br>Plus ${m.extras.map(x => `${tokenMath({creature:false}, 1).total} ${esc(x.what)} (${esc(x.card)})`).join(', ')}`;
+  if(e.total) h += `<br>Each arrives with <b>${e.total}</b> +1/+1 counters (${e.why.map(esc).join(', ')})`;
+  return h;
+}
+const tplCache = {};
+async function tokenByName(name){
+  if(tplCache[name]) return tplCache[name];
+  const j = await sf('https://api.scryfall.com/cards/search?unique=cards&q=' + encodeURIComponent('t:token !"' + name + '"'));
+  return tplCache[name] = tplFromCard(j.data[0]);
+}
+/* Put n tokens' worth on the table: doublers, counters they arrive with, extra tokens like Peregrin's Food. */
+function makeTokens(t, n, tapped, attacking, quiet, noExtra){
+  const m = tokenMath(t, n), plus = entersMath(t).total;
+  let target = null;
+  act(() => {
+    // Same token, same counters, nothing else on it: joins the pile already there.
+    target = S.groups.find(g => g.key === t.key && g.plus === plus && !g.temp.p && !g.temp.t && !Object.values(g.counters).some(Boolean));
+    if(!target){
+      target = Object.assign({}, t, {id: S.nextId++, count:0, tapped:0, sick:0, plus, temp:{p:0,t:0}, counters:{}, note:''});
+      delete target.makers;
+      S.groups.push(target);
+    }
+    target.count += m.total; target.sick += m.total; if(tapped) target.tapped += m.total;
+    clampG(target);
+    if(!t.copy || t.copyBy) S.recent = [t].concat(S.recent.filter(r => r.key !== t.key)).slice(0, 12);
+  }, quiet ? null : `Made ${m.total} ${t.name}${plus ? ' with ' + plus + ' counters each' : ''}${attacking ? ', tapped and attacking' : ''}.`);
+  // The extra token is part of the same event, so it is not given another extra.
+  if(!noExtra) m.extras.forEach(x => tokenByName(x.what).then(et => makeTokens(et, 1, false, false, true, true)).catch(() => {}));
+  return m.total;
+}
+
 /* ---------- Add: how many ---------- */
 function addPanel(t){
   let n = 1;
@@ -800,30 +951,16 @@ function addPanel(t){
       <div><div style="font-weight:600;font-size:16px">${esc(t.name)}${t.creature ? ' ' + esc(t.basePow) + '/' + esc(t.baseTou) : ''}</div><div class="help">${esc(t.type)}</div></div></div>
     ${t.oracle ? `<div class="oracle">${esc(t.oracle)}</div>` : ''}
     <div class="sec"><label>How many does the card say</label>${numCtl('aN', 1, 1, 20)}${countHelp(t)}</div>
-    <div class="sec"><label>Token doublers out</label>${numCtl('aD', S.doublers, 0, 4)}<p class="help">Doubling Season, Parallel Lives, Anointed Procession and the like. Kept for the next tokens too.</p></div>
     <div class="math" id="aMath"></div>
     ${t.creature ? `<label class="check"><input type="checkbox" id="aTap">They enter tapped (tapped and attacking)</label>` : `<label class="check"><input type="checkbox" id="aTap">They enter tapped</label>`}
   `, `<button class="btn" id="aBack">Back</button><button class="btn gold" id="aGo">Add</button>`);
-  const show = () => { const m = mult(); $('#aMath').innerHTML = S.doublers ? `${n} x ${m} = <b>${n * m}</b> tokens` : `<b>${n}</b> token${n === 1 ? '' : 's'}`; $('#aGo').textContent = 'Add ' + n * m; };
+  const show = () => { $('#aMath').innerHTML = makeText(t, n); $('#aGo').textContent = 'Add ' + tokenMath(t, n).total; };
   const setN = wireNum('aN', 1, v => { n = v; show(); });
   wireCountHelp(t, setN);
-  wireNum('aD', 0, v => { S.doublers = Math.min(v, 6); save(); renderStats(); show(); }, () => 6);
   show();
   $('#aBack').onclick = () => searchPanel();
   $('#aGo').onclick = () => {
-    const total = n * mult(), tapped = $('#aTap').checked;
-    let target = null;
-    act(() => {
-      // Same token with nothing on it joins the pile already there.
-      target = S.groups.find(g => g.key === t.key && !g.plus && !g.temp.p && !g.temp.t && !Object.values(g.counters).some(Boolean));
-      if(!target){
-        target = Object.assign({}, t, {id: S.nextId++, count:0, tapped:0, sick:0, plus:0, temp:{p:0,t:0}, counters:{}, note:''});
-        S.groups.push(target);
-      }
-      target.count += total; target.sick += total; if(tapped) target.tapped += total;
-      clampG(target);
-      S.recent = [t].concat(S.recent.filter(r => r.key !== t.key)).slice(0, 12);
-    });
+    makeTokens(t, n, $('#aTap').checked);
     closePanel();
   };
 }
@@ -842,13 +979,13 @@ function groupPanel(id, keepScroll){
     <div class="sec"><label>How many are tapped</label>${numCtl('gT', g.tapped, 0, g.count)}
       <div class="grid2"><button class="btn" id="gTapAll">${I.tap}Tap all</button><button class="btn" id="gUntapAll">Untap all</button></div></div>
     ${g.creature ? `
-    <div class="sec"><label>+1/+1 counters on each</label>${numCtl('gC', g.plus, -20, Math.max(20, g.plus * 2))}<button class="btn" id="gPut">${I.plus}Put a +1/+1 counter on each${cmult() > 1 ? ' (doubled to ' + cmult() + ')' : ''}</button>${g.plus > 0 ? `<button class="btn" id="gDblC">Double the counters (+${g.plus * cmult()} each)</button>` : ''}<p class="help">Below zero means -1/-1 counters. The two cancel out, as the rules say.</p></div>
+    <div class="sec"><label>+1/+1 counters on each</label>${numCtl('gC', g.plus, -20, Math.max(20, g.plus * 2))}<label class="lbl" style="margin-top:8px">Put counters: how many the card says</label>${numCtl('gPutN', 1, 1, 10)}<button class="btn gold" id="gPut">${I.plus}Put 1 = ${counterMath(1).total} on each</button>${counterMath(1).why.length ? `<p class="help">${esc(counterMath(1).why.join(', '))}</p>` : ''}${g.plus > 0 ? `<button class="btn" id="gDblC">Double the counters (+${counterMath(g.plus).total} each)</button>` : ''}<p class="help">Below zero means -1/-1 counters. The two cancel out, as the rules say.</p></div>
     <div class="sec"><label>Until end of turn</label>
       <div class="grid2"><div class="sec"><span class="help">Power</span>${smallStep('gTP', g.temp.p)}</div><div class="sec"><span class="help">Toughness</span>${smallStep('gTT', g.temp.t)}</div></div>
       <p class="help">Clears itself on New turn.</p></div>
     <div class="math">Each is <b>${P.p}/${P.t}</b> &nbsp; base ${esc(g.basePow || '0')}/${esc(g.baseTou || '0')}${g.plus ? ', counters ' + sign(g.plus) + '/' + sign(g.plus) : ''}${g.temp.p || g.temp.t ? ', this turn ' + sign(g.temp.p) + '/' + sign(g.temp.t) : ''}${S.anthem.p || S.anthem.t ? ', all creatures ' + sign(S.anthem.p) + '/' + sign(S.anthem.t) : ''}</div>
     <div class="math">${ready(g)} can attack for <b>${ready(g) * Math.max(0, P.p)}</b> &nbsp; all ${g.count} for ${g.count * Math.max(0, P.p)}</div>
-    ${g.haste ? '' : `<div class="sec"><label>Arrived this turn</label>${numCtl('gS', g.sick, 0, g.count)}<p class="help">These cannot attack yet. New turn clears it.</p></div>`}
+    ${hasHaste(g) ? '' : `<div class="sec"><label>Arrived this turn</label>${numCtl('gS', g.sick, 0, g.count)}<p class="help">These cannot attack yet. New turn clears it.</p></div>`}
     ` : ''}
     <div class="sec"><label>Other counters on each</label>
       ${Object.entries(g.counters).map(([n, v]) => `<div class="ctr"><span>${esc(n)}</span><button class="btn ic" data-ctr="${esc(n)}" data-d="-1" aria-label="Less">${I.minus}</button><b>${v}</b><button class="btn ic" data-ctr="${esc(n)}" data-d="1" aria-label="More">${I.plus}</button></div>`).join('')}
@@ -887,14 +1024,15 @@ function groupPanel(id, keepScroll){
   wireNum('gSp', 1, () => {}, () => Math.max(1, g.count - 1));
   wireSmall('gTP', v => act(() => { g.temp.p = v; }));
   wireSmall('gTT', v => act(() => { g.temp.t = v; }));
-  if($('#gDblC')) $('#gDblC').onclick = () => { act(() => { g.plus += g.plus * cmult(); }, 'Counters doubled.'); groupPanel(id, true); };
-  if($('#gPut')) $('#gPut').onclick = () => { act(() => { g.plus += cmult(); }); groupPanel(id, true); };
+  if($('#gDblC')) $('#gDblC').onclick = () => { const add = counterMath(g.plus).total; act(() => { g.plus += add; }, `Doubled: +${add} each.`); groupPanel(id, true); };
+  if($('#gPut')) $('#gPut').onclick = () => { const add = counterMath(putN).total; act(() => { g.plus += add; }, `+${add} counters on each ${g.name}.`); groupPanel(id, true); };
+  let putN = 1; if($('#gPutN')) wireNum('gPutN', 1, v => { putN = v; $('#gPut').innerHTML = I.plus + 'Put ' + v + ' = ' + counterMath(v).total + ' on each'; });
   $('#gTapAll').onclick = () => { act(() => { g.tapped = g.count; }); groupPanel(id, true); };
   $('#gUntapAll').onclick = () => { act(() => { g.tapped = 0; }); groupPanel(id, true); };
   document.querySelectorAll('[data-ctr]').forEach(b => b.onclick = () => {
-    const n = b.dataset.ctr; act(() => { g.counters[n] = (g.counters[n] || 0) + (+b.dataset.d > 0 ? cmult() : -1); if(g.counters[n] <= 0) delete g.counters[n]; }); groupPanel(id, true);
+    const n = b.dataset.ctr; act(() => { g.counters[n] = (g.counters[n] || 0) + (+b.dataset.d > 0 ? counterMath(1, false).total : -1); if(g.counters[n] <= 0) delete g.counters[n]; }); groupPanel(id, true);
   });
-  const addCtr = () => { const n = $('#gNewCtr').value.trim(); if(!n) return; act(() => { g.counters[n] = (g.counters[n] || 0) + cmult(); }); groupPanel(id, true); };
+  const addCtr = () => { const n = $('#gNewCtr').value.trim(); if(!n) return; act(() => { g.counters[n] = (g.counters[n] || 0) + counterMath(1, false).total; }); groupPanel(id, true); };
   $('#gAddCtr').onclick = addCtr; $('#gNewCtr').addEventListener('keydown', e => { if(e.key === 'Enter') addCtr(); });
   $('#gSplit').onclick = () => {
     const k = Math.min(Math.max(1, parseInt($('#gSp').value, 10) || 1), g.count - 1);
@@ -952,12 +1090,235 @@ function shrinkPic(file){
 function dblPanel(){
   openGroupId = null;
   openPanel('Doublers', `
-    <div class="sec"><label>Token doublers out</label>${numCtl('dT', S.doublers, 0, 4)}<p class="help">Doubling Season, Parallel Lives, Anointed Procession. Now x${mult()} tokens.</p></div>
-    <div class="sec"><label>Counter doublers out</label>${numCtl('dC', S.ctrDoublers || 0, 0, 4)}<p class="help">Vorinclex, Doubling Season, Branching Evolution. Now x${cmult()} counters.</p></div>`,
+    <div class="sec"><label>Token doublers out</label>${numCtl('dT', S.doublers, 0, 4)}<p class="help">For doublers not in this deck. Cards marked in play count on their own. Now x${mult()} tokens${tokenMath({creature:true},1).why.length ? ': ' + esc(tokenMath({creature:true},1).why.join(', ')) : ''}.</p></div>
+    <div class="sec"><label>Counter doublers out</label>${numCtl('dC', S.ctrDoublers || 0, 0, 4)}<p class="help">For doublers not in this deck. Now 1 counter puts ${cmult()}${counterMath(1).why.length ? ': ' + esc(counterMath(1).why.join(', ')) : ''}.</p></div>`,
     `<button class="btn gold" id="dDone">Done</button>`);
   wireNum('dT', 0, v => { S.doublers = v; save(); render(); }, () => 6);
   wireNum('dC', 0, v => { S.ctrDoublers = v; save(); render(); }, () => 6);
   $('#dDone').onclick = closePanel;
+}
+
+/* ---------- Deck bar: the deck on the table, what is in play, and the moves of a turn ---------- */
+function renderBar(){
+  const bar = $('#deckbar'); if(!bar) return;
+  const ps = S.players || [];
+  const players = ps.map((p, i) => `<button class="pl ${p.life <= 0 || p.poison >= 10 ? 'dead' : ''}" data-pl="${i}"><span>${esc(p.name)}</span><b>${p.life}</b>${p.poison ? `<em>${p.poison} poison</em>` : ''}</button>`).join('');
+  const D = deckData && deckData.id === S.deck ? deckData : null;
+  const live = D ? inPlayCards() : [];
+  bar.innerHTML = `
+    <div class="brow">
+      <button class="btn" id="bDeck">${D ? esc(D.name.split(' (')[0]) : S.deck ? 'Reading the deck…' : 'Pick your deck'}</button>
+      ${D ? `<button class="btn" id="bScan">${I.cam}Scan a card</button>` : ''}
+      <button class="btn" id="bAttack">${I.sword}Attack</button>
+      <button class="btn" id="bSac">Sacrifice</button>
+      ${D && D.copies.length ? `<button class="btn" id="bDied">A creature died</button>` : ''}
+      <span style="flex:1"></span>${players}<button class="btn ic ghost" id="bPlayers" aria-label="Players">${I.plus}</button>
+    </div>
+    ${D ? `<div class="brow inplay"><span class="lbl">In play</span>${live.length ? live.map(c => `<button class="chip on" data-card="${esc(c.name)}">${esc(c.name.split(',')[0])}${c.kinds.some(k => k.k === 'enters' && k.n === 'V') ? ' ' + numOr(S.inPlay[c.name].v, 0) : ''}</button>`).join('') : '<span class="help">Nothing marked. Scan a card or press Cards.</span>'}
+      <button class="chip" id="bCards">${I.plus}Cards</button></div>` : ''}`;
+  $('#bDeck').onclick = () => { searchMode = 'deck'; searchPanel(); };
+  if($('#bScan')) $('#bScan').onclick = () => scanPanel(t => cardSheet(t.name), D.cards, closePanel);
+  $('#bAttack').onclick = () => cuePanel(['combat'], 'Beginning of combat', attackPanel, 'Choose attackers');
+  $('#bSac').onclick = sacPanel;
+  if($('#bDied')) $('#bDied').onclick = diedPanel;
+  if($('#bCards')) $('#bCards').onclick = cardsPanel;
+  $('#bPlayers').onclick = playersPanel;
+  bar.querySelectorAll('[data-card]').forEach(b => b.onclick = () => cardSheet(b.dataset.card));
+  bar.querySelectorAll('[data-pl]').forEach(b => b.onclick = () => lifePanel(+b.dataset.pl));
+}
+// Read the chosen deck as the page opens, so the bar knows its cards.
+async function ensureDeck(){ if(S.deck && !(deckData && deckData.id === S.deck)){ try{ await loadDeck(S.deck); }catch(e){} render(); } }
+
+/* Every engine card in the deck and side deck, switched on when it is on the table. */
+function cardsPanel(){
+  const D = deckData; if(!D) return;
+  const eng = D.cards.filter(c => c.kinds.length);
+  const group = (title, f) => { const list = eng.filter(f); return list.length ? `<div class="lbl" style="margin-top:8px">${title}</div>` + list.map(c => `<label class="check cardrow"><input type="checkbox" data-c="${esc(c.name)}" ${S.inPlay[c.name] ? 'checked' : ''}><span><b>${esc(c.name)}</b>${c.side ? ' <span class="tag">Side deck</span>' : ''}<br><span class="help">${esc(sumKinds(c))}</span></span></label>`).join('') : ''; };
+  openPanel('Cards in play', `
+    <input class="txt" id="cfQ" placeholder="Find a card" autocomplete="off">
+    <div id="cfList">
+    ${group('Changes how many tokens', c => c.kinds.some(k => /^tok/.test(k.k)))}
+    ${group('Changes counters', c => c.kinds.some(k => /^ctr|^enters/.test(k.k)) && !c.kinds.some(k => /^tok/.test(k.k)))}
+    ${group('Pumps or haste', c => c.kinds.some(k => /anthem|haste|animosity/.test(k.k)) && !c.kinds.some(k => /^tok|^ctr|^enters/.test(k.k)))}
+    ${group('Triggers the app can do', c => c.kinds.every(k => /trig|death/.test(k.k)))}
+    </div>`, `<button class="btn gold" id="cfDone">Done</button>`);
+  $('#cfList').onchange = e => { const c = e.target.dataset.c; if(!c) return; setInPlay(c, e.target.checked); };
+  $('#cfQ').oninput = () => { const q = norm($('#cfQ').value); document.querySelectorAll('#cfList .cardrow').forEach(r => { r.style.display = !q || norm(r.textContent).includes(q) ? '' : 'none'; }); };
+  $('#cfDone').onclick = closePanel;
+}
+function sumKinds(c){
+  return c.kinds.map(k => ({tokX:`tokens x${k.f}${k.creatureOnly ? ' (creatures)' : ''}`, tokAdd:'tokens +1', tokExtra:`plus a ${k.what}`, ctrX:`${k.plusOnly ? '+1/+1 ' : ''}counters x${k.f}`, ctrAdd:`${k.plusOnly ? '+1/+1 ' : ''}counters +1${k.others ? ' (others)' : ''}`,
+    enters:`creatures arrive with ${k.n === 'V' ? k.what : '1'} counter${k.n === 1 ? '' : 's'}`, entersIf:`small creatures arrive with ${k.n} counters`, anthem:`${k.type}s +${k.p}/+${k.t}`, haste:`${k.type}s have haste`, animosity:'attackers pump each other',
+    death:`${k.type}s dying deal ${k.dmg}`, trig: k.when + (k.act ? ': ' + ({dbl:'double counters', put:'put counters', token:'make tokens'}[k.act.do]) : ' reminder')}[k.k])).filter(Boolean).join(' · ');
+}
+function setInPlay(name, on){
+  act(() => { S.inPlay = S.inPlay || {}; if(on) S.inPlay[name] = S.inPlay[name] || {}; else delete S.inPlay[name]; }, `${name.split(',')[0]} ${on ? 'in play' : 'left play'}.`);
+}
+/* One card: from the camera, the In play strip or a search. Everything it can do for the token board. */
+function cardSheet(name){
+  const c = deckCard(name); if(!c){ closePanel(); return; }
+  const on = !!S.inPlay[c.name];
+  const toks = c.toks.map(k => deckData.tokens.find(t => t.key === k)).filter(Boolean);
+  const trigs = c.kinds.filter(k => k.k === 'trig' && k.act);
+  const needV = c.kinds.find(k => k.k === 'enters' && k.n === 'V');
+  const copies = c.creature ? deckData.copies : [];
+  openPanel(c.name, `
+    <div class="addhead"><div class="ra" style="background-image:url('${esc(c.art)}')"></div><div><div class="help">${esc(c.type)}${c.side ? ' · Side deck' : ''}</div>${c.kinds.length ? `<div class="help">${esc(sumKinds(c))}</div>` : ''}</div></div>
+    <div class="oracle">${esc(c.oracle)}</div>
+    ${c.kinds.length ? `<button class="btn ${on ? '' : 'gold'}" id="csIn">${on ? 'It left play' : 'Mark it in play'}</button>` : ''}
+    ${needV && on ? `<div class="sec"><label>${esc(needV.what)}</label>${numCtl('csV', numOr(S.inPlay[c.name].v, 0), 0, 12)}</div>` : ''}
+    ${trigs.map((k, i) => `<button class="btn" data-tr="${i}">${esc(trigLabel(c, k))}</button>`).join('')}
+    ${toks.length ? `<div class="lbl">Tokens it makes</div><div class="results">${toks.map((t, i) => `<button class="res" data-tk="${i}"><div class="ra" style="background-image:url('${esc(t.art)}')"></div><div class="rt"><b>${esc(t.name)}${t.creature ? ' ' + esc(t.basePow) + '/' + esc(t.baseTou) : ''}</b></div></button>`).join('')}</div>` : ''}
+    ${copies.length ? `<div class="lbl">Bring it back as a token</div>${copies.map((e, i) => `<button class="btn" style="justify-content:flex-start;white-space:normal;text-align:left;padding:8px 12px" data-cp="${i}"><span><b>${esc(e.name)}</b>${S.inPlay[e.name] ? ' · in play' : ''}<br><span class="help">${esc(e.except || 'A plain copy')}</span></span></button>`).join('')}` : ''}
+  `, `<button class="btn" id="csDone">Done</button>`);
+  if($('#csIn')) $('#csIn').onclick = () => { setInPlay(c.name, !on); cardSheet(c.name); };
+  if(needV && on) wireNum('csV', 0, v => { S.inPlay[c.name].v = v; save(); render(); });
+  document.querySelectorAll('[data-tr]').forEach(b => b.onclick = () => runTrig(c, trigs[+b.dataset.tr]));
+  document.querySelectorAll('[data-tk]').forEach(b => b.onclick = () => addPanel(Object.assign({}, toks[+b.dataset.tk], {makers:[c.name]})));
+  document.querySelectorAll('[data-cp]').forEach(b => b.onclick = () => addPanel(applyExcept(c, copies[+b.dataset.cp])));
+  $('#csDone').onclick = closePanel;
+}
+
+/* ---------- Triggers ---------- */
+function trigLabel(c, k){
+  const n = c.name.split(',')[0], a = k.act;
+  if(a.do === 'dbl') return `${n}: double the counters on ${a.all ? 'every creature token' : 'one pile'}`;
+  if(a.do === 'put') return `${n}: put ${a.n === 'X' ? 'X' : a.n} counter${a.n === 1 ? '' : 's'} on ${a.all ? 'every creature token' : 'one pile'}`;
+  if(a.do === 'token') return `${n}: make ${a.n === 'X' ? 'X' : a.n} ${(deckData.tokens.find(t => t.key === c.toks[0]) || {name:'token'}).name}${a.attacking ? ', tapped and attacking' : a.tapped ? ', tapped' : ''}`;
+  return n;
+}
+function runTrig(c, k, back){
+  const a = k.act, creaturePiles = S.groups.filter(g => g.creature && g.count);
+  if(a.do === 'token'){
+    const t = deckData.tokens.find(x => x.key === c.toks[0]); if(!t){ cardSheet(c.name); return; }
+    if(a.n === 'X'){ addPanel(Object.assign({}, t, {makers:[c.name]})); return; }
+    makeTokens(t, a.n, a.tapped || a.attacking, a.attacking); if(back) back(); else closePanel(); return;
+  }
+  const doIt = piles => {
+    let x = a.n;
+    if(a.do === 'put' && x === 'X' && !doIt.x){ openPanel('What is X', `<p class="help">X is ${esc(a.xWhat || 'the number on the card')}.</p>${numCtl('xV', 1, 1, 20)}`, `<button class="btn gold" id="xGo">Put them on</button>`); let v = 1; wireNum('xV', 1, n => { v = n; }); $('#xGo').onclick = () => { doIt.x = v; doIt(piles); }; return; }
+    if(doIt.x) x = doIt.x;
+    act(() => piles.forEach(g => { g.plus += counterMath(a.do === 'dbl' ? g.plus : x).total; }), `${c.name.split(',')[0]}: done on ${piles.length} pile${piles.length === 1 ? '' : 's'}.`);
+    if(back) back(); else closePanel();
+  };
+  if(a.all){ doIt(creaturePiles); return; }
+  openPanel('Which pile', `<p class="help">${esc(k.text)}</p>${creaturePiles.map(g => `<button class="btn" data-pg="${g.id}" style="justify-content:flex-start">${esc(g.name)} x${g.count} · ${pt(g).p}/${pt(g).t}</button>`).join('') || '<p class="msg">No creature tokens on the table.</p>'}`, `<button class="btn" id="wpBack">Back</button>`);
+  document.querySelectorAll('[data-pg]').forEach(b => b.onclick = () => doIt([grp(+b.dataset.pg)]));
+  $('#wpBack').onclick = () => back ? back() : cardSheet(c.name);
+}
+/* After New turn and after an attack: the in-play cards that do something now. */
+function cuePanel(when, title, onDone, doneLabel){
+  const list = []; inPlayCards().forEach(c => c.kinds.forEach(k => { if(k.k === 'trig' && (when.includes(k.when))) list.push({c, k}); }));
+  if(!list.length){ if(onDone) onDone(); return false; }
+  const draw = () => {
+    openPanel(title, (list.length ? '' : '<p class="msg">All done.</p>') + list.map((x, i) => `<div class="cue"><p class="help">${esc(x.c.name)}: ${esc(x.k.text)}</p>${x.k.act ? `<button class="btn gold" data-q="${i}">${esc(trigLabel(x.c, x.k))}</button>` : ''}</div>`).join(''), `<button class="btn ${onDone ? 'gold' : ''}" id="cqDone">${doneLabel || 'Done'}</button>`);
+    document.querySelectorAll('[data-q]').forEach(b => b.onclick = () => { const x = list[+b.dataset.q]; list.splice(+b.dataset.q, 1); runTrig(x.c, x.k, draw); });
+    $('#cqDone').onclick = finish;
+  };
+  let done = false; const finish = () => { if(done) return; done = true; closePanel(); if(onDone) onDone(); };
+  draw(); return true;
+}
+
+/* ---------- Attack ---------- */
+function attackPanel(){
+  const piles = S.groups.filter(g => g.creature && ready(g) > 0);
+  const opps = (S.players || []).map((p, i) => ({p, i})).filter(x => x.i > 0);
+  const anim = inPlayKinds('animosity').length > 0;
+  const n = {}; piles.forEach(g => { n[g.id] = ready(g); });
+  let real = 0, target = opps.length ? opps[0].i : -1;
+  openPanel('Attack', piles.length ? `
+    ${piles.map(g => `<div class="sec"><label>${esc(g.name)} · ${pt(g).p}/${pt(g).t} · ${ready(g)} can attack</label>${numCtl('at' + g.id, ready(g), 0, ready(g))}</div>`).join('')}
+    ${anim ? `<div class="sec"><label>Your real creatures attacking too, sharing a type</label>${numCtl('atReal', 0, 0, 10)}<p class="help">Shared Animosity counts them.</p></div>` : ''}
+    ${opps.length ? `<div class="sec"><label>At</label><div class="seg" id="atWho">${opps.map(x => `<button data-w="${x.i}" class="${x.i === target ? 'on' : ''}">${esc(x.p.name)}</button>`).join('')}<button data-w="-1">Nobody yet</button></div></div>` : ''}
+    <div class="math" id="atMath"></div>` : '<p class="msg">No creature tokens can attack. New turn clears summoning sickness.</p>',
+    piles.length ? `<button class="btn" id="atCancel">Cancel</button><button class="btn gold" id="atGo">Attack</button>` : `<button class="btn" id="atCancel">Close</button>`);
+  const math = () => {
+    const attackers = piles.filter(g => n[g.id] > 0);
+    let dmg = 0; const lines = [];
+    attackers.forEach(g => {
+      let p = Math.max(0, pt(g).p);
+      if(anim){ const shares = attackers.filter(o => o !== g && sharesType(o, g)).reduce((s, o) => s + n[o.id], 0) + (n[g.id] - 1) + real; p += shares; }
+      dmg += p * n[g.id]; lines.push(`${n[g.id]} ${esc(g.name)} x ${p}`);
+    });
+    $('#atMath').innerHTML = `${lines.join(' + ') || 'Nobody attacking'} = <b>${dmg}</b> damage`;
+    return dmg;
+  };
+  piles.forEach(g => wireNum('at' + g.id, 0, v => { n[g.id] = v; math(); }, () => ready(g)));
+  if($('#atReal')) wireNum('atReal', 0, v => { real = v; math(); });
+  if($('#atWho')) $('#atWho').onclick = e => { const b = e.target.closest('button'); if(!b) return; target = +b.dataset.w; $('#atWho').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); };
+  $('#atCancel').onclick = closePanel;
+  if(!piles.length) return;
+  math();
+  $('#atGo').onclick = () => {
+    act(() => { piles.forEach(g => { if(!/(^|\n)Vigilance/.test(g.oracle)) g.tapped += n[g.id]; clampG(g); }); });
+    // Attack triggers resolve before damage, so the damage is counted after them.
+    const deal = () => {
+      const attackers = piles.filter(g => n[g.id] > 0 && grp(g.id));
+      let dmg = 0; attackers.forEach(g => { let p = Math.max(0, pt(g).p); if(anim) p += attackers.filter(o => o !== g && sharesType(o, g)).reduce((s, o) => s + n[o.id], 0) + (n[g.id] - 1) + real; dmg += p * n[g.id]; });
+      act(() => { if(target > 0) S.players[target].life -= dmg; }, `Hit for ${dmg}${target > 0 ? ' at ' + S.players[target].name : ''}.`);
+    };
+    closePanel();
+    cuePanel(['attack'], 'Attack triggers', deal, 'Deal the damage');
+  };
+}
+function sharesType(a, b){ const st = g => (g.type.split('—')[1] || '').trim().split(/\s+/).filter(Boolean); const x = st(a); return st(b).some(w => x.includes(w)); }
+
+/* ---------- Sacrifice ---------- */
+function sacPanel(){
+  const piles = S.groups.filter(g => g.count);
+  const n = {}; piles.forEach(g => { n[g.id] = 0; });
+  openPanel('Sacrifice', piles.length ? piles.map(g => `<div class="sec"><label>${esc(g.name)} · ${g.count} on the table</label>${numCtl('sc' + g.id, 0, 0, g.count)}</div>`).join('') + '<div class="math" id="scMath"></div>' : '<p class="msg">No tokens on the table.</p>',
+    `<button class="btn" id="scCancel">Cancel</button>${piles.length ? '<button class="btn bad" id="scGo">Sacrifice</button>' : ''}`);
+  const math = () => { const t = Object.values(n).reduce((a, b) => a + b, 0); const d = deathText(piles.map(g => [g, n[g.id]])); $('#scMath').innerHTML = `<b>${t}</b> token${t === 1 ? '' : 's'}${d ? '<br>' + esc(d) : ''}`; };
+  piles.forEach(g => wireNum('sc' + g.id, 0, v => { n[g.id] = v; math(); }, () => g.count));
+  $('#scCancel').onclick = closePanel;
+  if(!piles.length) return;
+  math();
+  $('#scGo').onclick = () => {
+    const d = deathText(piles.map(g => [g, n[g.id]]));
+    act(() => { piles.forEach(g => { const k = n[g.id]; if(!k) return; const fromTap = Math.min(k, g.tapped); g.count -= k; g.tapped -= fromTap; clampG(g); }); S.groups = S.groups.filter(g => g.count > 0); }, 'Sacrificed.' + (d ? ' ' + d : ''));
+    closePanel();
+  };
+}
+/* Pashalik Mons and the like: how much damage the dying tokens deal. */
+function deathText(pairs){
+  return inPlayKinds('death').map(k => { const dead = pairs.reduce((s, [g, c]) => s + (typeMatch(g, k.type) ? c : 0), 0); return dead ? `${k.card.split(',')[0]}: ${dead * k.dmg} damage to any target.` : ''; }).filter(Boolean).join(' ');
+}
+
+/* ---------- A real creature died: Myrkul, Ratadrabik, Ardyn ---------- */
+function diedPanel(){
+  const D = deckData; const list = D.copies.slice().sort((a, b) => (S.inPlay[b.name] ? 1 : 0) - (S.inPlay[a.name] ? 1 : 0));
+  openPanel('A creature died', `<p class="help">Pick what brings it back, then scan or pick the creature.</p>${list.map((e, i) => `<button class="btn" style="justify-content:flex-start;white-space:normal;text-align:left;padding:8px 12px" data-e="${i}"><span><b>${esc(e.name)}</b>${S.inPlay[e.name] ? ' · in play' : ''}<br><span class="help">${esc(e.except || 'A plain copy')}</span></span></button>`).join('')}`, `<button class="btn" id="dpX">Close</button>`);
+  document.querySelectorAll('[data-e]').forEach(b => b.onclick = () => copyPick(list[+b.dataset.e], D));
+  $('#dpX').onclick = closePanel;
+}
+
+/* ---------- Life ---------- */
+function playersPanel(){
+  const ps = S.players;
+  openPanel('Players', `${ps.map((p, i) => `<div class="ctl"><input class="txt" data-pn="${i}" value="${esc(p.name)}" aria-label="Name">${i ? `<button class="btn ic" data-rm="${i}" aria-label="Remove">${I.minus}</button>` : ''}</div>`).join('')}
+    <button class="btn" id="ppAdd" ${ps.length >= 6 ? 'disabled' : ''}>${I.plus}Add an opponent</button>
+    <div class="sec"><label>Starting life</label>${numCtl('ppLife', S.startLife || 40, 1, 60)}</div>
+    <button class="btn" id="ppReset">Everyone back to starting life</button>`, `<button class="btn gold" id="ppDone">Done</button>`);
+  document.querySelectorAll('[data-pn]').forEach(el => el.onchange = () => { act(() => { ps[+el.dataset.pn].name = el.value.trim() || 'Player'; }); });
+  document.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { act(() => { ps.splice(+b.dataset.rm, 1); }, 'Player removed.'); playersPanel(); });
+  $('#ppAdd').onclick = () => { act(() => { ps.push({name: 'Opponent ' + ps.length, life: S.startLife || 40, poison:0, cmd:{}}); }); playersPanel(); };
+  wireNum('ppLife', 1, v => { S.startLife = v; save(); });
+  $('#ppReset').onclick = () => act(() => ps.forEach(p => { p.life = S.startLife || 40; p.poison = 0; p.cmd = {}; }), 'Life reset.');
+  $('#ppDone').onclick = closePanel;
+}
+function lifePanel(i){
+  const p = S.players[i]; if(!p) return;
+  const others = S.players.map((o, j) => ({o, j})).filter(x => x.j !== i);
+  openPanel(p.name, `
+    <div class="sec"><label>Life</label>${numCtl('lpL', p.life, -20, Math.max(60, p.life + 20))}</div>
+    <div class="sec"><label>Poison</label>${numCtl('lpP', p.poison || 0, 0, 10)}</div>
+    ${others.map(x => `<div class="sec"><label>Commander damage from ${esc(x.o.name)}</label>${numCtl('lpC' + x.j, (p.cmd || {})[x.j] || 0, 0, 21)}<p class="help">Raising it takes the same off their life.</p></div>`).join('')}`, `<button class="btn gold" id="lpDone">Done</button>`);
+  let snapped = false; const once = () => { if(!snapped){ snap(); snapped = true; } };
+  wireNum('lpL', -99, v => { once(); p.life = v; save(); renderBar(); });
+  wireNum('lpP', 0, v => { once(); p.poison = v; save(); renderBar(); }, () => 10);
+  others.forEach(x => wireNum('lpC' + x.j, 0, v => { once(); p.cmd = p.cmd || {}; const was = p.cmd[x.j] || 0; p.cmd[x.j] = v; p.life -= (v - was); const l = $('#lpL'); if(l){ l.value = p.life; $('#lpLR').value = p.life; } save(); renderBar(); }, () => 21));
+  $('#lpDone').onclick = closePanel;
 }
 
 /* ---------- Table settings ---------- */
@@ -981,11 +1342,11 @@ function menuPanel(){
   wireNum('mC', 0, v => { S.ctrDoublers = v; save(); renderStats(); }, () => 6);
   wireSmall('mAP', v => act(() => { S.anthem.p = v; }));
   wireSmall('mAT', v => act(() => { S.anthem.t = v; }));
-  $('#mPump').onclick = () => act(() => S.groups.forEach(g => { if(g.creature) g.plus += cmult(); }), cmult() > 1 ? 'Every creature token got ' + cmult() + ' +1/+1 counters.' : 'Every creature token got a +1/+1 counter.');
+  $('#mPump').onclick = () => act(() => S.groups.forEach(g => { if(g.creature) g.plus += counterMath(1).total; }), 'Every creature token got ' + counterMath(1).total + ' +1/+1 counter' + (counterMath(1).total > 1 ? 's.' : '.'));
   $('#mDouble').onclick = () => act(() => S.groups.forEach(g => { g.sick += g.count; g.count *= 2; }), 'Every pile doubled.');
   $('#mTapAll').onclick = () => act(() => S.groups.forEach(g => { if(g.creature) g.tapped = g.count; }), 'Every creature token tapped.');
   $('#mAwake').onchange = e => { S.awake = e.target.checked; save(); wake(); };
-  $('#mNew').onclick = () => { act(() => { S.groups = []; S.turn = 1; S.anthem = {p:0,t:0}; }, 'Table cleared.'); closePanel(); };
+  $('#mNew').onclick = () => { act(() => { S.groups = []; S.turn = 1; S.anthem = {p:0,t:0}; S.inPlay = {}; S.died = []; (S.players || []).forEach(p => { p.life = 40; p.poison = 0; p.cmd = {}; }); }, 'Table cleared, life back to 40.'); closePanel(); };
 }
 
 /* ---------- Keep the iPad awake ---------- */
@@ -999,7 +1360,7 @@ async function wake(){
 document.addEventListener('visibilitychange', wake);
 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
-render(); wake();
+render(); wake(); ensureDeck();
 </script>
 </body>
 </html>
