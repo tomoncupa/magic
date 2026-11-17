@@ -1587,7 +1587,9 @@ function drawIdeas(ctx, st){
   rateThen(ctx);
 
   var H = head('Upgrades and downgrades', 'Each pair swaps a card for one that does the same job, best for the deck score first. Every swap can be undone.');
-  var recs = safe(function(){ return E().recommend(60); }, null);
+  // Recommended stays as it was worked out while he adds and swaps; Reassess works it out again.
+  var recs = RECS[curId()] || safe(function(){ return E().recommend(60); }, null);
+  if(recs && recs.length) RECS[curId()] = recs;
   var tabs = [['rec', 'Recommended', recs ? recs.length : null], ['up', 'Upgrades', ups ? ups.length : null], ['down', 'Downgrades', cur > 1 ? (downs ? downs.length : null) : 0], ['int', 'Interesting<span class="bs-nosm"> cards</span>', ilist ? ilist.length : null]];
   H += '<div class="pg-tabsrow"><div class="bs-seg bs-block pg-seg3" role="group" aria-label="Show">' + tabs.map(function(t){
     var on = s.tab === t[0];
@@ -1661,17 +1663,20 @@ function drawIdeas(ctx, st){
 }
 
 /* Recommended: internet data only, no Claude. Each card shows its mark out of 10 and the parts behind it. */
+var RECS = {};
 function drawRecs(ctx, recs){
-  var H = '<div class="pg-controls"><p class="pg-legend pg-ctl-grow">From EDHREC and the deck\'s plans only, so Ask Claude is untouched. Each card is marked out of 10: synergy with ' + h(short()) + ' counts 40%, how many of its decks play it 30%, and fit with your plan 30%.</p></div>';
+  var set = deckSet(), added = recs ? recs.filter(function(x){ return isIn(set, x.n); }).length : 0;
+  var H = '<div class="pg-controls"><p class="pg-legend pg-ctl-grow">From EDHREC and the deck\'s plans only, so Ask Claude is untouched. Each card is marked out of 10: synergy with ' + h(short()) + ' counts 40%, how many of its decks play it 30%, and fit with your plan 30%. The list holds still while you add and swap; Reassess marks the cards again against the deck as it is now.</p>' +
+    (recs && recs.length ? '<button class="bs-btn bs-sm' + (added ? ' bs-primary' : ' bs-quiet') + '" type="button"' + ctx.act(function(){ delete RECS[curId()]; redraw(); say('Recommended cards marked again for the deck as it is now.'); }) + '>' + ico('refresh', 'bs-i16') + 'Reassess' + (added ? ' (' + added + ' added)' : '') + '</button>' : '') + '</div>';
   if(recs && recs.note) H += callout('info', h(recs.note));
   if(!recs || !recs.length) return H;
   var per = gridCols(ctx, 170) * 3, k = 'rec', all = isAll(k);
   H += '<section class="bs-section">' + sectionHead('Recommended for this deck', recs.length) +
     '<div class="bs-cgrid' + (all ? ' pg-all' : '') + '" style="--card-min:170px" data-more="' + moreKey(k) + '">' + recs.map(function(x, i){
-      var c = remember(x.c) || cardFor(x.n);
+      var c = remember(x.c) || cardFor(x.n), inn = isIn(set, x.n);
       var why = x.plan ? 'Fits your ' + x.planName.toLowerCase() + ' plan.' : 'No fit with your plans.';
       var st = '<span><b>' + (x.mark * 10).toFixed(1) + '</b> of 10</span>' + edhStats(x.inc, x.syn, false);
-      return tile(c || { n:x.n }, { hidden:!all && i >= per, badge:ownBadge(x.n) || (gcC(c) ? '<span class="bs-badge bs-warn">Game Changer</span>' : ''), why:why, stats:st, acts:addButtons(ctx, c, 'Recommended: ' + why) });
+      return tile(c || { n:x.n }, { inDeck:inn, hidden:!all && i >= per, badge:inn ? '<span class="bs-badge bs-good">In the deck</span>' : ownBadge(x.n) || (gcC(c) ? '<span class="bs-badge bs-warn">Game Changer</span>' : ''), why:why, stats:st, acts:inn ? '' : addButtons(ctx, c, 'Recommended: ' + why) });
     }).join('') + '</div>' + showAll(ctx, k, recs.length, per) + '</section>';
   return H;
 }
